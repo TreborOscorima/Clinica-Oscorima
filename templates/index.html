@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clínica Estética - Gestión</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="brand">Clínica Estética WAYKI SAC</div>
+        <nav>
+          <a href="#" data-route="dashboard">Dashboard</a>
+          <a href="#" data-route="turnos">Turnos</a>
+          <a href="#" data-route="caja">Caja & Facturación</a>
+          <a href="#" data-route="pacientes">Pacientes</a>
+          <a href="#" data-route="profesionales">Profesionales</a>
+          <a href="#" data-route="inventario">Inventario</a>
+          <a href="#" data-route="servicios">Servicios</a>
+          <a href="#" data-route="reportes">Reportes</a>
+          <hr />
+          <a href="#" id="logout">Cerrar sesión</a>
+        </nav>
+      </aside>
+      <main class="content">
+        <div id="login-view" class="card">
+          <h2>Ingresar</h2>
+          <form id="login-form">
+            <div class="form-row">
+              <label>Email</label>
+              <input
+                id="login-email"
+                type="email"
+                placeholder="admin@clinic.local"
+                required
+              />
+            </div>
+            <div class="form-row">
+              <label>Contraseña</label>
+              <input
+                id="login-pass"
+                type="password"
+                placeholder="Admin123!"
+                required
+              />
+            </div>
+            <button id="btn-login" type="submit">Entrar</button>
+          </form>
+          <div id="login-msg" class="muted"></div>
+        </div>
+
+        <div id="router-view" style="display: none">
+          <h2 id="route-title">Dashboard</h2>
+          <div id="route-content"></div>
+        </div>
+      </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/modules/pacientes.js"></script>
+    <script src="/static/js/modules/turnos.js"></script>
+    <script src="/static/js/modules/servicios.js"></script>
+    <script src="/static/js/modules/profesionales.js"></script>
+    <script src="/static/js/modules/caja.js"></script>
+    <script src="/static/js/modules/inventario.js"></script>
+    <script src="/static/js/modules/reportes.js"></script>
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>

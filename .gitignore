@@ -1,0 +1,64 @@
+# -------- OS / Editor --------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.history/
+
+# -------- Environment / Secrets --------
+.env
+.env.*
+*.env
+*.key
+*.pem
+
+# -------- Python --------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage*
+htmlcov/
+.ipynb_checkpoints/
+
+# -------- Flask --------
+# Carpeta runtime para config/instancia
+instance/
+
+# -------- Django (si existiera en el repo) --------
+# Si no usás Django podés dejar estas líneas; no hacen daño.
+staticfiles/
+static_root/
+
+# -------- Build artifacts --------
+dist/
+build/
+out/
+coverage/
+
+# -------- Database / Dumps (local sólo) --------
+*.db
+*.sqlite3
+*.db-journal
+*.sql
+*.sql.gz
+*.dump
+*.bak
+*.tar
+*.tar.gz
+*.zip
+backups/
+
+# -------- Media / Logs (runtime) --------
+uploads/
+media/
+logs/
+*.log
