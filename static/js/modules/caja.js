@@ -134,7 +134,7 @@ window.CajaModule = (function () {
               <th>Descripción</th>
               <th>Cantidad</th>
               <th>Precio Unitario</th>
-              <th class="right">Sub Total</th>
+              <th class="right">Subtotal</th>
               <th></th>
             </tr>
           </thead>
