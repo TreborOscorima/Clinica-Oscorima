@@ -13,8 +13,12 @@ from utils.decorators import role_required
 from utils.audit import log_action
 
 # ReportLab para PDFs
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+try:  # pragma: no cover - fallback para entornos sin ReportLab
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+except ModuleNotFoundError:  # pragma: no cover - solo usado en pruebas/entornos mínimos
+    A4 = None
+    canvas = None
 
 # Modelos / Schemas
 from models.caja import (
@@ -217,6 +221,8 @@ def crear_comprobante():
 @bp.get("/comprobantes/<int:cid>/pdf")
 @jwt_required()
 def comprobante_pdf(cid):
+    if canvas is None or A4 is None:
+        return {"message": "ReportLab no disponible"}, 501
     c = Comprobante.query.get_or_404(cid)
     subtotal = dec2(getattr(c, "total_bruto", None) or sum((it.subtotal or 0) for it in (c.items or [])))
     desc = dec2(getattr(c, "descuento_global", None) or 0)
@@ -695,6 +701,8 @@ def cierre_confirmar():
 @bp.get("/cierres/diario/<fecha>/pdf")
 @jwt_required()
 def cierre_diario_pdf(fecha):
+    if canvas is None or A4 is None:
+        return {"message": "ReportLab no disponible"}, 501
     try:
         f = date.fromisoformat(fecha)
     except Exception:
