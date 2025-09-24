@@ -174,16 +174,13 @@ window.InventarioModule = (function(){
       .switch input{opacity:0;width:0;height:0}
       .slider{position:absolute;cursor:pointer;inset:0;background:#d1d5db;border-radius:999px;transition:.2s}
       .slider:before{position:absolute;content:"";height:18px;width:18px;left:2px;top:2px;background:white;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
-      input:checked + .slider{background:#22c55e}
+      input:checked + .slider{background:var(--color-success,#22c55e)}
       input:checked + .slider:before{transform:translateX(20px)}
-      .suggest{position:absolute;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:10;max-height:240px;overflow:auto}
-      .sug{padding:6px 8px;cursor:pointer}
-      .sug.active,.sug:hover{background:#f3f4f6}
-      .pl-row .ed{display:none;width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px}
+      .sug{padding:0.6rem 0.85rem;cursor:pointer}
+      .sug.active,.sug:hover{background:var(--hover-bg,#f3f4f6)}
+      .pl-row .ed{display:none;width:100%;padding:8px 12px;border:1px solid #d7dce3;border-radius:var(--border-radius-sm,8px);font:inherit}
       .pl-row.editing .ro{display:none}
       .pl-row.editing .ed{display:inline-block}
-      .btn-ghost{padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer}
-      .btn-ghost.primary{border-color:#2563eb}
     `;
     document.head.appendChild(st);
   })();
@@ -217,15 +214,17 @@ window.InventarioModule = (function(){
     return `
       <tr data-row="${idx}">
         <td>
-          <input class="cp-prod-buscar" placeholder="SKU o nombre" autocomplete="off">
-          <div class="suggest cp-sug"></div>
+          <div class="ac-wrap">
+            <input class="cp-prod-buscar" placeholder="SKU o nombre" autocomplete="off">
+            <div class="suggest ac-list cp-sug" style="display:none"></div>
+          </div>
           <input type="hidden" class="cp-prod-id">
           <div class="muted cp-prod-chosen"></div>
         </td>
         <td><input class="cp-cant" type="number" step="0.001"></td>
         <td><input class="cp-costo" type="number" step="0.01"></td>
         <td class="cp-subtotal">${money(0)}</td>
-        <td><button class="cp-eliminar">×</button></td>
+        <td class="table-actions table-actions--compact"><button class="btn btn-danger cp-eliminar" type="button">Quitar</button></td>
       </tr>
     `;
   }
@@ -233,8 +232,10 @@ window.InventarioModule = (function(){
     return `
       <tr data-row="${idx}">
         <td>
-          <input class="lt-prod-buscar" placeholder="Buscar producto" autocomplete="off">
-          <div class="suggest lt-sug"></div>
+          <div class="ac-wrap">
+            <input class="lt-prod-buscar" placeholder="Buscar producto" autocomplete="off">
+            <div class="suggest ac-list lt-sug" style="display:none"></div>
+          </div>
           <input type="hidden" class="lt-prod-id">
           <div class="muted lt-prod-chosen"></div>
         </td>
@@ -246,9 +247,9 @@ window.InventarioModule = (function(){
           </select>
         </td>
         <td><input class="lt-cant" type="number" step="0.001"></td>
-        <td><input class="lt-motivo" placeholder="motivo"></td>
-        <td><input class="lt-ref" placeholder="ref"></td>
-        <td><button class="lt-eliminar">×</button></td>
+        <td><input class="lt-motivo" placeholder="Motivo"></td>
+        <td><input class="lt-ref" placeholder="Referencia"></td>
+        <td class="table-actions table-actions--compact"><button class="btn btn-danger lt-eliminar" type="button">Quitar</button></td>
       </tr>
     `;
   }
@@ -260,142 +261,188 @@ window.InventarioModule = (function(){
     routeTitle.textContent = "Inventario";
 
     routeContent.innerHTML = `
-      <div class="card">
-        <h3>Producto (crear rápido)</h3>
-        <div class="row">
-          <div class="col"><label>SKU</label><input id="pr-sku"></div>
-          <div class="col"><label>Nombre</label><input id="pr-nombre" required></div>
-          <div class="col"><label>Stock mínimo</label><input id="pr-min" type="number" step="0.001"></div>
-          <div class="col"><label>Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
-          <div class="col"><label>&nbsp;</label><button id="pr-guardar">Guardar</button></div>
+      <section class="card inventory-card">
+        <header class="card-header">
+          <h3>Alta rápida de producto</h3>
+          <p class="card-subtitle">Registrá un nuevo producto con los datos esenciales para operar.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pr-sku">SKU</label><input id="pr-sku" placeholder="Código interno"></div>
+          <div class="form-row"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required placeholder="Nombre del producto"></div>
+          <div class="form-row"><label for="pr-min">Stock mínimo</label><input id="pr-min" type="number" step="0.001" placeholder="0"></div>
+          <div class="form-row"><label for="pr-pv">Precio de venta</label><input id="pr-pv" type="number" step="0.01" placeholder="0.00"></div>
         </div>
-        <div id="pr-msg" class="muted"></div>
-      </div>
+        <div class="form-actions">
+          <button id="pr-guardar" class="btn btn-primary" type="button">Guardar producto</button>
+        </div>
+        <div id="pr-msg" class="form-feedback muted"></div>
+      </section>
 
-      <div class="card">
-        <h3>Listado de productos</h3>
-        <div class="row">
-          <div class="col"><label>Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
-          <div class="col">
-            <label>Estado</label>
+      <section class="card inventory-card">
+        <header class="card-header">
+          <h3>Listado de productos</h3>
+          <p class="card-subtitle">Gestioná stock, precios y estado desde un único panel.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pl-q">Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
+          <div class="form-row">
+            <label for="pl-estado">Estado</label>
             <select id="pl-estado">
               <option value="">Todos</option>
               <option value="true">Activos</option>
               <option value="false">Inactivos</option>
             </select>
           </div>
-          <div class="col">
-            <label>Por página</label>
+          <div class="form-row">
+            <label for="pl-per">Por página</label>
             <select id="pl-per"><option>10</option><option>25</option><option>50</option></select>
           </div>
-          <div class="col"><label>&nbsp;</label><button id="pl-filtrar">Aplicar</button></div>
+          <div class="form-row form-row--actions">
+            <label class="sr-only" for="pl-filtrar">Aplicar filtros</label>
+            <button id="pl-filtrar" class="btn btn-secondary" type="button">Aplicar filtros</button>
+          </div>
         </div>
-        <table class="table">
-          <thead><tr>
-            <th>SKU</th><th>Nombre</th><th>Stock</th><th>Mínimo</th><th>Precio venta</th><th>Últ. costo</th><th>Activo</th><th>Acciones</th>
-          </tr></thead>
-          <tbody id="pl-tbody"></tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr>
+              <th>SKU</th><th>Nombre</th><th>Stock</th><th>Mínimo</th><th>Precio venta</th><th>Últ. costo</th><th>Activo</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="pl-tbody"></tbody>
+          </table>
+        </div>
         <div class="pager">
-          <button id="pl-prev">Prev</button>
-          <span id="pl-info"></span>
-          <button id="pl-next">Next</button>
+          <button id="pl-prev" class="btn btn-secondary" type="button">Anterior</button>
+          <span id="pl-info" class="muted"></span>
+          <button id="pl-next" class="btn btn-secondary" type="button">Siguiente</button>
         </div>
-        <div id="pl-msg" class="muted"></div>
-      </div>
+        <div id="pl-msg" class="form-feedback muted"></div>
+      </section>
 
-      <div class="card" id="card-compra">
-        <h3>Registrar compra (boleta/factura)</h3>
-        <div class="row">
-          <div class="col"><label>Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
-          <div class="col"><label>Tipo doc</label>
+      <section class="card inventory-card" id="card-compra">
+        <header class="card-header">
+          <h3>Registrar compra</h3>
+          <p class="card-subtitle">Ingresá comprobantes para actualizar el inventario automáticamente.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
+          <div class="form-row"><label for="cp-tipo">Tipo de comprobante</label>
             <select id="cp-tipo"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
           </div>
-          <div class="col"><label>Número</label><input id="cp-numero" placeholder="Serie-00000000"></div>
-          <div class="col"><label>Nro. registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
+          <div class="form-row"><label for="cp-numero">Número</label><input id="cp-numero" placeholder="Serie-00000000"></div>
+          <div class="form-row"><label for="cp-registro">Nro. registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
         </div>
-        <table class="table" id="cp-tabla">
-          <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit</th><th>Subtotal</th><th></th></tr></thead>
-          <tbody id="cp-tbody"></tbody>
-          <tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td id="cp-total" style="font-weight:bold">${money(0)}</td><td></td></tr></tfoot>
-        </table>
-        <div class="row">
-          <div class="col"><button id="cp-add-row">Agregar ítem</button></div>
-          <div class="col"><label>&nbsp;</label><button id="cp-guardar" class="primary">Guardar compra</button></div>
-          <div class="col" style="display:none" id="cp-cancelar-wrap"><label>&nbsp;</label><button id="cp-cancelar-ed">Cancelar edición</button></div>
+        <hr class="card-divider">
+        <header class="section-header">
+          <h4>Detalle de productos</h4>
+          <p class="muted">Buscá el producto, definí cantidades y costos para cada ítem.</p>
+        </header>
+        <div class="table-scroll">
+          <table class="table table--compact" id="cp-tabla">
+            <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit.</th><th>Subtotal</th><th></th></tr></thead>
+            <tbody id="cp-tbody"></tbody>
+          </table>
         </div>
-        <div id="cp-compra-msg" class="muted"></div>
-      </div>
+        <div class="form-actions form-actions--right">
+          <button id="cp-add-row" class="btn btn-secondary" type="button">Agregar producto</button>
+        </div>
+        <div class="inventory-total">
+          <span>Total compra</span>
+          <strong id="cp-total">${money(0)}</strong>
+        </div>
+        <div class="form-actions">
+          <button id="cp-guardar" class="btn btn-primary" type="button">Guardar compra</button>
+          <div id="cp-cancelar-wrap" style="display:none"><button id="cp-cancelar-ed" class="btn btn-secondary" type="button">Cancelar edición</button></div>
+        </div>
+        <div id="cp-compra-msg" class="form-feedback muted"></div>
+      </section>
 
-      <div class="card">
-        <h3>Movimientos por lotes</h3>
-        <table class="table">
-          <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
-          <tbody id="lt-tbody"></tbody>
-        </table>
-        <div class="row">
-          <div class="col"><button id="lt-add-row">Agregar ítem</button></div>
-          <div class="col"><label>&nbsp;</label><button id="lt-guardar">Guardar todos</button></div>
-        </div>
-        <div id="lt-msg" class="muted"></div>
-      </div>
-
-      <div class="card">
-        <h3>Listado de movimientos</h3>
-        <div class="row">
-          <div class="col"><label>Desde</label><input id="fl-desde" type="datetime-local"></div>
-          <div class="col"><label>Hasta</label><input id="fl-hasta" type="datetime-local"></div>
-          <div class="col"><label>Tipo</label>
-            <select id="fl-tipo"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
+      <section class="card inventory-card">
+        <header class="card-header">
+          <h3>Movimientos recientes</h3>
+          <p class="card-subtitle">Consultá ingresos, egresos y ajustes registrados.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="fl-desde">Desde</label><input id="fl-desde" type="date"></div>
+          <div class="form-row"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="date"></div>
+          <div class="form-row"><label for="fl-tipo">Tipo</label>
+            <select id="fl-tipo">
+              <option value="">Todos</option>
+              <option value="ingreso">Ingresos</option>
+              <option value="egreso">Egresos</option>
+              <option value="ajuste">Ajustes</option>
+            </select>
           </div>
-          <div class="col"><label>&nbsp;</label><button id="fl-filtrar">Filtrar</button></div>
+          <div class="form-row form-row--actions">
+            <label class="sr-only" for="fl-filtrar">Filtrar movimientos</label>
+            <button id="fl-filtrar" class="btn btn-secondary" type="button">Filtrar</button>
+          </div>
         </div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Dato</th>
-              <th>Tipo</th>
-              <th>Cantidad</th>
-              <th>Motivo</th>
-              <th>Ref</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="mv-tbody"></tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Monto</th><th>Motivo</th><th>Referencia</th><th>Acciones</th></tr></thead>
+            <tbody id="mv-tbody"></tbody>
+          </table>
+        </div>
         <div class="pager">
-          <button id="mv-prev">Prev</button>
-          <span id="mv-info"></span>
-          <button id="mv-next">Next</button>
+          <button id="mv-prev" class="btn btn-secondary" type="button">Anterior</button>
+          <span id="mv-info" class="muted"></span>
+          <button id="mv-next" class="btn btn-secondary" type="button">Siguiente</button>
         </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <h3>Kardex</h3>
-        <div class="row">
-          <div class="col">
-            <label>Producto</label>
-            <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
-            <div id="kx-sug" class="suggest"></div>
+      <section class="card inventory-card">
+        <header class="card-header">
+          <h3>Movimientos por lotes</h3>
+          <p class="card-subtitle">Cargá múltiples movimientos manuales en una sola acción.</p>
+        </header>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Referencia</th><th></th></tr></thead>
+            <tbody id="lt-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form-actions">
+          <button id="lt-add-row" class="btn btn-secondary" type="button">Agregar fila</button>
+          <button id="lt-guardar" class="btn btn-primary" type="button">Registrar movimientos</button>
+        </div>
+        <div id="lt-msg" class="form-feedback muted"></div>
+      </section>
+
+      <section class="card inventory-card">
+        <header class="card-header">
+          <h3>Kardex por producto</h3>
+          <p class="card-subtitle">Seguimiento detallado de las entradas y salidas por producto.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row">
+            <label for="kx-prod">Producto</label>
+            <div class="ac-wrap">
+              <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
+              <div id="kx-sug" class="suggest ac-list" style="display:none"></div>
+            </div>
             <input type="hidden" id="kx-prod-id">
           </div>
-          <div class="col">
-            <label>Mostrar</label>
-            <select id="kx-perpage"><option value="10">Últimos 10</option><option value="25">25</option><option value="50">50</option></select>
+          <div class="form-row">
+            <label for="kx-perpage">Registros por página</label>
+            <select id="kx-perpage"><option value="10">10</option><option value="20">20</option><option value="50">50</option></select>
           </div>
-          <div class="col"><label>&nbsp;</label><button id="kx-ver">Ver</button></div>
+          <div class="form-row form-row--actions">
+            <label class="sr-only" for="kx-ver">Ver kardex</label>
+            <button id="kx-ver" class="btn btn-secondary" type="button">Ver kardex</button>
+          </div>
         </div>
-        <table class="table">
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Ref</th></tr></thead>
-          <tbody id="kx-tbody"></tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Referencia</th></tr></thead>
+            <tbody id="kx-tbody"></tbody>
+          </table>
+        </div>
         <div class="pager">
-          <button id="kx-prev">Prev</button>
-          <span id="kx-info"></span>
-          <button id="kx-next">Next</button>
+          <button id="kx-prev" class="btn btn-secondary" type="button">Anterior</button>
+          <span id="kx-info" class="muted"></span>
+          <button id="kx-next" class="btn btn-secondary" type="button">Siguiente</button>
         </div>
-      </div>
+      </section>
     `;
 
     // ===== Crear producto rápido =====
@@ -468,11 +515,11 @@ window.InventarioModule = (function(){
               <span class="slider"></span>
             </label>
           </td>
-          <td>
-            <button class="btn-ghost pl-edit">Editar</button>
-            <button class="btn-ghost primary pl-save" style="display:none">Guardar</button>
-            <button class="btn-ghost pl-cancel" style="display:none">Cancelar</button>
-            <button class="btn-ghost pl-hist">Historial</button>
+          <td class="table-actions table-actions--compact">
+            <button class="btn btn-secondary pl-edit" type="button">Editar</button>
+            <button class="btn btn-primary pl-save" type="button" style="display:none">Guardar</button>
+            <button class="btn btn-secondary pl-cancel" type="button" style="display:none">Cancelar</button>
+            <button class="btn btn-light pl-hist" type="button">Historial</button>
           </td>
         </tr>
       `;
@@ -779,9 +826,9 @@ window.InventarioModule = (function(){
           <td>${money(fallbackMonto(r))}</td>
           <td>${r.motivo||""}</td>
           <td>${r.referencia||""}</td>
-          <td>
-            <button class="mv-revisar" data-id="${r.id}">Revisar</button>
-            ${(String(r.tipo||'').toLowerCase()==='ingreso') ? `<button class="mv-editar" data-id="${r.id}">Editar</button>` : ``}
+          <td class="table-actions table-actions--compact">
+            <button class="btn btn-secondary mv-revisar" type="button" data-id="${r.id}">Revisar</button>
+            ${(String(r.tipo||'').toLowerCase()==='ingreso') ? `<button class="btn btn-secondary mv-editar" type="button" data-id="${r.id}">Editar</button>` : ``}
           </td>
         </tr>
       `).join("");

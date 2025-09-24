@@ -176,6 +176,45 @@ img {
   gap: 20px;
 }
 
+.inventory-card {
+  gap: 24px;
+}
+
+.inventory-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.inventory-total strong {
+  font-size: 1.2rem;
+  color: var(--color-primary);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pager .btn {
+  flex: 0 0 auto;
+}
+
+.pager span {
+  flex: 1 1 160px;
+  text-align: center;
+  font-weight: 500;
+}
+
 .caja-card {
   gap: 28px;
 }
