@@ -6,6 +6,111 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import func, text
 from extensions import db
 
+def _base_ref(ref: str) -> str:
+    ref = (ref or "").strip()
+    return ref[:-4] if ref.endswith("-SRV") else ref
+
+def _try_fetch_comprobante_by_ref(ref: str):
+    """Devuelve dict {'id','numero','total','paciente_nombre','items':[{'producto':{'id'},'cantidad','precio_unitario','subtotal'}]} o None."""
+    try:
+        from models.caja import Comprobante, ComprobanteItem
+        try:
+            from models.paciente import Paciente
+        except Exception:
+            Paciente = None
+    except Exception:
+        return None
+
+    if not ref:
+        return None
+    numero = _base_ref(ref)
+
+    # Buscar por numero completo
+    c = None
+    if hasattr(Comprobante, "numero"):
+        c = Comprobante.query.filter(func.lower(Comprobante.numero) == numero.lower()).first()
+
+    # Buscar por serie/correlativo si aplica
+    if (not c) and "-" in numero:
+        pref, suf = numero.split("-", 1)
+        q = Comprobante.query
+        if hasattr(Comprobante, "serie"):
+            q = q.filter(func.lower(Comprobante.serie) == pref.lower())
+        if hasattr(Comprobante, "correlativo"):
+            q = q.filter(func.lower(Comprobante.correlativo) == suf.lower())
+        c = q.first()
+
+    if not c:
+        return None
+
+    # Items
+    items = []
+    its = ComprobanteItem.query.filter_by(comprobante_id=c.id).all() if ComprobanteItem else []
+    for it in its:
+        item_tipo = str(getattr(it, "tipo", "") or "").lower()
+        if item_tipo in {"servicio", "service"}:
+            # ignorar servicios u otros conceptos en el detalle de inventario
+            continue
+        pid_it = getattr(it, "ref_id", None) or getattr(it, "producto_id", None)
+        cant = float(getattr(it, "cantidad", 0) or 0)
+        pvu = getattr(it, "precio_unitario", None)
+        if pvu is None:
+            pvu = getattr(it, "precio_unit", None)
+        if pvu is None:
+            pvu = getattr(it, "precio", None)
+        pvu = float(pvu or 0)
+        sub = getattr(it, "subtotal", None)
+        if sub is None:
+            sub = cant * pvu
+        nombre_linea = getattr(it, "nombre", None)
+        items.append({
+            "producto": {"id": pid_it} if pid_it else None,
+            "cantidad": cant,
+            "precio_unitario": pvu,
+            "subtotal": float(sub or 0),
+            "tipo": item_tipo or None,
+            "nombre": nombre_linea,
+        })
+
+    # Total
+    total = float(getattr(c, "total", 0) or 0)
+    if not total:
+        total = float(sum(x["subtotal"] for x in items))
+
+    # Paciente / Razón social
+    paciente_nombre = ""
+    paciente_documento = ""
+    paciente_id = getattr(c, "paciente_id", None)
+    if paciente_id and 'Paciente' in globals() and Paciente:
+        p = Paciente.query.get(paciente_id)
+        if p:
+            nombres = getattr(p, "nombres", "") or getattr(p, "nombre", "")
+            apellidos = getattr(p, "apellidos", "") or ""
+            paciente_nombre = (f"{nombres} {apellidos}").strip() or getattr(p, "razon_social", "") or paciente_nombre
+            paciente_documento = getattr(p, "documento", "") or getattr(p, "dni", "") or paciente_documento
+
+    for fld in ("paciente_nombre", "cliente_nombre", "razon_social", "cliente_razon_social"):
+        if not paciente_nombre:
+            val = getattr(c, fld, None)
+            if val:
+                paciente_nombre = str(val)
+    for fld in ("paciente_documento", "cliente_documento", "documento", "cliente_doc", "doc", "dni"):
+        if not paciente_documento:
+            val = getattr(c, fld, None)
+            if val:
+                paciente_documento = str(val)
+
+    return {
+        "id": c.id,
+        "numero": getattr(c, "numero", numero),
+        "total": total,
+        "paciente_nombre": paciente_nombre,
+        "paciente_documento": paciente_documento,
+        "paciente_id": paciente_id,
+        "items": items,
+    }
+
+
 # Modelos base de inventario
 from models.inventario import (
     Producto,
@@ -221,11 +326,11 @@ def _mov_monto(m):
     return float((cant * costo).quantize(DEC2, rounding=ROUND_HALF_UP))
 
 def _group_key(m):
-    """Clave de agrupación por tipo + referencia (si no hay, por id)."""
+    """Clave de agrupación por tipo + referencia base (unifica VENTA/SERVICIO)."""
     t = (str(getattr(m, "tipo", "") or "")).lower()
-    ref = (getattr(m, "referencia", "") or "").strip() or f"__id_{getattr(m, 'id', '')}"
-    mot = (getattr(m, "motivo", "") or "").strip().lower()
-    return f"{t}::{ref}::{mot}"
+    ref = _base_ref(getattr(m, "referencia", "") or "") or f"__id_{getattr(m, 'id', '')}"
+    return f"{t}::{ref}"
+
 
 def _parse_bool(s):
     if s is None:
@@ -915,6 +1020,8 @@ def listar_movimientos():
     q = MovimientoStock.query
     if tipo:
         q = q.filter(func.lower(MovimientoStock.tipo) == tipo)
+    else:
+        q = q.filter(MovimientoStock.tipo.in_(["ingreso","egreso"]))
     if desde:
         q = q.filter(MovimientoStock.fecha >= desde)
     if hasta:
@@ -929,7 +1036,7 @@ def listar_movimientos():
         if not g:
             g = {
                 "tipo": (str(m.tipo) or "").upper(),
-                "referencia": m.referencia,
+                "referencia": _base_ref(m.referencia or ""),
                 "ids": [m.id],
                 "fecha": m.fecha,
                 "motivo": m.motivo,
@@ -950,9 +1057,19 @@ def listar_movimientos():
             if compra and compra.get("total") is not None:
                 monto = float(D(compra["total"], DEC2))
             else:
-                monto = float(D(sum(_mov_monto(m) for m in g["movs"]), DEC2))
+                comp = _try_fetch_comprobante_by_ref(g.get("referencia"))
+                if comp and comp.get("total") is not None:
+                    monto = float(D(comp["total"], DEC2))
+                else:
+                    monto = float(D(sum(_mov_monto(m) for m in g["movs"]), DEC2))
+
         else:
-            monto = float(D(sum(_mov_monto(m) for m in g["movs"]), DEC2))
+            comp = _try_fetch_comprobante_by_ref(g.get("referencia"))
+            if comp and comp.get("total") is not None:
+                monto = float(D(comp["total"], DEC2))
+            else:
+                monto = float(D(sum(_mov_monto(m) for m in g["movs"]), DEC2))
+
 
         rows_out.append({
             "id": g["ids"][0],
@@ -986,6 +1103,8 @@ def get_movimiento(mid):
     t = (str(m.tipo) or "").upper()
     items = []
     total_grupo = D(0, DEC2)
+    cliente_nombre = ""
+    cliente_documento = ""
 
     if "INGRESO" in t and compra:
         for it in (compra.get("items") or []):
@@ -1003,27 +1122,48 @@ def get_movimiento(mid):
             total_grupo = D(compra["total"], DEC2)
 
     else:
-        q = (MovimientoStock.query
-                .filter(MovimientoStock.referencia == m.referencia)
-                .filter(func.lower(MovimientoStock.tipo) == func.lower(m.tipo)))
-        mot = (getattr(m, 'motivo', '') or '').strip()
-        if mot:
-            q = q.filter(MovimientoStock.motivo == mot)
+        # EGRESO/AJUSTE -> intentar cargar desde Comprobante (precios de venta)
+        comp = _try_fetch_comprobante_by_ref(_base_ref(m.referencia))
+        if comp:
+            for it in (comp.get("items") or []):
+                cant = D(it.get("cantidad", 0), DEC3)
+                pvu = D(it.get("precio_unitario", 0), DEC2)
+                sub = (cant * pvu).quantize(DEC2, rounding=ROUND_HALF_UP)
+                prod_payload = it.get("producto")
+                if not prod_payload and it.get("nombre"):
+                    prod_payload = {"nombre": it.get("nombre")}
+                items.append({
+                    "producto": prod_payload,
+                    "cantidad": float(cant),
+                    "precio_unitario": float(pvu),
+                    "subtotal": float(sub),
+                    "nombre": it.get("nombre"),
+                    "tipo": it.get("tipo"),
+                })
+                total_grupo += sub
+            cliente_nombre = comp.get("paciente_nombre") or ""
+            cliente_documento = comp.get("paciente_documento") or comp.get("cliente_documento") or ""
+            total_grupo = D(comp.get("total", float(total_grupo)), DEC2)
         else:
-            q = q.filter((MovimientoStock.motivo == None) | (MovimientoStock.motivo == ''))  # noqa: E711
-        movs = q.all()
-        for x in movs:
-            prod = Producto.query.get(x.producto_id)
-            costo = D(getattr(prod, "precio_costo", 0), DEC2)
-            cant = D(abs(x.cantidad or 0), DEC3)
-            sub = (cant * costo).quantize(DEC2, rounding=ROUND_HALF_UP)
-            items.append({
-                "producto": _dump_producto(prod) if prod else {"id": x.producto_id},
-                "cantidad": float(cant),
-                "costo_unitario": float(costo),
-                "subtotal": float(sub),
-            })
-            total_grupo += sub
+            # Fallback: unificar por referencia base + tipo, ignorando motivo
+            movs = (MovimientoStock.query
+                    .filter(func.lower(MovimientoStock.tipo) == func.lower(m.tipo))
+                    .filter(func.lower(MovimientoStock.referencia) == func.lower(_base_ref(m.referencia)))
+                    .order_by(MovimientoStock.id.asc())
+                    .all())
+            for x in movs:
+                prod = Producto.query.get(x.producto_id)
+                costo = D(getattr(prod, "precio_costo", 0), DEC2)
+                cant = D(abs(x.cantidad or 0), DEC3)
+                sub = (cant * costo).quantize(DEC2, rounding=ROUND_HALF_UP)
+                items.append({
+                    "producto": _dump_producto(prod) if prod else {"id": x.producto_id},
+                    "cantidad": float(cant),
+                    "costo_unitario": float(costo),
+                    "subtotal": float(sub),
+                })
+                total_grupo += sub
+
 
     return {
         "id": m.id,
@@ -1033,10 +1173,12 @@ def get_movimiento(mid):
         "cantidad": float(m.cantidad or 0),
         "saldo": float(m.saldo or 0),
         "motivo": m.motivo,
-        "referencia": m.referencia,
+        "referencia": _base_ref(m.referencia or ""),
         "producto": _dump_producto(p) if p else None,
         "producto_label": _mov_producto_label(m),
         "monto": _mov_monto(m),
+        "cliente_nombre": cliente_nombre,
+        "cliente_documento": cliente_documento,
         "compra": compra,
         "compra_id": compra["id"] if compra else None,
         "compra_numero": compra["numero"] if compra else None,
@@ -1101,7 +1243,7 @@ def kardex():
             "cantidad": float(m.cantidad or 0),
             "saldo": float(m.saldo or 0),
             "motivo": m.motivo,
-            "referencia": m.referencia,
+            "referencia": _base_ref(m.referencia or ""),
         }
         for m in rows
     ]
@@ -1132,3 +1274,4 @@ def listar_precios_hist(pid: int):
         } for r in rows
     ]
     return {"data": data, "total": len(data)}
+

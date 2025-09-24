@@ -141,8 +141,13 @@ def stock_bajo():
             .order_by(Producto.nombre.asc())
             .limit(500).all())
     rows = [{
-        "id": p.id, "sku": p.sku, "nombre": p.nombre, "categoria": p.categoria,
-        "stock_actual": float(p.stock_actual or 0), "stock_minimo": float(p.stock_minimo or 0), "unidad": p.unidad
+        "id": p.id,
+        "sku": p.sku,
+        "nombre": p.nombre,
+        "categoria": getattr(p, "categoria", ""),
+        "stock_actual": float(p.stock_actual or 0),
+        "stock_minimo": float(p.stock_minimo or 0),
+        "unidad": getattr(p, "unidad", ""),
     } for p in data]
     return {"data": rows}
 
@@ -198,15 +203,15 @@ def export_csv():
         return {"message":"tipo inválido"}, 400
 
     if tipo == "stock_bajo":
-        payload = stock_bajo().get_json()
+        payload = stock_bajo()
         rows = payload["data"]
         headers = ["id","sku","nombre","categoria","stock_actual","stock_minimo","unidad"]
     elif tipo == "atenciones":
-        payload = atenciones().get_json()
+        payload = atenciones()
         rows = payload["data"]
         headers = ["clave","cantidad"]
     else:  # facturacion
-        payload = facturacion().get_json()
+        payload = facturacion()
         rows = payload["data"]
         headers = ["clave","monto","total_global"]
         total = payload.get("total", 0)

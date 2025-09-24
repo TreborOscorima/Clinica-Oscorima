@@ -83,6 +83,8 @@ window.CajaModule = (function () {
             <label>Paciente</label>
             <input id="pos-pac-q" placeholder="Buscar por nombre/DNI">
             <input type="hidden" id="pos-paciente-id">
+            <label for="pos-pac-doc" class="muted" style="margin-top:6px;">Documento</label>
+            <input id="pos-pac-doc" placeholder="DNI" readonly>
             <ul class="suggest" id="pos-pac-suggest" style="display:none"></ul>
           </div>
           <div class="col">
@@ -134,7 +136,7 @@ window.CajaModule = (function () {
               <th>Descripción</th>
               <th>Cantidad</th>
               <th>Precio Unitario</th>
-              <th class="right">Sub Total</th>
+              <th class="right">Subtotal</th>
               <th></th>
             </tr>
           </thead>
@@ -192,6 +194,7 @@ window.CajaModule = (function () {
       pacQ: document.getElementById("pos-pac-q"),
       pacSug: document.getElementById("pos-pac-suggest"),
       pacId: document.getElementById("pos-paciente-id"),
+      pacDoc: document.getElementById("pos-pac-doc"),
       tipoComp: document.getElementById("pos-tipo"),
 
       itemTipo: document.getElementById("pos-item-tipo"),
@@ -222,6 +225,7 @@ window.CajaModule = (function () {
     items = [];
     pagos = [{ metodo: "efectivo", monto: 0 }];
     pacienteSel = null;
+    if (refs.pacDoc) refs.pacDoc.value = "";
     descuento = { tipo: "none", valor: 0 };
     currentTurnoId = null;
 
@@ -244,25 +248,42 @@ window.CajaModule = (function () {
   // Paciente
   // =======================
   function bindPaciente() {
-    const { pacQ, pacSug, pacId } = refs;
+    const { pacQ, pacSug, pacId, pacDoc } = refs;
     const show = (arr) => {
       if (!arr || !arr.length) { pacSug.style.display="none"; pacSug.innerHTML=""; return; }
       pacSug.style.display="block";
-      pacSug.innerHTML = arr.map(
-        (p)=>`<li data-id="${p.id}" data-name="${p.nombre}">${p.nombre || p.label || ""} <span class="muted">${p.documento || ""}</span></li>`
-      ).join("");
+      pacSug.innerHTML = arr.map((p)=>{
+        const id = p.id ?? p.paciente_id ?? "";
+        const nombre = (p.nombre || ([p.nombres, p.apellidos].filter(Boolean).join(" ")) || p.label || "").trim();
+        const doc = (p.documento || p.dni || p.doc || "").toString();
+        const safeDocAttr = doc.replace(/"/g, "&quot;");
+        const safeNameAttr = nombre.replace(/"/g, "&quot;");
+        const docHtml = doc ? ` <span class="muted">${doc}</span>` : "";
+        return `<li data-id="${id}" data-name="${safeNameAttr}" data-doc="${safeDocAttr}">${nombre}${docHtml}</li>`;
+      }).join("");
     };
     const search = debounce(async ()=>{
       const q = pacQ.value.trim(); if (q.length<2) return show([]);
       try { const r = await API.get(SEARCH_ENDPOINTS.paciente(q)); const arr = Array.isArray(r)?r:(r.data||[]); show(arr); } catch(_){ show([]); }
     }, 250);
-    pacQ.addEventListener("input", search);
+    const onPacInput = () => {
+      pacienteSel = null;
+      pacId.value = "";
+      if (pacDoc) pacDoc.value = "";
+      search();
+    };
+    pacQ.addEventListener("input", onPacInput);
     pacQ.addEventListener("focus", search);
     pacQ.addEventListener("blur", ()=>setTimeout(()=>pacSug.style.display="none",150));
     pacSug.addEventListener("click",(e)=>{
       const li = e.target.closest("li"); if(!li) return;
-      pacienteSel = { id:Number(li.dataset.id), nombre: li.dataset.name };
-      pacId.value = pacienteSel.id; pacQ.value = pacienteSel.nombre; pacSug.style.display="none";
+      const documento = li.dataset.doc || "";
+      const id = Number(li.dataset.id || "0");
+      pacienteSel = { id: id, nombre: li.dataset.name || "", documento };
+      pacId.value = pacienteSel.id || "";
+      pacQ.value = pacienteSel.nombre || "";
+      if (pacDoc) pacDoc.value = pacienteSel.documento || "";
+      pacSug.style.display="none";
     });
 
     refs.checkDeuda.addEventListener("click", async ()=>{
@@ -448,9 +469,11 @@ window.CajaModule = (function () {
     try{
       const t = await API.get(`/api/turnos/${tid}`);
       if (t.paciente_id){
-        pacienteSel = { id:Number(t.paciente_id), nombre: t.paciente_nombre || "" };
+        const docTurno = (t.paciente_documento || t.paciente_doc || t.paciente_dni || "");
+        pacienteSel = { id:Number(t.paciente_id), nombre: t.paciente_nombre || "", documento: docTurno };
         refs.pacId.value = pacienteSel.id;
         refs.pacQ.value = pacienteSel.nombre || (`Paciente #${pacienteSel.id}`);
+        if (refs.pacDoc) refs.pacDoc.value = docTurno || "";
       }
       const turnItems = Array.isArray(t.items)&&t.items.length ? t.items : (
         t.servicio_id ? [{ servicio_id:t.servicio_id, precio:t.servicio_precio, cantidad:1, descuento:0, servicio_nombre:t.servicio_nombre }] : []

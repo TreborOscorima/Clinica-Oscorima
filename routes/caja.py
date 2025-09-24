@@ -13,8 +13,12 @@ from utils.decorators import role_required
 from utils.audit import log_action
 
 # ReportLab para PDFs
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+try:  # pragma: no cover - fallback para entornos sin ReportLab
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+except ModuleNotFoundError:  # pragma: no cover - solo usado en pruebas/entornos mínimos
+    A4 = None
+    canvas = None
 
 # Modelos / Schemas
 from models.caja import (
@@ -217,30 +221,43 @@ def crear_comprobante():
 @bp.get("/comprobantes/<int:cid>/pdf")
 @jwt_required()
 def comprobante_pdf(cid):
+    if canvas is None or A4 is None:
+        return {"message": "ReportLab no disponible"}, 501
     c = Comprobante.query.get_or_404(cid)
     subtotal = dec2(getattr(c, "total_bruto", None) or sum((it.subtotal or 0) for it in (c.items or [])))
     desc = dec2(getattr(c, "descuento_global", None) or 0)
     total = dec2(getattr(c, "total", 0) or (subtotal - desc))
+
+    paciente_nombre = ""
+    paciente_doc = ""
+    if getattr(c, "paciente_id", None):
+        pac = Paciente.query.get(c.paciente_id)
+        if pac:
+            paciente_nombre = (pac.nombre or paciente_nombre).strip()
+            paciente_doc = (pac.documento or paciente_doc).strip()
+    if not paciente_nombre:
+        paciente_nombre = "-"
 
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     y = height - 50
     p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, y, f"Comprobante: {c.tipo.upper()}  N° {c.numero}")
+    p.drawString(50, y, f"Comprobante: {c.tipo.upper()}  No. {c.numero}")
     y -= 30
     p.setFont("Helvetica", 11)
     fecha_safe = getattr(c, "fecha", None) or datetime.utcnow()
     p.drawString(50, y, f"Fecha: {fecha_safe.strftime('%Y-%m-%d %H:%M')}")
     y -= 18
-    p.drawString(50, y, f"Paciente ID: {c.paciente_id or '-'}")
+    pac_line = paciente_nombre
+    if paciente_doc:
+        pac_line = f"{pac_line} (DNI {paciente_doc})"
+    p.drawString(50, y, f"Paciente: {pac_line}")
     y -= 18
     fp = getattr(c.forma_pago, "value", str(c.forma_pago))
     p.drawString(50, y, f"Forma de pago: {fp}")
     y -= 18
-    p.drawString(50, y, f"Subtotal: S/ {float(subtotal):.2f}")
-    y -= 18
-    p.drawString(50, y, f"Descuento: S/ {float(desc):.2f}")
+    p.drawString(50, y, f"Descuento aplicado: S/ {float(desc):.2f}")
     y -= 18
     p.drawString(50, y, f"Total: S/ {float(total):.2f}")
     y -= 18
@@ -249,17 +266,37 @@ def comprobante_pdf(cid):
         y -= 18
 
     if getattr(c, "items", None):
-        y -= 10
+        y -= 12
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(50, y, "Items:")
+        p.drawString(50, y, "Detalle de items")
         y -= 18
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(50, y, "Descripcion")
+        p.drawRightString(350, y, "Cant.")
+        p.drawRightString(430, y, "Precio unit.")
+        p.drawRightString(510, y, "Importe")
+        y -= 14
         p.setFont("Helvetica", 10)
         for it in c.items:
-            linea = f"- {it.tipo} {it.nombre} x{float(it.cantidad):.2f} @ S/{float(it.precio_unit):.2f}  = S/{float(it.subtotal):.2f}"
-            p.drawString(50, y, linea[:110])
-            y -= 14
             if y < 80:
-                p.showPage(); y = height - 50; p.setFont("Helvetica", 10)
+                p.showPage()
+                y = height - 50
+                p.setFont("Helvetica-Bold", 10)
+                p.drawString(50, y, "Descripcion")
+                p.drawRightString(350, y, "Cant.")
+                p.drawRightString(430, y, "Precio unit.")
+                p.drawRightString(510, y, "Importe")
+                y -= 14
+                p.setFont("Helvetica", 10)
+            desc_txt = (it.nombre or "").strip()
+            tipo_lbl = (it.tipo or "").strip()
+            if tipo_lbl:
+                desc_txt = f"{tipo_lbl.capitalize()} - {desc_txt}" if desc_txt else tipo_lbl.capitalize()
+            p.drawString(50, y, desc_txt[:80])
+            p.drawRightString(350, y, f"{float(it.cantidad or 0):.2f}")
+            p.drawRightString(430, y, f"S/ {float(it.precio_unit or 0):.2f}")
+            p.drawRightString(510, y, f"S/ {float(it.subtotal or 0):.2f}")
+            y -= 14
 
     p.line(50, y, width - 50, y)
     y -= 24
@@ -272,6 +309,7 @@ def comprobante_pdf(cid):
     resp = Response(pdf, mimetype="application/pdf")
     resp.headers["Content-Disposition"] = f"attachment; filename={c.tipo}_{c.numero}.pdf"
     return resp
+
 
 # -------------------------
 # POS (ATÓMICO + deuda y consumo)
@@ -695,6 +733,8 @@ def cierre_confirmar():
 @bp.get("/cierres/diario/<fecha>/pdf")
 @jwt_required()
 def cierre_diario_pdf(fecha):
+    if canvas is None or A4 is None:
+        return {"message": "ReportLab no disponible"}, 501
     try:
         f = date.fromisoformat(fecha)
     except Exception:

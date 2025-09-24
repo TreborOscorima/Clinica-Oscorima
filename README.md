@@ -11,7 +11,7 @@ Proyecto inicial **listo para correr localmente** con autenticación JWT, roles 
 1. Clona o descomprime este proyecto.
 2. Crea entorno virtual e instala dependencias:
    ```bash
-   cd clinica_estetica
+   cd WaykiSAC
    python -m venv .venv
    # Windows PowerShell
    .venv\Scripts\Activate.ps1

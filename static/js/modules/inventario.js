@@ -777,7 +777,7 @@ window.InventarioModule = (function(){
           <td>${fallbackProductoLabel(r)}</td>
           <td>${(r.tipo||"").toUpperCase()}</td>
           <td>${money(fallbackMonto(r))}</td>
-          <td>${r.motivo||""}</td>
+          <td>${((r.motivo || "") + "").toUpperCase()}</td>
           <td>${r.referencia||""}</td>
           <td>
             <button class="mv-revisar" data-id="${r.id}">Revisar</button>
@@ -820,24 +820,38 @@ window.InventarioModule = (function(){
             (m.compra ? proveedorToText(m.compra.proveedor) : "") ||
             (m.producto_label || "");
 
-          const nroReg = (m.compra && (m.compra.nro_registro || m.compra.nroRegistro || m.compra.registro)) || "—";
+          const isIngreso = String(m.tipo||'').toLowerCase() === 'ingreso';
+
+          const nroReg = (m.compra && (m.compra.nro_registro || m.compra.nroRegistro || m.compra.registro)) || "-";
+          const motivoTxt = ((m.motivo || "") + "").toUpperCase();
+          const pacienteTxt = (() => {
+            if (isIngreso) return "";
+            const nombre = ((m.cliente_nombre || "") + "").trim();
+            let doc = ((m.cliente_documento || "") + "").trim();
+            if (doc.toLowerCase && doc.toLowerCase() === 'none') doc = "";
+            const docLabel = /^\d+$/.test(doc) ? 'DNI' : 'Doc.';
+            if (nombre && doc) return `${nombre} - ${docLabel} ${doc}`;
+            if (nombre) return nombre;
+            if (doc) return `${docLabel} ${doc}`;
+            return "";
+          })();
 
           const itemsHtml = items.length ? `
             <hr>
             <h4 style="margin:6px 0">Detalle</h4>
             <table class="table">
-              <thead><tr><th>Producto</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
+              <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unit.</th><th>Subtotal</th></tr></thead>
               <tbody>
                 ${items.map(it=>{
                   const pr = it.producto || {};
-                  const nombre = pr.nombre || "";
+                  const nombre = pr.nombre || it.nombre || "";
                   const sku = pr.sku || "";
                   return `
                     <tr>
                       <td>${sku ? sku+" — " : ""}${nombre}</td>
                       <td>${Number(it.cantidad||0).toFixed(3)}</td>
-                      <td>${money(it.costo_unitario||0)}</td>
-                      <td>${money(it.subtotal||0)}</td>
+                      <td>${money((it.precio_unitario ?? it.costo_unitario) || 0)}</td>
+                      <td>${money((it.subtotal!=null?it.subtotal:Number(it.cantidad||0)*Number((it.precio_unitario ?? it.costo_unitario)||0)))}</td>
                     </tr>
                   `;
                 }).join("")}
@@ -853,11 +867,11 @@ window.InventarioModule = (function(){
               <h4>Movimiento #${m.id}</h4>
               <p><b>Fecha:</b> ${fmtDateIso(m.fecha)}</p>
               <p><b>Tipo:</b> ${(m.tipo||"").toUpperCase()}</p>
-              <p><b>Cantidad:</b> ${money(m.monto ?? 0)}</p>
-              <p><b>Motivo:</b> ${m.motivo||""}</p>
-              <p><b>Nro. Registro:</b> ${nroReg}</p>
+              <p><b>${isIngreso ? 'Total compra' : 'Total venta'}:</b> ${money((m.total||m.monto||m.grupo?.total||0))}</p>
+              <p><b>Motivo:</b> ${motivoTxt}</p>
+              <p><b>${isIngreso ? 'Proveedor' : 'Paciente'}:</b> ${isIngreso ? (proveedorTxt||'') : (pacienteTxt||'')}</p>
               ${m.compra ? `<p><b>Comprobante:</b> ${(m.compra.tipo_doc||"").toUpperCase()} ${m.compra.numero||""}</p>` : ""}
-              ${m.compra ? `<p><b>Proveedor:</b> ${proveedorTxt}</p>` : ""}
+              ${(m.compra && nroReg && nroReg !== '-') ? `<p><b>Nro. registro:</b> ${nroReg}</p>` : ""}
               ${itemsHtml}
             </div>
           `);
