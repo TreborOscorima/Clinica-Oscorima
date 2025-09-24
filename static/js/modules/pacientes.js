@@ -41,44 +41,61 @@ window.PacientesModule = (function(){
   function resetForm(){
     fillForm({}); editId = null;
     document.getElementById("pac-guardar").textContent = "Guardar";
-    document.getElementById("pac-cancelar").style.display = "none";
+    const cancelar = document.getElementById("pac-cancelar");
+    if (cancelar){
+      cancelar.classList.add("hidden");
+    }
   }
 
   function render(){
     routeTitle.textContent = "Pacientes";
     routeContent.innerHTML = `
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Buscar</label>
+      <section class="card">
+        <header class="card-header">
+          <h3>Buscar pacientes</h3>
+          <p class="card-subtitle">Filtrá por nombre o documento para encontrar registros existentes.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row">
+            <label for="pac-buscar">Buscar</label>
             <input id="pac-buscar" placeholder="Nombre o documento">
           </div>
-          <div class="col"></div>
         </div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <h3 id="pac-form-title">Paciente</h3>
-        <div class="row">
-          <div class="col"><label>Nombre</label><input id="pac-nombre"></div>
-          <div class="col"><label>Documento</label><input id="pac-documento"></div>
-          <div class="col"><label>Email</label><input id="pac-email" type="email"></div>
-          <div class="col"><label>Teléfono</label><input id="pac-telefono"></div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <h3>Ficha del paciente</h3>
+          <p class="card-subtitle">Completá los datos personales y de contacto.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pac-nombre">Nombre</label><input id="pac-nombre"></div>
+          <div class="form-row"><label for="pac-documento">Documento</label><input id="pac-documento"></div>
+          <div class="form-row"><label for="pac-email">Email</label><input id="pac-email" type="email"></div>
+          <div class="form-row"><label for="pac-telefono">Teléfono</label><input id="pac-telefono"></div>
         </div>
-        <div class="row">
-          <div class="col"><label>Dirección</label><input id="pac-direccion"></div>
-          <div class="col"><label>Fecha nacimiento</label><input id="pac-fnac" type="date"></div>
-          <div class="col"><label>Contacto emergencia</label><input id="pac-emerg"></div>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pac-direccion">Dirección</label><input id="pac-direccion"></div>
+          <div class="form-row"><label for="pac-fnac">Fecha nacimiento</label><input id="pac-fnac" type="date"></div>
+          <div class="form-row"><label for="pac-emerg">Contacto emergencia</label><input id="pac-emerg"></div>
         </div>
-        <button id="pac-guardar">Guardar</button>
-        <button id="pac-cancelar" class="secondary" style="display:none">Cancelar edición</button>
-        <div id="pac-msg" class="muted"></div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <table class="table">
-          <thead><tr><th>Nombre</th><th>Doc</th><th>Email</th><th>Tel</th><th>Edad</th><th>Acciones</th></tr></thead>
-          <tbody id="pac-tbody"></tbody>
-        </table>
-      </div>
+        <div class="form-actions">
+          <button id="pac-guardar" class="btn btn-primary" type="button">Guardar</button>
+          <button id="pac-cancelar" class="btn btn-secondary hidden" type="button">Cancelar edición</button>
+        </div>
+        <div id="pac-msg" class="form-feedback muted"></div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <h3>Listado de pacientes</h3>
+          <p class="card-subtitle">Consulta la información básica y gestiona acciones rápidas.</p>
+        </header>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr><th>Nombre</th><th>Doc</th><th>Email</th><th>Tel</th><th>Edad</th><th>Acciones</th></tr></thead>
+            <tbody id="pac-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     `;
 
     const tbody  = document.getElementById("pac-tbody");
@@ -89,6 +106,10 @@ window.PacientesModule = (function(){
 
     async function refresh(){
       const rows = await list(buscar.value);
+      if (!rows.length){
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">Sin pacientes registrados.</td></tr>`;
+        return;
+      }
       tbody.innerHTML = rows.map(r=>`
         <tr>
           <td>${r.nombre||""}</td>
@@ -96,9 +117,9 @@ window.PacientesModule = (function(){
           <td>${r.email||""}</td>
           <td>${r.telefono||""}</td>
           <td>${r.edad??""}</td>
-          <td class="actions">
-            <button data-editar="${r.id}">Editar</button>
-            <button data-eliminar="${r.id}">Borrar</button>
+          <td class="table-actions table-actions--compact">
+            <button class="btn btn-light" type="button" data-editar="${r.id}">Editar</button>
+            <button class="btn btn-danger" type="button" data-eliminar="${r.id}">Eliminar</button>
           </td>
         </tr>
       `).join("");
@@ -144,7 +165,7 @@ window.PacientesModule = (function(){
           const p = await detail(t.dataset.editar);
           editId = p.id; fillForm(p);
           document.getElementById("pac-guardar").textContent = "Actualizar";
-          btnCancelar.style.display = "";
+          btnCancelar.classList.remove("hidden");
         }catch(e){ alert(e.message); }
       }
     });
