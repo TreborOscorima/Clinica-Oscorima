@@ -96,11 +96,11 @@ window.TurnosModule = (function () {
         const sub = Math.max(precio * cant - desc, 0);
         return `<tr>
           <td>${it.nombre || it.servicio_nombre || "-"}</td>
-          <td>${money(precio)}</td>
-          <td>${cant}</td>
-          <td>${money(desc)}</td>
-          <td>${money(sub)}</td>
-          <td class="right"><button class="btn btn-danger t-item-del" data-i="${i}">X</button></td>
+          <td class="text-right">${money(precio)}</td>
+          <td class="text-right">${cant}</td>
+          <td class="text-right">${money(desc)}</td>
+          <td class="text-right">${money(sub)}</td>
+          <td class="table-actions table-actions--compact"><button class="btn btn-danger t-item-del" data-i="${i}">X</button></td>
         </tr>`;
       })
       .join("");
@@ -120,26 +120,31 @@ window.TurnosModule = (function () {
   function render() {
     routeTitle.textContent = "Turnos";
     routeContent.innerHTML = `
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Estado</label>
-            <select id="t-estado">
-              <option value="">Todos</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="confirmado">Confirmado</option>
-              <option value="cancelado">Cancelado</option>
-              <option value="atendido">Atendido</option>
-            </select>
-          </div>
+      <section class="card turnos-card">
+        <header class="card-header">
+          <h3>Filtrar turnos</h3>
+          <p class="card-subtitle">Aplicá filtros para priorizar la gestión diaria.</p>
+        </header>
+        <div class="form-row">
+          <label for="t-estado">Estado</label>
+          <select id="t-estado">
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="cancelado">Cancelado</option>
+            <option value="atendido">Atendido</option>
+          </select>
         </div>
-      </div>
+      </section>
 
-      <div class="card" style="margin-top:10px">
-        <h3>Nuevo Turno</h3>
-        <div class="row">
-          <div class="col">
-            <label>Paciente (DNI o nombre)</label>
+      <section class="card turnos-card">
+        <header class="card-header">
+          <h3>Nuevo Turno</h3>
+          <p class="card-subtitle">Completá los datos para agendar un nuevo turno.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row">
+            <label for="t-pac-buscar">Paciente (DNI o nombre)</label>
             <div class="ac-wrap">
               <input id="t-pac-buscar" placeholder="Ej: 12345678 o Ana Pérez" autocomplete="off">
               <div id="t-pac-sug" class="suggest ac-list" style="display:none"></div>
@@ -147,12 +152,12 @@ window.TurnosModule = (function () {
             <input id="t-paciente-id" type="hidden">
             <div id="t-pac-chosen" class="muted"></div>
           </div>
-          <div class="col">
-            <label>Fecha/Hora</label>
+          <div class="form-row">
+            <label for="t-fecha">Fecha/Hora</label>
             <input id="t-fecha" type="datetime-local">
           </div>
-          <div class="col">
-            <label>Profesional (DNI o nombre) — opcional</label>
+          <div class="form-row">
+            <label for="t-pro-buscar">Profesional (DNI o nombre) — opcional</label>
             <div class="ac-wrap">
               <input id="t-pro-buscar" placeholder="Ej: 56789012 o Dra. López" autocomplete="off">
               <div id="t-pro-sug" class="suggest ac-list" style="display:none"></div>
@@ -162,11 +167,14 @@ window.TurnosModule = (function () {
           </div>
         </div>
 
-        <hr>
-        <h4>Servicios del turno</h4>
-        <div class="row">
-          <div class="col">
-            <label>Servicio (nombre)</label>
+        <hr class="card-divider">
+        <header class="section-header">
+          <h4>Servicios del turno</h4>
+          <p class="muted">Seleccioná los servicios y ajustá los importes según corresponda.</p>
+        </header>
+        <div class="form-grid form-grid--compact">
+          <div class="form-row">
+            <label for="t-srv-buscar">Servicio (nombre)</label>
             <div class="ac-wrap">
               <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off">
               <div id="t-srv-sug" class="suggest ac-list" style="display:none"></div>
@@ -174,30 +182,60 @@ window.TurnosModule = (function () {
             <input id="t-servicio-id" type="hidden">
             <div id="t-srv-chosen" class="muted"></div>
           </div>
-          <div class="col"><label>Precio</label><input id="t-item-precio" type="number" step="0.01" placeholder="Precio"></div>
-          <div class="col"><label>Cant.</label><input id="t-item-cant" type="number" step="0.01" value="1" min="1"></div>
-          <div class="col"><label>Desc.</label><input id="t-item-desc" type="number" step="0.01" value="0" min="0"></div>
-          <div class="col"><label>&nbsp;</label><button id="t-item-add" class="btn">Agregar</button></div>
+          <div class="form-row">
+            <label for="t-item-precio">Precio</label>
+            <input id="t-item-precio" type="number" step="0.01" placeholder="Precio">
+          </div>
+          <div class="form-row">
+            <label for="t-item-cant">Cant.</label>
+            <input id="t-item-cant" type="number" step="0.01" value="1" min="1">
+          </div>
+          <div class="form-row">
+            <label for="t-item-desc">Desc.</label>
+            <input id="t-item-desc" type="number" step="0.01" value="0" min="0">
+          </div>
+          <div class="form-row form-row--actions">
+            <label class="sr-only" for="t-item-add">Agregar servicio</label>
+            <button id="t-item-add" class="btn btn-secondary" type="button">Agregar</button>
+          </div>
         </div>
 
-        <table class="table" style="margin-top:8px">
-          <thead><tr><th>Servicio</th><th>Precio</th><th>Cant.</th><th>Desc.</th><th>Subtotal</th><th></th></tr></thead>
-          <tbody id="t-items"></tbody>
-          <tfoot><tr><td colspan="4" style="text-align:right"><b>Total:</b></td><td id="t-total">$0.00</td><td></td></tr></tfoot>
-        </table>
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr><th>Servicio</th><th>Precio</th><th>Cant.</th><th>Desc.</th><th>Subtotal</th><th></th></tr>
+            </thead>
+            <tbody id="t-items"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" class="text-right"><b>Total:</b></td>
+                <td id="t-total" class="text-right">$0.00</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-        <button id="t-crear" class="btn btn-primary">Guardar</button>
-        <div id="t-msg" class="muted" style="margin-top:6px"></div>
-      </div>
+        <div class="form-actions">
+          <button id="t-crear" class="btn btn-primary" type="button">Guardar</button>
+        </div>
+        <div id="t-msg" class="form-feedback muted"></div>
+      </section>
 
-      <div class="card" style="margin-top:10px">
-        <table class="table">
-          <thead>
-            <tr><th>ID</th><th>Paciente</th><th>Servicios</th><th>Profesional</th><th>Fecha/Hora</th><th>Estado</th><th>Acciones</th></tr>
-          </thead>
-          <tbody id="t-tbody"></tbody>
-        </table>
-      </div>
+      <section class="card turnos-card">
+        <header class="card-header">
+          <h3>Turnos programados</h3>
+          <p class="card-subtitle">Revisa los turnos según el filtro seleccionado.</p>
+        </header>
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr><th>ID</th><th>Paciente</th><th>Servicios</th><th>Profesional</th><th>Fecha/Hora</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="t-tbody"></tbody>
+          </table>
+        </div>
+      </section>
 
       <!-- Modal detalle turno -->
       <div id="turno-modal-backdrop" class="modal-backdrop"></div>
@@ -215,17 +253,17 @@ window.TurnosModule = (function () {
         <div class="modal-card">
           <div class="modal-header"><strong>Cancelar / Reprogramar turno</strong></div>
           <div class="modal-body">
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <button id="cr-tab-cancelar" class="btn">Cancelar</button>
-              <button id="cr-tab-reprogramar" class="btn" style="opacity:.7">Reprogramar</button>
+            <div class="tab-switch">
+              <button id="cr-tab-cancelar" type="button" class="btn tab-btn tab-btn--active">Cancelar</button>
+              <button id="cr-tab-reprogramar" type="button" class="btn tab-btn">Reprogramar</button>
             </div>
-            <div id="cr-pane-cancelar">
+            <div id="cr-pane-cancelar" class="tab-pane">
               <p>Para cancelar, escribí <b>CANCELAR</b> y opcionalmente indicá un motivo.</p>
               <input id="cr-cancelar-texto" placeholder="Escribí: CANCELAR" />
               <input id="cr-cancelar-motivo" placeholder="Motivo (opcional)" />
             </div>
-            <div id="cr-pane-reprogramar" style="display:none">
-              <label>Nueva fecha/hora</label>
+            <div id="cr-pane-reprogramar" class="tab-pane hidden">
+              <label for="cr-reprog-fecha">Nueva fecha/hora</label>
               <input id="cr-reprog-fecha" type="datetime-local" />
               <div class="muted">Estado post-reprogramación:</div>
               <select id="cr-reprog-estado">
@@ -234,7 +272,7 @@ window.TurnosModule = (function () {
               </select>
             </div>
           </div>
-          <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+          <div class="modal-footer">
             <button id="cr-cerrar" type="button" class="btn">Cerrar</button>
             <button id="cr-guardar" type="button" class="btn btn-primary">Aplicar</button>
           </div>
@@ -501,22 +539,24 @@ window.TurnosModule = (function () {
       const b = document.getElementById("cr-tab-reprogramar");
       const pc = document.getElementById("cr-pane-cancelar");
       const pr = document.getElementById("cr-pane-reprogramar");
+      const activeClass = "tab-btn--active";
       if (p === "cancelar") {
-        a.style.opacity = "1";
-        b.style.opacity = ".7";
-        pc.style.display = "block";
-        pr.style.display = "none";
+        a.classList.add(activeClass);
+        b.classList.remove(activeClass);
+        pc.classList.remove("hidden");
+        pr.classList.add("hidden");
       } else {
-        a.style.opacity = ".7";
-        b.style.opacity = "1";
-        pc.style.display = "none";
-        pr.style.display = "block";
+        a.classList.remove(activeClass);
+        b.classList.add(activeClass);
+        pc.classList.add("hidden");
+        pr.classList.remove("hidden");
       }
     }
 
     let crTurnoId = null;
     function openCR(id) {
       crTurnoId = id;
+      switchCR("cancelar");
       document.getElementById("cr-backdrop").style.display = "block";
       document.getElementById("cr-modal").style.display = "block";
     }
@@ -529,7 +569,7 @@ window.TurnosModule = (function () {
       return async () => {
         if (!crTurnoId) return;
         // detectar pane activo
-        const paneCancelarVisible = document.getElementById("cr-pane-cancelar").style.display !== "none";
+        const paneCancelarVisible = !document.getElementById("cr-pane-cancelar").classList.contains("hidden");
         try {
           if (paneCancelarVisible) {
             const texto = document.getElementById("cr-cancelar-texto").value.trim();
@@ -580,7 +620,7 @@ window.TurnosModule = (function () {
               <td>${proStr}</td>
               <td>${fechaStr}</td>
               <td>${estadoStr}</td>
-              <td class="right" style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap">
+              <td class="table-actions">
                 <button class="btn btn-light t-detalle" data-id="${t.id}">Detalle</button>
                 <button class="btn t-cr" data-id="${t.id}">Cancelar/Reprogramar</button>
                 <button class="btn btn-primary btn-cobrar" data-turno-id="${t.id}">Atender + Cobrar</button>
