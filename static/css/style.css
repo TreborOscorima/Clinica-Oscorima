@@ -176,6 +176,15 @@ img {
   gap: 20px;
 }
 
+.caja-card {
+  gap: 28px;
+}
+
+.caja-section {
+  display: grid;
+  gap: 16px;
+}
+
 .card-divider {
   border: 0;
   height: 1px;
@@ -260,6 +269,10 @@ textarea:focus {
   gap: 12px;
 }
 
+.form-actions--right {
+  justify-content: flex-end;
+}
+
 .form-feedback {
   margin-top: 4px;
   min-height: 1.2rem;
@@ -342,6 +355,45 @@ button:disabled {
 .muted {
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid #d7dce3;
+  background: #f8fafc;
+  font-size: 0.95rem;
+  color: var(--color-secondary);
+}
+
+.stat {
+  padding: 12px 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #f1f5f9;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.stat--highlight {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: #eef2ff;
+  color: var(--color-primary);
+}
+
+.toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 1200;
+  box-shadow: 0 24px 60px -30px rgba(15, 23, 42, 0.45);
+}
+
+.btn-inline {
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .row {
@@ -552,6 +604,14 @@ button:disabled {
   }
 }
 
+.caja-table tbody tr {
+  vertical-align: middle;
+}
+
+.table-input {
+  width: 100%;
+}
+
 .table-scroll {
   width: 100%;
   overflow-x: auto;
@@ -609,6 +669,11 @@ button:disabled {
   background: #f9fafb;
 }
 
+.table--compact th,
+.table--compact td {
+  padding: 10px 14px;
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -656,9 +721,86 @@ button:disabled {
   background: var(--hover-bg);
 }
 
+.ac-list .sug {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sug-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sug-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .ac-list-empty {
   padding: 0.6rem 0.85rem;
   color: var(--text-muted);
+}
+
+/* --- Caja POS layout --- */
+.caja-payments {
+  display: grid;
+  gap: 16px;
+}
+
+.caja-payment {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.caja-summary {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.caja-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.caja-summary-row strong {
+  font-size: 1.05rem;
+}
+
+.caja-summary-row--saldo strong {
+  color: var(--color-danger);
+}
+
+.caja-status {
+  min-height: 1.25rem;
+  color: var(--color-secondary);
+}
+
+.caja-status:not(:empty) {
+  padding: 12px 16px;
+  border-radius: var(--border-radius-md);
+  background: #eef2ff;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  color: var(--color-primary);
+}
+
+@media (min-width: 768px) {
+  .caja-payment {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
 }
 
 /* --- Modal simple --- */
@@ -704,6 +846,44 @@ button:disabled {
 
 .modal-body {
   padding: 20px;
+}
+
+.cj-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.cj-modal__box {
+  width: min(540px, 92vw);
+  background: #ffffff;
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 28px 60px -32px rgba(15, 23, 42, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cj-modal__body {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.cj-modal__footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cj-modal__content {
+  display: grid;
+  gap: 16px;
 }
 
 .tab-switch {
