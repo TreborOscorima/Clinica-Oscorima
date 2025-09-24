@@ -43,43 +43,58 @@ window.ProfesionalesModule = (function(){
     fillForm({}); editId = null;
     const btn = document.getElementById("pro-guardar");
     btn.textContent = "Guardar";
-    document.getElementById("pro-cancel").style.display = "none";
+    document.getElementById("pro-cancel").classList.add("hidden");
   }
 
   function render(){
     routeTitle.textContent = "Profesionales";
     routeContent.innerHTML = `
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Buscar</label>
+      <section class="card">
+        <header class="card-header">
+          <h3>Buscar profesionales</h3>
+          <p class="card-subtitle">Filtrá la nómina por DNI, nombre o especialidad.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row">
+            <label for="pro-buscar">Buscar</label>
             <input id="pro-buscar" placeholder="Nombre, apellido o DNI">
           </div>
         </div>
-      </div>
-      <div class="card">
-        <h3>Profesional</h3>
-        <div class="row">
-          <div class="col"><label>DNI</label><input id="pro-dni"></div>
-          <div class="col"><label>Nombres</label><input id="pro-nombres"></div>
-          <div class="col"><label>Apellidos</label><input id="pro-apellidos"></div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <h3>Ficha del profesional</h3>
+          <p class="card-subtitle">Completá la información principal del profesional.</p>
+        </header>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pro-dni">DNI</label><input id="pro-dni"></div>
+          <div class="form-row"><label for="pro-nombres">Nombres</label><input id="pro-nombres"></div>
+          <div class="form-row"><label for="pro-apellidos">Apellidos</label><input id="pro-apellidos"></div>
         </div>
-        <div class="row">
-          <div class="col"><label>Especialidad</label><input id="pro-esp"></div>
-          <div class="col"><label>Matrícula</label><input id="pro-mat"></div>
+        <div class="form-grid form-grid--split">
+          <div class="form-row"><label for="pro-esp">Especialidad</label><input id="pro-esp"></div>
+          <div class="form-row"><label for="pro-mat">Matrícula</label><input id="pro-mat"></div>
           <!-- opcional visibilidad -->
-          <!-- <div class="col"><label>Activo</label><input id="pro-activo" type="checkbox" checked></div> -->
+          <!-- <div class="form-row"><label for="pro-activo">Activo</label><input id="pro-activo" type="checkbox" checked></div> -->
         </div>
-        <button id="pro-guardar">Guardar</button>
-        <button id="pro-cancel" class="secondary" style="display:none">Cancelar edición</button>
-        <div id="pro-msg" class="muted"></div>
-      </div>
-      <div class="card">
-        <table class="table">
-          <thead><tr><th>DNI</th><th>Nombre</th><th>Especialidad</th><th>Matrícula</th><th>Acciones</th></tr></thead>
-          <tbody id="pro-tbody"></tbody>
-        </table>
-      </div>
+        <div class="form-actions">
+          <button id="pro-guardar" class="btn btn-primary" type="button">Guardar</button>
+          <button id="pro-cancel" class="btn btn-secondary hidden" type="button">Cancelar edición</button>
+        </div>
+        <div id="pro-msg" class="form-feedback muted"></div>
+      </section>
+      <section class="card">
+        <header class="card-header">
+          <h3>Profesionales registrados</h3>
+          <p class="card-subtitle">Revisá los datos cargados y gestioná acciones rápidas.</p>
+        </header>
+        <div class="table-scroll">
+          <table class="table table--compact">
+            <thead><tr><th>DNI</th><th>Nombre</th><th>Especialidad</th><th>Matrícula</th><th>Acciones</th></tr></thead>
+            <tbody id="pro-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     `;
 
     const buscar = document.getElementById("pro-buscar");
@@ -90,15 +105,19 @@ window.ProfesionalesModule = (function(){
 
     async function refresh(){
       const rows = await list(buscar.value);
+      if (!rows.length){
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">Sin profesionales registrados.</td></tr>`;
+        return;
+      }
       tbody.innerHTML = rows.map(r=>`
         <tr>
           <td>${r.dni||""}</td>
-          <td>${r.nombres||""} ${r.apellidos||""}</td>
+          <td>${[r.nombres||"", r.apellidos||""].filter(Boolean).join(" ")}</td>
           <td>${r.especialidad||""}</td>
           <td>${r.matricula||""}</td>
-          <td class="actions">
-            <button data-editar="${r.id}">Editar</button>
-            <button data-eliminar="${r.id}">Borrar</button>
+          <td class="table-actions table-actions--compact">
+            <button class="btn btn-light" type="button" data-editar="${r.id}">Editar</button>
+            <button class="btn btn-danger" type="button" data-eliminar="${r.id}">Eliminar</button>
           </td>
         </tr>
       `).join("");
@@ -144,7 +163,7 @@ window.ProfesionalesModule = (function(){
           const p = await detail(t.dataset.editar);
           editId = p.id; fillForm(p);
           btnGuardar.textContent = "Actualizar";
-          btnCancel.style.display = "";
+          btnCancel.classList.remove("hidden");
         }catch(e){ alert(e.message); }
       }
     });
