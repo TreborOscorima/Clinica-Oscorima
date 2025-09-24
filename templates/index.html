@@ -8,28 +8,67 @@
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
   </head>
   <body>
-    <div id="app">
+    <div id="app" class="app-shell">
       <aside class="sidebar">
-        <div class="brand">Clínica Estética WAYKI SAC</div>
-        <nav>
-          <a href="#" data-route="dashboard">Dashboard</a>
-          <a href="#" data-route="turnos">Turnos</a>
-          <a href="#" data-route="caja">Caja & Facturación</a>
-          <a href="#" data-route="pacientes">Pacientes</a>
-          <a href="#" data-route="profesionales">Profesionales</a>
-          <a href="#" data-route="inventario">Inventario</a>
-          <a href="#" data-route="servicios">Servicios</a>
-          <a href="#" data-route="reportes">Reportes</a>
-          <hr />
-          <a href="#" id="logout">Cerrar sesión</a>
+        <div class="brand">
+          <div class="brand-symbol">WS</div>
+          <div class="brand-text">
+            <span class="brand-title">Clínica Estética</span>
+            <span class="brand-subtitle">WAYKI SAC</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <div class="nav-group">
+            <a class="nav-item is-active" href="#" data-route="dashboard">
+              <span class="nav-icon" aria-hidden="true">🏠</span>
+              <span class="nav-label">Dashboard</span>
+            </a>
+            <a class="nav-item" href="#" data-route="turnos">
+              <span class="nav-icon" aria-hidden="true">🗓️</span>
+              <span class="nav-label">Turnos</span>
+            </a>
+            <a class="nav-item" href="#" data-route="caja">
+              <span class="nav-icon" aria-hidden="true">💳</span>
+              <span class="nav-label">Caja &amp; Facturación</span>
+            </a>
+            <a class="nav-item" href="#" data-route="pacientes">
+              <span class="nav-icon" aria-hidden="true">🧑‍⚕️</span>
+              <span class="nav-label">Pacientes</span>
+            </a>
+            <a class="nav-item" href="#" data-route="profesionales">
+              <span class="nav-icon" aria-hidden="true">👥</span>
+              <span class="nav-label">Profesionales</span>
+            </a>
+            <a class="nav-item" href="#" data-route="inventario">
+              <span class="nav-icon" aria-hidden="true">📦</span>
+              <span class="nav-label">Inventario</span>
+            </a>
+            <a class="nav-item" href="#" data-route="servicios">
+              <span class="nav-icon" aria-hidden="true">🧾</span>
+              <span class="nav-label">Servicios</span>
+            </a>
+            <a class="nav-item" href="#" data-route="reportes">
+              <span class="nav-icon" aria-hidden="true">📊</span>
+              <span class="nav-label">Reportes</span>
+            </a>
+          </div>
+          <div class="nav-group nav-group--footer">
+            <a class="nav-item" href="#" id="logout">
+              <span class="nav-icon" aria-hidden="true">🚪</span>
+              <span class="nav-label">Cerrar sesión</span>
+            </a>
+          </div>
         </nav>
       </aside>
       <main class="content">
-        <div id="login-view" class="card">
-          <h2>Ingresar</h2>
-          <form id="login-form">
+        <section id="login-view" class="card card--auth">
+          <header class="card-header">
+            <h2>Ingresar</h2>
+            <p class="card-subtitle">Accede con tus credenciales para continuar</p>
+          </header>
+          <form id="login-form" class="form">
             <div class="form-row">
-              <label>Email</label>
+              <label for="login-email">Email</label>
               <input
                 id="login-email"
                 type="email"
@@ -38,7 +77,7 @@
               />
             </div>
             <div class="form-row">
-              <label>Contraseña</label>
+              <label for="login-pass">Contraseña</label>
               <input
                 id="login-pass"
                 type="password"
@@ -46,15 +85,20 @@
                 required
               />
             </div>
-            <button id="btn-login" type="submit">Entrar</button>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="btn-login" type="submit">Entrar</button>
+              <button class="btn btn-secondary" type="reset">Limpiar</button>
+            </div>
           </form>
           <div id="login-msg" class="muted"></div>
-        </div>
+        </section>
 
-        <div id="router-view" style="display: none">
-          <h2 id="route-title">Dashboard</h2>
+        <section id="router-view" class="card" style="display: none">
+          <header class="card-header">
+            <h2 id="route-title">Dashboard</h2>
+          </header>
           <div id="route-content"></div>
-        </div>
+        </section>
       </main>
     </div>
 

@@ -7,24 +7,175 @@ const routes = {
   dashboard: () => {
     routeTitle.textContent = "Dashboard";
     routeContent.innerHTML = `
-      <div class="row">
-        <div class="col card">
-          <h3>Turnos</h3>
-          <p class="muted">Gestione turnos del día, semana o mes.</p>
+      <section class="dashboard-header">
+        <div>
+          <h3 class="dashboard-title">Resumen diario</h3>
+          <p class="dashboard-subtitle muted">Seguimiento de actividad y recursos de la clínica.</p>
         </div>
-        <div class="col card">
-          <h3>Pacientes</h3>
-          <p class="muted">Altas rápidas y búsquedas.</p>
+        <div class="dashboard-actions">
+          <button class="btn btn-secondary" type="button">Ver reportes</button>
+          <button class="btn btn-primary" type="button">Nuevo turno</button>
         </div>
-        <div class="col card">
-          <h3>Servicios</h3>
-          <p class="muted">Catálogo y protocolos.</p>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="card stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Turnos de hoy</span>
+            <span class="stat-trend trend-up">↑ 18%</span>
+          </div>
+          <div class="stat-value">48</div>
+          <p class="muted">12 pendientes de confirmación</p>
+        </article>
+        <article class="card stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Pacientes activos</span>
+            <span class="stat-trend trend-up">↑ 6%</span>
+          </div>
+          <div class="stat-value">312</div>
+          <p class="muted">24 nuevos este mes</p>
+        </article>
+        <article class="card stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Ingresos</span>
+            <span class="stat-trend trend-up">↑ 9%</span>
+          </div>
+          <div class="stat-value">$ 185K</div>
+          <p class="muted">Facturado en los últimos 7 días</p>
+        </article>
+        <article class="card stat-card">
+          <div class="stat-header">
+            <span class="stat-label">Satisfacción</span>
+            <span class="stat-trend trend-down">↓ 2%</span>
+          </div>
+          <div class="stat-value">4.6</div>
+          <p class="muted">Promedio de encuestas</p>
+        </article>
+      </section>
+
+      <section class="dashboard-columns">
+        <div class="dashboard-column">
+          <article class="card">
+            <div class="card-header">
+              <h3>Agenda del día</h3>
+              <p class="card-subtitle">Última actualización 08:30</p>
+            </div>
+            <ul class="list">
+              <li class="list-item">
+                <span class="list-time">08:30</span>
+                <div class="list-body">
+                  <p class="list-title">Juan Pérez</p>
+                  <p class="list-meta">Consulta general · Dr. García</p>
+                </div>
+                <span class="pill">Confirmado</span>
+              </li>
+              <li class="list-item">
+                <span class="list-time">09:15</span>
+                <div class="list-body">
+                  <p class="list-title">María López</p>
+                  <p class="list-meta">Limpieza facial · Lic. Campos</p>
+                </div>
+                <span class="pill">En espera</span>
+              </li>
+              <li class="list-item">
+                <span class="list-time">10:00</span>
+                <div class="list-body">
+                  <p class="list-title">Carlos Ruiz</p>
+                  <p class="list-meta">Evaluación post tratamiento · Dra. Vega</p>
+                </div>
+                <span class="pill">Check-in</span>
+              </li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h3>Indicadores de ocupación</h3>
+              <p class="card-subtitle">Capacidad utilizada por área</p>
+            </div>
+            <ul class="list">
+              <li class="list-item">
+                <div class="list-body">
+                  <p class="list-title">Consultorios</p>
+                  <p class="list-meta">6 de 8 en uso</p>
+                  <div class="progress-track">
+                    <div class="progress-bar" style="width: 75%"></div>
+                  </div>
+                </div>
+                <span class="pill">75%</span>
+              </li>
+              <li class="list-item">
+                <div class="list-body">
+                  <p class="list-title">Cabinas estéticas</p>
+                  <p class="list-meta">4 de 6 en uso</p>
+                  <div class="progress-track">
+                    <div class="progress-bar" style="width: 68%"></div>
+                  </div>
+                </div>
+                <span class="pill">68%</span>
+              </li>
+              <li class="list-item">
+                <div class="list-body">
+                  <p class="list-title">Post operatorio</p>
+                  <p class="list-meta">2 de 5 en uso</p>
+                  <div class="progress-track">
+                    <div class="progress-bar" style="width: 40%"></div>
+                  </div>
+                </div>
+                <span class="pill">40%</span>
+              </li>
+            </ul>
+          </article>
         </div>
-        <div class="col card">
-          <h3>Profesionales</h3>
-          <p class="muted">Equipo y especialidades.</p>
+
+        <div class="dashboard-column">
+          <article class="card">
+            <div class="card-header">
+              <h3>Equipo en turno</h3>
+              <p class="card-subtitle">Estado del personal asignado hoy</p>
+            </div>
+            <ul class="list">
+              <li class="list-item list-item--center">
+                <div class="avatar" aria-hidden="true">AG</div>
+                <div class="list-body">
+                  <p class="list-title">Dra. Ana Gómez</p>
+                  <p class="list-meta">Dermatóloga · 12 turnos</p>
+                </div>
+                <span class="pill">En sala</span>
+              </li>
+              <li class="list-item list-item--center">
+                <div class="avatar" aria-hidden="true">LC</div>
+                <div class="list-body">
+                  <p class="list-title">Lic. Laura Campos</p>
+                  <p class="list-meta">Esteticista · 8 turnos</p>
+                </div>
+                <span class="pill">Atendiendo</span>
+              </li>
+              <li class="list-item list-item--center">
+                <div class="avatar" aria-hidden="true">JV</div>
+                <div class="list-body">
+                  <p class="list-title">Dr. Julio Vega</p>
+                  <p class="list-meta">Cirujano · 5 turnos</p>
+                </div>
+                <span class="pill">Disponible</span>
+              </li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h3>Accesos rápidos</h3>
+              <p class="card-subtitle">Atajos para tareas recurrentes</p>
+            </div>
+            <div class="quick-actions">
+              <button class="btn btn-primary" type="button">Crear turno</button>
+              <button class="btn btn-secondary" type="button">Registrar pago</button>
+              <button class="btn btn-secondary" type="button">Agregar paciente</button>
+            </div>
+            <p class="muted">Acciones frecuentes para comenzar el día.</p>
+          </article>
         </div>
-      </div>
+      </section>
     `;
   },
   pacientes: window.PacientesModule.render,
