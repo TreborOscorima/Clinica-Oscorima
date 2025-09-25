@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/style.css" />
   </head>
   <body>
+<<<<<<< HEAD
     <div id="app">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar__brand">
@@ -47,11 +48,64 @@
             <span class="nav-link__icon">📈</span>
             <span class="nav-link__label">Reportes</span>
           </a>
+=======
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-symbol">WS</div>
+          <div class="brand-text">
+            <span class="brand-title">Clínica Estética</span>
+            <span class="brand-subtitle">WAYKI SAC</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <div class="nav-group">
+            <a class="nav-item is-active" href="#" data-route="dashboard">
+              <span class="nav-icon" aria-hidden="true">🏠</span>
+              <span class="nav-label">Dashboard</span>
+            </a>
+            <a class="nav-item" href="#" data-route="turnos">
+              <span class="nav-icon" aria-hidden="true">🗓️</span>
+              <span class="nav-label">Turnos</span>
+            </a>
+            <a class="nav-item" href="#" data-route="caja">
+              <span class="nav-icon" aria-hidden="true">💳</span>
+              <span class="nav-label">Caja &amp; Facturación</span>
+            </a>
+            <a class="nav-item" href="#" data-route="pacientes">
+              <span class="nav-icon" aria-hidden="true">🧑‍⚕️</span>
+              <span class="nav-label">Pacientes</span>
+            </a>
+            <a class="nav-item" href="#" data-route="profesionales">
+              <span class="nav-icon" aria-hidden="true">👥</span>
+              <span class="nav-label">Profesionales</span>
+            </a>
+            <a class="nav-item" href="#" data-route="inventario">
+              <span class="nav-icon" aria-hidden="true">📦</span>
+              <span class="nav-label">Inventario</span>
+            </a>
+            <a class="nav-item" href="#" data-route="servicios">
+              <span class="nav-icon" aria-hidden="true">🧾</span>
+              <span class="nav-label">Servicios</span>
+            </a>
+            <a class="nav-item" href="#" data-route="reportes">
+              <span class="nav-icon" aria-hidden="true">📊</span>
+              <span class="nav-label">Reportes</span>
+            </a>
+          </div>
+          <div class="nav-group nav-group--footer">
+            <a class="nav-item" href="#" id="logout">
+              <span class="nav-icon" aria-hidden="true">🚪</span>
+              <span class="nav-label">Cerrar sesión</span>
+            </a>
+          </div>
+>>>>>>> d542bd8cf9d18754b124270626a3be82788e4749
         </nav>
         <footer class="sidebar__footer">
           <small>© 2025 Clínica Estética WAYKI SAC</small>
         </footer>
       </aside>
+<<<<<<< HEAD
 
       <div class="main">
         <header class="topbar">
@@ -91,6 +145,48 @@
           </section>
         </main>
       </div>
+=======
+      <main class="content">
+        <section id="login-view" class="card card--auth">
+          <header class="card-header">
+            <h2>Ingresar</h2>
+            <p class="card-subtitle">Accede con tus credenciales para continuar</p>
+          </header>
+          <form id="login-form" class="form">
+            <div class="form-row">
+              <label for="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                placeholder="admin@clinic.local"
+                required
+              />
+            </div>
+            <div class="form-row">
+              <label for="login-pass">Contraseña</label>
+              <input
+                id="login-pass"
+                type="password"
+                placeholder="Admin123!"
+                required
+              />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="btn-login" type="submit">Entrar</button>
+              <button class="btn btn-secondary" type="reset">Limpiar</button>
+            </div>
+          </form>
+          <div id="login-msg" class="muted"></div>
+        </section>
+
+        <section id="router-view" class="card" style="display: none">
+          <header class="card-header">
+            <h2 id="route-title">Dashboard</h2>
+          </header>
+          <div id="route-content"></div>
+        </section>
+      </main>
+>>>>>>> d542bd8cf9d18754b124270626a3be82788e4749
     </div>
 
     <script src="/static/js/api.js"></script>
