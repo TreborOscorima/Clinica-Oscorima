@@ -2,6 +2,15 @@ const loginView = document.getElementById("login-view");
 const routerView = document.getElementById("router-view");
 const routeTitle = document.getElementById("route-title");
 const routeContent = document.getElementById("route-content");
+const bodyEl = document.body;
+const sidebarEl = document.getElementById("sidebar");
+const navToggleBtn = document.getElementById("nav-toggle");
+const footerYear = document.querySelector('.sidebar__footer small');
+if (footerYear) {
+  footerYear.textContent = '© ' + new Date().getFullYear() + ' Clínica Estética WAYKI SAC';
+}
+
+
 
 const routes = {
   dashboard: () => {
@@ -36,14 +45,29 @@ const routes = {
   reportes: window.ReportesModule.render,
 };
 
+function setActiveNav(route) {
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.classList.toggle('is-active', link.dataset.route === route);
+  });
+}
+
+function closeSidebar() {
+  if (!sidebarEl) return;
+  sidebarEl.classList.remove('sidebar--open');
+  bodyEl.classList.remove('sidebar-open');
+}
+
+
+
 // --- navegación centralizada ---
 function navigate(route) {
   const fn = routes[route];
-  // actualizar hash (permite refrescar / deep link)
   if (location.hash !== `#/${route}` && !location.hash.startsWith(`#/${route}?`)) {
     location.hash = `#/${route}`;
   }
   routeTitle.textContent = route.charAt(0).toUpperCase() + route.slice(1);
+  setActiveNav(route);
+  closeSidebar();
   if (typeof fn === "function") {
     fn();
   } else {
@@ -67,6 +91,10 @@ function checkAuth() {
   const has = !!API.token();
   loginView.style.display = has ? "none" : "block";
   routerView.style.display = has ? "block" : "none";
+  document.body.classList.toggle('is-authenticated', has);
+  if (!has) {
+    closeSidebar();
+  }
   if (has) openFromHash();
 }
 
@@ -114,12 +142,21 @@ document.querySelectorAll("nav a[data-route]").forEach(a => {
   });
 });
 
+if (navToggleBtn && sidebarEl) {
+  navToggleBtn.addEventListener('click', () => {
+    const willOpen = !sidebarEl.classList.contains('sidebar--open');
+    sidebarEl.classList.toggle('sidebar--open', willOpen);
+    bodyEl.classList.toggle('sidebar-open', willOpen);
+  });
+}
+
+
 // --- logout ---
 document.getElementById("logout").addEventListener("click", (e) => {
   e.preventDefault();
   localStorage.removeItem("token");
-  // limpiar hash para evitar que reabra una ruta protegida
   location.hash = "";
+  closeSidebar();
   checkAuth();
 });
 

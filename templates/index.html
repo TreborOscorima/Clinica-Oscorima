@@ -4,58 +4,93 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Clínica Estética - Gestión</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="/static/css/style.css" />
   </head>
   <body>
     <div id="app">
-      <aside class="sidebar">
-        <div class="brand">Clínica Estética WAYKI SAC</div>
-        <nav>
-          <a href="#" data-route="dashboard">Dashboard</a>
-          <a href="#" data-route="turnos">Turnos</a>
-          <a href="#" data-route="caja">Caja & Facturación</a>
-          <a href="#" data-route="pacientes">Pacientes</a>
-          <a href="#" data-route="profesionales">Profesionales</a>
-          <a href="#" data-route="inventario">Inventario</a>
-          <a href="#" data-route="servicios">Servicios</a>
-          <a href="#" data-route="reportes">Reportes</a>
-          <hr />
-          <a href="#" id="logout">Cerrar sesión</a>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar__brand">
+          <div class="sidebar__logo">WAYKI</div>
+          <p class="sidebar__subtitle">Gestión Clínica Estética</p>
+        </div>
+        <nav class="sidebar__nav">
+          <a href="#" class="nav-link" data-route="dashboard">
+            <span class="nav-link__icon">🏠</span>
+            <span class="nav-link__label">Dashboard</span>
+          </a>
+          <a href="#" class="nav-link" data-route="turnos">
+            <span class="nav-link__icon">🗓️</span>
+            <span class="nav-link__label">Turnos</span>
+          </a>
+          <a href="#" class="nav-link" data-route="caja">
+            <span class="nav-link__icon">💳</span>
+            <span class="nav-link__label">Caja</span>
+          </a>
+          <a href="#" class="nav-link" data-route="pacientes">
+            <span class="nav-link__icon">🧑‍🤝‍🧑</span>
+            <span class="nav-link__label">Pacientes</span>
+          </a>
+          <a href="#" class="nav-link" data-route="profesionales">
+            <span class="nav-link__icon">🩺</span>
+            <span class="nav-link__label">Profesionales</span>
+          </a>
+          <a href="#" class="nav-link" data-route="inventario">
+            <span class="nav-link__icon">📦</span>
+            <span class="nav-link__label">Inventario</span>
+          </a>
+          <a href="#" class="nav-link" data-route="servicios">
+            <span class="nav-link__icon">💼</span>
+            <span class="nav-link__label">Servicios</span>
+          </a>
+          <a href="#" class="nav-link" data-route="reportes">
+            <span class="nav-link__icon">📈</span>
+            <span class="nav-link__label">Reportes</span>
+          </a>
         </nav>
+        <footer class="sidebar__footer">
+          <small>© 2025 Clínica Estética WAYKI SAC</small>
+        </footer>
       </aside>
-      <main class="content">
-        <div id="login-view" class="card">
-          <h2>Ingresar</h2>
-          <form id="login-form">
-            <div class="form-row">
-              <label>Email</label>
-              <input
-                id="login-email"
-                type="email"
-                placeholder="admin@clinic.local"
-                required
-              />
-            </div>
-            <div class="form-row">
-              <label>Contraseña</label>
-              <input
-                id="login-pass"
-                type="password"
-                placeholder="Admin123!"
-                required
-              />
-            </div>
-            <button id="btn-login" type="submit">Entrar</button>
-          </form>
-          <div id="login-msg" class="muted"></div>
-        </div>
 
-        <div id="router-view" style="display: none">
-          <h2 id="route-title">Dashboard</h2>
-          <div id="route-content"></div>
-        </div>
-      </main>
+      <div class="main">
+        <header class="topbar">
+          <button id="nav-toggle" class="button button--icon" aria-label="Abrir menú">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <h1 id="route-title" class="topbar__title">Dashboard</h1>
+          <button id="logout" class="button button--secondary">Cerrar sesión</button>
+        </header>
+
+        <main class="content">
+          <section id="login-view" class="auth-wrapper">
+            <div class="auth-card">
+              <div class="auth-card__heading">
+                <h2>Bienvenido</h2>
+                <p>Ingresá con tus credenciales para administrar la clínica.</p>
+              </div>
+              <form id="login-form" class="form">
+                <div class="form-field">
+                  <label for="login-email" class="form-field__label">Email</label>
+                  <input id="login-email" type="email" placeholder="admin@clinic.local" required />
+                </div>
+                <div class="form-field">
+                  <label for="login-pass" class="form-field__label">Contraseña</label>
+                  <input id="login-pass" type="password" placeholder="Admin123!" required />
+                </div>
+                <button id="btn-login" type="submit" class="button button--primary">Entrar</button>
+              </form>
+              <p id="login-msg" class="form-actions__feedback"></p>
+            </div>
+          </section>
+
+          <section id="router-view" class="page-shell" style="display: none">
+            <div id="route-content"></div>
+          </section>
+        </main>
+      </div>
     </div>
 
     <script src="/static/js/api.js"></script>

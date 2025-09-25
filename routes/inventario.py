@@ -48,10 +48,9 @@ def _try_fetch_comprobante_by_ref(ref: str):
     its = ComprobanteItem.query.filter_by(comprobante_id=c.id).all() if ComprobanteItem else []
     for it in its:
         item_tipo = str(getattr(it, "tipo", "") or "").lower()
-        if item_tipo in {"servicio", "service"}:
-            # ignorar servicios u otros conceptos en el detalle de inventario
-            continue
         pid_it = getattr(it, "ref_id", None) or getattr(it, "producto_id", None)
+        if item_tipo and item_tipo not in {"producto", "insumo"}:
+            pid_it = None
         cant = float(getattr(it, "cantidad", 0) or 0)
         pvu = getattr(it, "precio_unitario", None)
         if pvu is None:
@@ -81,7 +80,7 @@ def _try_fetch_comprobante_by_ref(ref: str):
     paciente_nombre = ""
     paciente_documento = ""
     paciente_id = getattr(c, "paciente_id", None)
-    if paciente_id and 'Paciente' in globals() and Paciente:
+    if paciente_id and Paciente:
         p = Paciente.query.get(paciente_id)
         if p:
             nombres = getattr(p, "nombres", "") or getattr(p, "nombre", "")
@@ -1021,7 +1020,8 @@ def listar_movimientos():
     if tipo:
         q = q.filter(func.lower(MovimientoStock.tipo) == tipo)
     else:
-        q = q.filter(MovimientoStock.tipo.in_(["ingreso","egreso"]))
+        # Incluir 'ajuste' además de 'ingreso' y 'egreso'
+        q = q.filter(MovimientoStock.tipo.in_(["ingreso", "egreso", "ajuste"]))
     if desde:
         q = q.filter(MovimientoStock.fecha >= desde)
     if hasta:
@@ -1179,6 +1179,8 @@ def get_movimiento(mid):
         "monto": _mov_monto(m),
         "cliente_nombre": cliente_nombre,
         "cliente_documento": cliente_documento,
+        "paciente_nombre": cliente_nombre,
+        "paciente_documento": cliente_documento,
         "compra": compra,
         "compra_id": compra["id"] if compra else None,
         "compra_numero": compra["numero"] if compra else None,
@@ -1274,4 +1276,6 @@ def listar_precios_hist(pid: int):
         } for r in rows
     ]
     return {"data": data, "total": len(data)}
+
+
 

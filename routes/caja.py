@@ -1,48 +1,53 @@
 from __future__ import annotations
-from datetime import datetime, date
+
+from datetime import date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 
-from flask import Blueprint, request, Response, jsonify
-from flask_jwt_extended import jwt_required, get_jwt
+from flask import Blueprint, Response, request
+from flask_jwt_extended import get_jwt, jwt_required
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
-from utils.decorators import role_required
 from utils.audit import log_action
+from utils.decorators import role_required
 
-# ReportLab para PDFs
-try:  # pragma: no cover - fallback para entornos sin ReportLab
+try:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
-except ModuleNotFoundError:  # pragma: no cover - solo usado en pruebas/entornos mínimos
+except ModuleNotFoundError:  # pragma: no cover
     A4 = None
     canvas = None
 
-# Modelos / Schemas
+
+def reportlab_available() -> bool:
+    return canvas is not None and A4 is not None
+
+
 from models.caja import (
     CajaMovimiento,
-    Comprobante,
     CierreCaja,
-    TipoMovimiento,
-    MetodoPago,
+    Comprobante,
     ComprobanteItem,
     DeudaPaciente,
+    MetodoPago,
+    TipoMovimiento,
 )
-from models.inventario import Producto, TipoMov, MovimientoStock, aplicar_movimiento
-from models.servicio import Servicio
-from models.turno import Turno, EstadoTurno
+from models.inventario import MovimientoStock, Producto, TipoMov, aplicar_movimiento
 from models.paciente import Paciente
+from models.servicio import Servicio
+from models.turno import EstadoTurno, Turno
 
 from schemas.caja import (
     CajaMovimientoSchema,
-    ComprobanteSchema,
     CierreCajaSchema,
+    ComprobanteSchema,
     DeudaPacienteSchema,
 )
 
 from utils.inventario_ops import consumir_insumos_por_servicio
+from utils.numeros import numero_a_letras
 
 bp = Blueprint("caja", __name__, url_prefix="/api/caja")
 
@@ -52,374 +57,414 @@ comp_schema = ComprobanteSchema()
 cier_schema = CierreCajaSchema()
 
 D2 = Decimal("0.01")
-def dec2(x):
-    if x is None:
-        x = 0
-    if not isinstance(x, Decimal):
-        x = Decimal(str(x))
-    return x.quantize(D2, rounding=ROUND_HALF_UP)
+ZERO = Decimal("0")
 
-def _mp_from_str(s: str) -> MetodoPago:
-    val = (s or "").strip().lower()
+
+def dec2(value) -> Decimal:
+    if value is None:
+        value = 0
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    return value.quantize(D2, rounding=ROUND_HALF_UP)
+
+
+def _json_payload() -> dict:
+    return request.get_json(silent=True) or {}
+
+
+def _mp_from_str(value: str) -> MetodoPago:
+    normalized = (value or "").strip().lower()
+    mapping = {
+        "efectivo": MetodoPago.EFECTIVO,
+        "tarjeta": MetodoPago.TARJETA,
+        "transferencia": MetodoPago.TRANSFERENCIA,
+    }
     try:
-        if val == "efectivo":
-            return MetodoPago.EFECTIVO
-        if val == "tarjeta":
-            return MetodoPago.TARJETA
-        if val == "transferencia":
-            return MetodoPago.TRANSFERENCIA
-        return MetodoPago.OTRO
+        return mapping.get(normalized, MetodoPago.OTRO)
     except Exception:
         return getattr(MetodoPago, "OTRO", list(MetodoPago)[-1])
-    
-# --- NUEVO: helper de idempotencia (lee header o payload) ---
-def _get_idem_key() -> str | None:
-    idem = (request.headers.get("Idempotency-Key") or (request.json or {}).get("idempotency_key") or "").strip()
-    return idem or None
 
-# -------------------------
-# Movimientos
-# -------------------------
+
+def _get_idem_key() -> str | None:
+    raw = request.headers.get("Idempotency-Key") or _json_payload().get("idempotency_key")
+    key = (raw or "").strip()
+    return key or None
+
+
 @bp.get("/movimientos")
 @jwt_required()
 def listar_mov():
-    desde = request.args.get("desde")
-    hasta = request.args.get("hasta")
-    tipo = request.args.get("tipo")
-    metodo = request.args.get("metodo")
+    args = request.args
+    query = CajaMovimiento.query
 
-    q = CajaMovimiento.query
-    if desde:
+    desde_raw = args.get("desde")
+    if desde_raw:
         try:
-            start = datetime.fromisoformat(desde)
-            q = q.filter(CajaMovimiento.fecha >= start)
+            start = datetime.fromisoformat(desde_raw)
         except ValueError:
-            return {"message": "desde inválido (use ISO 8601)"}, 400
-    if hasta:
+            return {"message": "desde invalido (use ISO 8601)"}, 400
+        query = query.filter(CajaMovimiento.fecha >= start)
+
+    hasta_raw = args.get("hasta")
+    if hasta_raw:
         try:
-            end = datetime.fromisoformat(hasta)
-            q = q.filter(CajaMovimiento.fecha <= end)
+            end = datetime.fromisoformat(hasta_raw)
         except ValueError:
-            return {"message": "hasta inválido (use ISO 8601)"}, 400
+            return {"message": "hasta invalido (use ISO 8601)"}, 400
+        query = query.filter(CajaMovimiento.fecha <= end)
+
+    tipo = args.get("tipo")
     if tipo:
-        q = q.filter(CajaMovimiento.tipo == tipo)
-    if metodo:
-        q = q.filter(CajaMovimiento.metodo_pago == metodo)
+        query = query.filter(CajaMovimiento.tipo == tipo)
 
-    items = q.order_by(CajaMovimiento.fecha.desc()).limit(500).all()
-    return {"data": mov_many.dump(items)}
+    metodo = args.get("metodo")
+    if metodo:
+        query = query.filter(CajaMovimiento.metodo_pago == metodo)
+
+    movimientos = query.order_by(CajaMovimiento.fecha.desc()).limit(500).all()
+    return {"data": mov_many.dump(movimientos)}
+
 
 @bp.post("/movimientos")
 @jwt_required()
 @role_required("administracion", "recepcionista")
 def crear_mov():
-    data = mov_schema.load(request.json or {})
-    m = CajaMovimiento(**{k: v for k, v in data.__dict__.items() if not k.startswith("_sa_instance_state")})
-    db.session.add(m)
+    payload = _json_payload()
+    loaded = mov_schema.load(payload)
+    data = {key: value for key, value in vars(loaded).items() if not key.startswith("_")}
+    movimiento = CajaMovimiento(**data)
+    db.session.add(movimiento)
     db.session.commit()
-    uid = get_jwt().get("sub")
-    log_action(uid, "crear_movimiento_caja", f"Movimiento {m.id} {m.tipo} {m.monto}")
-    return mov_schema.dump(m), 201
+    log_action(
+        get_jwt().get("sub"),
+        "crear_movimiento_caja",
+        f"Movimiento {movimiento.id} {movimiento.tipo} {movimiento.monto}",
+    )
+    return mov_schema.dump(movimiento), 201
+
 
 @bp.delete("/movimientos/<int:mid>")
 @jwt_required()
 @role_required("administracion")
-def eliminar_mov(mid):
-    m = CajaMovimiento.query.get_or_404(mid)
-    db.session.delete(m)
+def eliminar_mov(mid: int):
+    movimiento = CajaMovimiento.query.get_or_404(mid)
+    db.session.delete(movimiento)
     db.session.commit()
-    uid = get_jwt().get("sub")
-    log_action(uid, "eliminar_movimiento_caja", f"Movimiento {mid}")
+    log_action(get_jwt().get("sub"), "eliminar_movimiento_caja", f"Movimiento {mid}")
     return {"message": "Eliminado"}
 
-# -------------------------
-# Comprobante simple
-# -------------------------
+
 @bp.post("/comprobantes")
 @jwt_required()
 @role_required("administracion", "recepcionista")
 def crear_comprobante():
-    payload = request.get_json() or {}
+    payload = _json_payload()
+
     total = dec2(payload.get("total", "0"))
     paciente_id = payload.get("paciente_id")
-    forma = _mp_from_str(payload.get("forma_pago", MetodoPago.EFECTIVO.value))
+    forma_pago = _mp_from_str(payload.get("forma_pago", MetodoPago.EFECTIVO.value))
     observacion = payload.get("observacion", "")
     tipo = payload.get("tipo", "recibo")
     servicio_id = payload.get("servicio_id")
     profesional_id = payload.get("profesional_id")
-    descontar_insumos = bool(payload.get("descontar_insumos", True))
+    descontar_insumos = bool(payload.get("descontar_insumos"))
     turno_id = payload.get("turno_id")
 
-    # --- NUEVO: idempotencia (si existe columna en el modelo) ---
     idem = _get_idem_key()
     if idem and hasattr(Comprobante, "idempotency_key"):
-        prev = Comprobante.query.filter_by(idempotency_key=idem).first()
-        if prev:
-            return comp_schema.dump(prev), 200
+        previo = Comprobante.query.filter_by(idempotency_key=idem).first()
+        if previo:
+            return comp_schema.dump(previo), 200
 
-    c = Comprobante(
+    comprobante = Comprobante(
         tipo=tipo,
         total=total,
         total_bruto=total,
         descuento_global=dec2(0),
         paciente_id=paciente_id,
-        forma_pago=forma,
+        forma_pago=forma_pago,
         observacion=observacion,
         **({"idempotency_key": idem} if (idem and hasattr(Comprobante, "idempotency_key")) else {}),
     )
-    db.session.add(c)
+    db.session.add(comprobante)
     db.session.flush()
-    c.numero = f"{tipo[:1].upper()}-{c.id:06d}"
+    comprobante.numero = f"{tipo[:1].upper()}-{comprobante.id:06d}"
 
-    mov_kwargs = dict(
+    movimiento_kwargs = dict(
         tipo=TipoMovimiento.INGRESO,
         monto=total,
-        metodo_pago=forma,
+        metodo_pago=forma_pago,
         paciente_id=paciente_id,
-        comprobante_id=c.id,
+        comprobante_id=comprobante.id,
         servicio_id=servicio_id,
         profesional_id=profesional_id,
-        observacion=f"{tipo} {c.numero}",
+        observacion=f"{tipo} {comprobante.numero}",
     )
     if hasattr(CajaMovimiento, "turno_id"):
-        mov_kwargs["turno_id"] = turno_id
+        movimiento_kwargs["turno_id"] = turno_id
 
-    mov = CajaMovimiento(**mov_kwargs)
-    db.session.add(mov)
+    movimiento = CajaMovimiento(**movimiento_kwargs)
+    db.session.add(movimiento)
 
-    movimientos_stock = []
+    movimientos_stock: list[MovimientoStock] | list[dict] = []
     if descontar_insumos and servicio_id:
         movimientos_stock = consumir_insumos_por_servicio(
             servicio_id,
             multiplicador=1.0,
             motivo="Consumo por comprobante",
-            referencia=c.numero,
+            referencia=comprobante.numero,
             session=db.session,
-            estricta=False, 
-        )
+            estricta=False,
+        ) or []
 
     try:
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
         if idem and hasattr(Comprobante, "idempotency_key"):
-            prev = Comprobante.query.filter_by(idempotency_key=idem).first()
-            if prev:
-                return comp_schema.dump(prev), 200
+            previo = Comprobante.query.filter_by(idempotency_key=idem).first()
+            if previo:
+                return comp_schema.dump(previo), 200
         raise
 
-    uid = get_jwt().get("sub")
-    log_action(uid, "crear_comprobante", f"Comprobante {c.numero} - turno {turno_id} - stock_movs {len(movimientos_stock)}")
+    log_action(
+        get_jwt().get("sub"),
+        "crear_comprobante",
+        f"Comprobante {comprobante.numero} - turno {turno_id} - stock_movs {len(movimientos_stock)}",
+    )
 
-    out = comp_schema.dump(c)
-    out["movimientos_stock"] = movimientos_stock
-    return out, 201
+    resultado = comp_schema.dump(comprobante)
+    resultado["movimientos_stock"] = movimientos_stock
+    return resultado, 201
 
-# -------------------------
-# PDF comprobante
-# -------------------------
+
 @bp.get("/comprobantes/<int:cid>/pdf")
 @jwt_required()
-def comprobante_pdf(cid):
-    if canvas is None or A4 is None:
+def comprobante_pdf(cid: int):
+    if not reportlab_available():
         return {"message": "ReportLab no disponible"}, 501
-    c = Comprobante.query.get_or_404(cid)
-    subtotal = dec2(getattr(c, "total_bruto", None) or sum((it.subtotal or 0) for it in (c.items or [])))
-    desc = dec2(getattr(c, "descuento_global", None) or 0)
-    total = dec2(getattr(c, "total", 0) or (subtotal - desc))
+
+    comprobante = Comprobante.query.get_or_404(cid)
+    subtotal = dec2(getattr(comprobante, "total_bruto", None) or sum((it.subtotal or 0) for it in (comprobante.items or [])))
+    descuento = dec2(getattr(comprobante, "descuento_global", None) or 0)
+    total = dec2(getattr(comprobante, "total", 0) or (subtotal - descuento))
 
     paciente_nombre = ""
     paciente_doc = ""
-    if getattr(c, "paciente_id", None):
-        pac = Paciente.query.get(c.paciente_id)
-        if pac:
-            paciente_nombre = (pac.nombre or paciente_nombre).strip()
-            paciente_doc = (pac.documento or paciente_doc).strip()
+    if getattr(comprobante, "paciente_id", None):
+        paciente = Paciente.query.get(comprobante.paciente_id)
+        if paciente:
+            paciente_nombre = (paciente.nombre or "").strip()
+            paciente_doc = (paciente.documento or "").strip()
     if not paciente_nombre:
         paciente_nombre = "-"
 
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
+    lienzo = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    y = height - 50
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, y, f"Comprobante: {c.tipo.upper()}  No. {c.numero}")
-    y -= 30
-    p.setFont("Helvetica", 11)
-    fecha_safe = getattr(c, "fecha", None) or datetime.utcnow()
-    p.drawString(50, y, f"Fecha: {fecha_safe.strftime('%Y-%m-%d %H:%M')}")
-    y -= 18
-    pac_line = paciente_nombre
+    cursor_y = height - 50
+
+    lienzo.setFont("Helvetica-Bold", 14)
+    lienzo.drawString(50, cursor_y, f"Comprobante: {comprobante.tipo.upper()}  No. {comprobante.numero}")
+    cursor_y -= 30
+
+    lienzo.setFont("Helvetica", 11)
+    fecha_segura = getattr(comprobante, "fecha", None) or datetime.utcnow()
+    lienzo.drawString(50, cursor_y, f"Fecha: {fecha_segura.strftime('%Y-%m-%d %H:%M')}")
+    cursor_y -= 18
+
+    lienzo.drawString(50, cursor_y, f"Paciente: {paciente_nombre}")
+    cursor_y -= 18
+
     if paciente_doc:
-        pac_line = f"{pac_line} (DNI {paciente_doc})"
-    p.drawString(50, y, f"Paciente: {pac_line}")
-    y -= 18
-    fp = getattr(c.forma_pago, "value", str(c.forma_pago))
-    p.drawString(50, y, f"Forma de pago: {fp}")
-    y -= 18
-    p.drawString(50, y, f"Descuento aplicado: S/ {float(desc):.2f}")
-    y -= 18
-    p.drawString(50, y, f"Total: S/ {float(total):.2f}")
-    y -= 18
-    if c.observacion:
-        p.drawString(50, y, f"Obs: {c.observacion}")
-        y -= 18
+        lienzo.drawString(50, cursor_y, f"Documento: {paciente_doc}")
+        cursor_y -= 18
 
-    if getattr(c, "items", None):
-        y -= 12
-        p.setFont("Helvetica-Bold", 11)
-        p.drawString(50, y, "Detalle de items")
-        y -= 18
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(50, y, "Descripcion")
-        p.drawRightString(350, y, "Cant.")
-        p.drawRightString(430, y, "Precio unit.")
-        p.drawRightString(510, y, "Importe")
-        y -= 14
-        p.setFont("Helvetica", 10)
-        for it in c.items:
-            if y < 80:
-                p.showPage()
-                y = height - 50
-                p.setFont("Helvetica-Bold", 10)
-                p.drawString(50, y, "Descripcion")
-                p.drawRightString(350, y, "Cant.")
-                p.drawRightString(430, y, "Precio unit.")
-                p.drawRightString(510, y, "Importe")
-                y -= 14
-                p.setFont("Helvetica", 10)
-            desc_txt = (it.nombre or "").strip()
-            tipo_lbl = (it.tipo or "").strip()
-            if tipo_lbl:
-                desc_txt = f"{tipo_lbl.capitalize()} - {desc_txt}" if desc_txt else tipo_lbl.capitalize()
-            p.drawString(50, y, desc_txt[:80])
-            p.drawRightString(350, y, f"{float(it.cantidad or 0):.2f}")
-            p.drawRightString(430, y, f"S/ {float(it.precio_unit or 0):.2f}")
-            p.drawRightString(510, y, f"S/ {float(it.subtotal or 0):.2f}")
-            y -= 14
+    forma_pago = getattr(comprobante.forma_pago, "value", str(comprobante.forma_pago))
+    lienzo.drawString(50, cursor_y, f"Forma de pago: {forma_pago}")
+    cursor_y -= 18
 
-    p.line(50, y, width - 50, y)
-    y -= 24
-    p.setFont("Helvetica-Oblique", 10)
-    p.drawString(50, y, "Documento generado automáticamente por el sistema de gestión de Clínica Estética.")
-    p.showPage()
-    p.save()
+    if comprobante.observacion:
+        lienzo.drawString(50, cursor_y, f"Obs: {comprobante.observacion}")
+        cursor_y -= 18
+
+    if getattr(comprobante, "items", None):
+        cursor_y -= 12
+        lienzo.setFont("Helvetica-Bold", 11)
+        lienzo.drawString(50, cursor_y, "Detalle de items")
+        cursor_y -= 18
+
+        lienzo.setFont("Helvetica-Bold", 10)
+        lienzo.drawString(50, cursor_y, "Descripcion")
+        lienzo.drawRightString(350, cursor_y, "Cant.")
+        lienzo.drawRightString(430, cursor_y, "Precio unit.")
+        lienzo.drawRightString(510, cursor_y, "Importe")
+        cursor_y -= 14
+        lienzo.setFont("Helvetica", 10)
+
+        for item in comprobante.items:
+            if cursor_y < 80:
+                lienzo.showPage()
+                cursor_y = height - 50
+                lienzo.setFont("Helvetica-Bold", 10)
+                lienzo.drawString(50, cursor_y, "Descripcion")
+                lienzo.drawRightString(350, cursor_y, "Cant.")
+                lienzo.drawRightString(430, cursor_y, "Precio unit.")
+                lienzo.drawRightString(510, cursor_y, "Importe")
+                cursor_y -= 14
+                lienzo.setFont("Helvetica", 10)
+
+            descripcion = (item.nombre or "").strip()
+            tipo_linea = (item.tipo or "").strip()
+            if tipo_linea:
+                descripcion = f"{tipo_linea.capitalize()} - {descripcion}" if descripcion else tipo_linea.capitalize()
+
+            lienzo.drawString(50, cursor_y, descripcion[:80])
+            lienzo.drawRightString(350, cursor_y, f"{float(item.cantidad or 0):.2f}")
+            lienzo.drawRightString(430, cursor_y, f"S/ {float(item.precio_unit or 0):.2f}")
+            lienzo.drawRightString(510, cursor_y, f"S/ {float(item.subtotal or 0):.2f}")
+            cursor_y -= 14
+
+    cursor_y -= 8
+    lienzo.setFont("Helvetica", 10)
+    lienzo.drawRightString(520, cursor_y, f"Subtotal: S/ {float(subtotal):.2f}")
+    cursor_y -= 16
+    lienzo.drawRightString(520, cursor_y, f"Descuento aplicado: S/ {float(descuento):.2f}")
+    cursor_y -= 16
+    lienzo.setFont("Helvetica-Bold", 11)
+    lienzo.drawRightString(510, cursor_y, f"Total: S/ {float(total):.2f}")
+    cursor_y -= 24
+
+    try:
+        total_letras = numero_a_letras(float(total), moneda="soles")
+    except Exception:
+        total_letras = f"{float(total):.2f}"
+    lienzo.drawString(50, cursor_y, f"Importe: {total_letras}")
+    cursor_y -= 24
+
+    lienzo.line(50, cursor_y, width - 50, cursor_y)
+    cursor_y -= 24
+
+    lienzo.setFont("Helvetica-Oblique", 10)
+    lienzo.drawString(50, cursor_y, "Documento generado automaticamente por el sistema de gestion.")
+    lienzo.showPage()
+    lienzo.save()
+
     pdf = buffer.getvalue()
     buffer.close()
-    resp = Response(pdf, mimetype="application/pdf")
-    resp.headers["Content-Disposition"] = f"attachment; filename={c.tipo}_{c.numero}.pdf"
-    return resp
+
+    response = Response(pdf, mimetype="application/pdf")
+    response.headers["Content-Disposition"] = f"attachment; filename={comprobante.tipo}_{comprobante.numero}.pdf"
+    return response
 
 
-# -------------------------
-# POS (ATÓMICO + deuda y consumo)
-# -------------------------
 @bp.post("/pos")
 @jwt_required()
 @role_required("administracion", "recepcionista")
 def pos_emitir():
-    """
-    Crea comprobante con items (producto/servicio), registra pagos (CajaMovimiento),
-    descuenta stock por productos y genera deuda si el pago es parcial.
-    Soporta descuento global: {descuento_tipo: 'porcentaje'|'monto'|None, descuento_valor: number}
-    """
-    payload = request.json or {}
+    payload = _json_payload()
+
     tipo = (payload.get("tipo") or "boleta").lower()
     paciente_id = payload.get("paciente_id")
     turno_id = payload.get("turno_id")
     observacion = payload.get("observacion") or ""
-    items = payload.get("items") or []
-    pagos = payload.get("pagos") or []
+    items_raw = payload.get("items") or []
+    pagos_raw = payload.get("pagos") or []
+    descontar_insumos = bool(payload.get("descontar_insumos"))
 
-    dsc_tipo = payload.get("descuento_tipo")  # "porcentaje" | "monto" | None
-    dsc_valor = payload.get("descuento_valor")  # numero
-    insumos_estricto = bool(payload.get("registrar_insumos_estricto", False))
+    dsc_tipo = payload.get("descuento_tipo")
+    dsc_valor = payload.get("descuento_valor")
 
-    # --- NUEVO: idempotencia POS ---
     idem = _get_idem_key()
     if idem and hasattr(Comprobante, "idempotency_key"):
-        prev = Comprobante.query.filter_by(idempotency_key=idem).first()
-        if prev:
-            return comp_schema.dump(prev), 200
+        previo = Comprobante.query.filter_by(idempotency_key=idem).first()
+        if previo:
+            return comp_schema.dump(previo), 200
 
-    if not items:
+    if not items_raw:
         return {"message": "items requeridos"}, 400
-    if not pagos:
+    if not pagos_raw:
         return {"message": "Debe registrar al menos un pago (puede ser parcial)"}, 400
 
     try:
-        # 1) Normalizar ítems y subtotal
         total_bruto = Decimal("0")
-        items_norm = []
-        for it in items:
-            t = (it.get("tipo") or "").lower()
-            if t not in ("producto", "servicio"):
-                return {"message": f"tipo de item inválido: {t}"}, 400
-            ref_id = it.get("id")
-            if not ref_id:
-                return {"message": "id de item requerido"}, 400
-            cantidad = dec2(it.get("cantidad") or 0)
-            if cantidad <= 0:
-                return {"message": "cantidad > 0 requerida"}, 400
+        items_norm: list[dict] = []
 
-            precio = it.get("precio")
-            if precio is None:
-                if t == "servicio":
-                    s = Servicio.query.get(ref_id)
-                    if not s:
-                        return {"message": f"servicio {ref_id} no existe"}, 404
-                    precio = s.precio or 0
-                else:
-                    p = Producto.query.get(ref_id)
-                    if not p:
-                        return {"message": f"producto {ref_id} no existe"}, 404
-                    if it.get("precio") is not None:
-                        precio = it.get("precio")
-                    elif getattr(p, "precio_venta", None) is not None:
-                        precio = p.precio_venta
+        for item in items_raw:
+            item_type = (item.get("tipo") or "").lower()
+            if item_type not in ("producto", "servicio"):
+                raise ValueError(f"tipo de item invalido: {item_type}")
+
+            ref_id = item.get("id")
+            if not ref_id:
+                raise ValueError("id de item requerido")
+
+            cantidad = dec2(item.get("cantidad") or 0)
+            if cantidad <= 0:
+                raise ValueError("cantidad > 0 requerida")
+
+            precio = item.get("precio")
+            servicio = None
+            producto = None
+            if item_type == "servicio":
+                servicio = Servicio.query.get(ref_id)
+                if not servicio:
+                    return {"message": f"servicio {ref_id} no existe"}, 404
+                if precio is None:
+                    precio = servicio.precio or 0
+            else:
+                producto = Producto.query.get(ref_id)
+                if not producto:
+                    return {"message": f"producto {ref_id} no existe"}, 404
+                if precio is None:
+                    if getattr(producto, "precio_venta", None) is not None:
+                        precio = producto.precio_venta
                     else:
                         return {
-                            "message": f"El producto '{getattr(p, 'nombre', ref_id)}' no tiene precio de venta configurado."
+                            "message": f"El producto '{getattr(producto, 'nombre', ref_id)}' no tiene precio de venta configurado."
                         }, 400
 
             precio = dec2(precio)
-            sub = dec2(precio * cantidad)
-            total_bruto = dec2(total_bruto + sub)
+            subtotal = dec2(precio * cantidad)
+            total_bruto = dec2(total_bruto + subtotal)
 
-            nombre = it.get("nombre") or (
-                Servicio.query.get(ref_id).nombre if t == "servicio" else Producto.query.get(ref_id).nombre
-            )
+            base_nombre = servicio.nombre if servicio else (producto.nombre if producto else "")
+            nombre = item.get("nombre") or base_nombre or ""
 
             items_norm.append(
-                {"tipo": t, "ref_id": ref_id, "nombre": nombre, "cantidad": cantidad, "precio_unit": precio, "subtotal": sub}
+                {
+                    "tipo": item_type,
+                    "ref_id": ref_id,
+                    "nombre": nombre,
+                    "cantidad": cantidad,
+                    "precio_unit": precio,
+                    "subtotal": subtotal,
+                }
             )
 
-        # 2) Descuento global
         descuento_global = Decimal("0.00")
         if dsc_tipo in ("porcentaje", "monto"):
             try:
-                val = dec2(dsc_valor or 0)
+                valor_descuento = dec2(dsc_valor or 0)
             except Exception:
-                val = Decimal("0")
+                valor_descuento = Decimal("0")
+
             if dsc_tipo == "porcentaje":
-                if val < 0: val = Decimal("0")
-                if val > 100: val = Decimal("100")
-                descuento_global = dec2(total_bruto * (val / Decimal("100")))
+                valor_descuento = min(max(valor_descuento, Decimal("0")), Decimal("100"))
+                descuento_global = dec2(total_bruto * (valor_descuento / Decimal("100")))
             else:
-                if val < 0: val = Decimal("0")
-                if val > total_bruto: val = total_bruto
-                descuento_global = dec2(val)
+                valor_descuento = min(max(valor_descuento, Decimal("0")), total_bruto)
+                descuento_global = dec2(valor_descuento)
 
         total_neto = dec2(total_bruto - descuento_global)
+        total_pagado = dec2(sum(dec2(pago.get("monto")) for pago in pagos_raw))
 
-        total_pagado = dec2(sum(dec2(p.get("monto")) for p in pagos))
-        forma_pago_str = (pagos[0].get("metodo") if pagos else "efectivo") or "efectivo"
-        if len(pagos) > 1:
-            forma_pago_str = "otro"
-        forma_pago_enum = _mp_from_str(forma_pago_str)
+        metodo_principal = (pagos_raw[0].get("metodo") if pagos_raw else "efectivo") or "efectivo"
+        if len(pagos_raw) > 1:
+            metodo_principal = "otro"
+        forma_pago_enum = _mp_from_str(metodo_principal)
 
-        # 3) Comprobante
-        c = Comprobante(
+        comprobante = Comprobante(
             tipo=tipo,
             paciente_id=paciente_id,
             forma_pago=forma_pago_enum,
@@ -429,87 +474,85 @@ def pos_emitir():
             descuento_global=descuento_global,
             **({"idempotency_key": idem} if (idem and hasattr(Comprobante, "idempotency_key")) else {}),
         )
-        db.session.add(c)
+        db.session.add(comprobante)
         db.session.flush()
-        pref = "B" if tipo.startswith("boleta") else ("F" if tipo.startswith("factura") else "C")
-        c.numero = f"{pref}-{c.id:06d}"
+        prefijo = "B" if tipo.startswith("boleta") else ("F" if tipo.startswith("factura") else "C")
+        comprobante.numero = f"{prefijo}-{comprobante.id:06d}"
 
-        # 4) Items
-        for it in items_norm:
+        for item in items_norm:
             db.session.add(
                 ComprobanteItem(
-                    comprobante_id=c.id,
-                    tipo=it["tipo"],
-                    ref_id=it["ref_id"],
-                    nombre=it["nombre"],
-                    cantidad=it["cantidad"],
-                    precio_unit=it["precio_unit"],
-                    subtotal=it["subtotal"],
+                    comprobante_id=comprobante.id,
+                    tipo=item["tipo"],
+                    ref_id=item["ref_id"],
+                    nombre=item["nombre"],
+                    cantidad=item["cantidad"],
+                    precio_unit=item["precio_unit"],
+                    subtotal=item["subtotal"],
                 )
             )
 
-        # 5) Egresos de productos (VENTA)
-        ref = c.numero
-        ref_srv = f"{ref}-SRV"
-        for it in items_norm:
-            if it["tipo"] != "producto":
+        referencia = comprobante.numero
+        for item in items_norm:
+            if item["tipo"] != "producto":
                 continue
-            p = Producto.query.get(it["ref_id"])
-            if not p:
+
+            producto = Producto.query.get(item["ref_id"])
+            if not producto:
                 db.session.rollback()
-                return {"message": f"Producto {it['ref_id']} no encontrado"}, 404
+                return {"message": f"Producto {item['ref_id']} no encontrado"}, 404
+
             try:
                 aplicar_movimiento(
-                    p,
+                    producto,
                     TipoMov.EGRESO.value if hasattr(TipoMov, "EGRESO") else "egreso",
-                    it["cantidad"],
+                    item["cantidad"],
                     motivo="VENTA",
-                    ref=ref
+                    ref=referencia,
                 )
-            except ValueError as ve:
+            except ValueError as error:
                 db.session.rollback()
-                return {"message": str(ve)}, 400
+                return {"message": str(error)}, 400
 
-        # 6) Insumos por servicios
-        for it in items_norm:
-            if it["tipo"] == "servicio":
+        if descontar_insumos:
+            for item in items_norm:
+                if item["tipo"] != "servicio":
+                    continue
                 try:
                     consumir_insumos_por_servicio(
-                        it["ref_id"],
-                        multiplicador=float(it["cantidad"]),
+                        item["ref_id"],
+                        multiplicador=float(item["cantidad"]),
                         motivo="SERVICIO",
-                        referencia=ref
+                        referencia=referencia,
                     )
                 except Exception:
-                    # best-effort si hay servicios sin insumos configurados
                     pass
 
-        # 7) Pagos (CajaMovimiento)
-        pagos_rows = []
-        for p in pagos:
-            metodo = _mp_from_str(p.get("metodo"))
-            monto = dec2(p.get("monto") or 0)
+        pagos_creados: list[CajaMovimiento] = []
+        for pago in pagos_raw:
+            metodo = _mp_from_str(pago.get("metodo"))
+            monto = dec2(pago.get("monto") or 0)
             if monto <= 0:
                 continue
-            cm = CajaMovimiento(
+
+            pago_mov = CajaMovimiento(
                 tipo=TipoMovimiento.INGRESO,
                 monto=monto,
                 metodo_pago=metodo,
                 paciente_id=paciente_id,
-                comprobante_id=c.id,
+                comprobante_id=comprobante.id,
                 turno_id=turno_id if hasattr(CajaMovimiento, "turno_id") else None,
-                observacion=f"Pago {getattr(metodo,'value',str(metodo))} {c.numero}",
+                observacion=f"Pago {getattr(metodo, 'value', str(metodo))} {comprobante.numero}",
             )
-            db.session.add(cm)
-            pagos_rows.append(cm)
+            db.session.add(pago_mov)
+            pagos_creados.append(pago_mov)
 
-        # 8) Deuda si pago parcial
         saldo = dec2(total_neto - total_pagado)
         deuda_obj = None
         if saldo > 0 and paciente_id:
             deuda_obj = DeudaPaciente(
                 paciente_id=paciente_id,
-                comprobante_id=c.id,
+                comprobante_id=comprobante.id,
                 total=total_neto,
                 pagado=dec2(total_pagado),
                 saldo=saldo,
@@ -517,91 +560,103 @@ def pos_emitir():
             )
             db.session.add(deuda_obj)
 
-        # 9) Estado del turno
         if turno_id:
-            t = Turno.query.get(turno_id)
-            if t and hasattr(EstadoTurno, "ATENDIDO"):
-                t.estado = EstadoTurno.ATENDIDO
+            turno = Turno.query.get(turno_id)
+            if turno and hasattr(EstadoTurno, "ATENDIDO"):
+                turno.estado = EstadoTurno.ATENDIDO
 
         try:
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
             if idem and hasattr(Comprobante, "idempotency_key"):
-                prev = Comprobante.query.filter_by(idempotency_key=idem).first()
-                if prev:
-                    return comp_schema.dump(prev), 200
+                previo = Comprobante.query.filter_by(idempotency_key=idem).first()
+                if previo:
+                    return comp_schema.dump(previo), 200
             raise
 
-        log_action(get_jwt().get("sub"), "pos_emitir", f"Comprobante {c.numero} total {total_neto} pagos {total_pagado}")
+        log_action(
+            get_jwt().get("sub"),
+            "pos_emitir",
+            f"Comprobante {comprobante.numero} total {total_neto} pagos {total_pagado}",
+        )
+
         return {
             "comprobante": {
-                "id": c.id,
-                "numero": c.numero,
-                "tipo": c.tipo,
+                "id": comprobante.id,
+                "numero": comprobante.numero,
+                "tipo": comprobante.tipo,
                 "total_bruto": float(total_bruto),
                 "descuento_global": float(descuento_global),
-                "total": float(c.total or 0),
-                "paciente_id": c.paciente_id,
-                "fecha": getattr(c, "fecha", datetime.utcnow()).isoformat(),
-                "forma_pago": getattr(c.forma_pago, "value", str(c.forma_pago)),
+                "total": float(comprobante.total or 0),
+                "paciente_id": comprobante.paciente_id,
+                "fecha": getattr(comprobante, "fecha", datetime.utcnow()).isoformat(),
+                "forma_pago": getattr(comprobante.forma_pago, "value", str(comprobante.forma_pago)),
                 "items": [
                     {
-                        "tipo": it["tipo"],
-                        "ref_id": it["ref_id"],
-                        "nombre": it["nombre"],
-                        "cantidad": float(it["cantidad"]),
-                        "precio_unit": float(it["precio_unit"]),
-                        "subtotal": float(it["subtotal"]),
+                        "tipo": item["tipo"],
+                        "ref_id": item["ref_id"],
+                        "nombre": item["nombre"],
+                        "cantidad": float(item["cantidad"]),
+                        "precio_unit": float(item["precio_unit"]),
+                        "subtotal": float(item["subtotal"]),
                     }
-                    for it in items_norm
+                    for item in items_norm
                 ],
             },
-            "pagos": [{"metodo": getattr(p.metodo_pago, "value", str(p.metodo_pago)), "monto": float(p.monto)} for p in pagos_rows],
+            "pagos": [
+                {
+                    "metodo": getattr(pago.metodo_pago, "value", str(pago.metodo_pago)),
+                    "monto": float(pago.monto),
+                }
+                for pago in pagos_creados
+            ],
             "saldo_pendiente": float(saldo),
-            "deuda": (DeudaPacienteSchema().dump(deuda_obj) if deuda_obj else None),
-            "pdf_url": f"/api/caja/comprobantes/{c.id}/pdf",
+            "deuda": DeudaPacienteSchema().dump(deuda_obj) if deuda_obj else None,
+            "pdf_url": f"/api/caja/comprobantes/{comprobante.id}/pdf",
         }, 201
 
-    except ValueError as ve:
+    except ValueError as error:
         db.session.rollback()
-        return {"message": str(ve)}, 400
-    except Exception as e:
+        return {"message": str(error)}, 400
+    except Exception as error:
         db.session.rollback()
-        return {"message": f"Error al emitir comprobante: {str(e)}"}, 500
+        return {"message": f"Error al emitir comprobante: {error}"}, 500
 
-# -------------------------
-# Deudas / Cierres / Resumen
-# -------------------------
 
 @bp.get("/deudas/paciente/<int:pid>")
 @jwt_required()
-def deudas_por_paciente(pid):
-    qs = DeudaPaciente.query.filter(DeudaPaciente.paciente_id == pid, DeudaPaciente.estado == "pendiente")
-    items = qs.order_by(DeudaPaciente.creado_en.desc()).all()
-    total_saldo = sum((d.saldo or 0) for d in items)
+def deudas_por_paciente(pid: int):
+    query = DeudaPaciente.query.filter(
+        DeudaPaciente.paciente_id == pid,
+        DeudaPaciente.estado == "pendiente",
+    )
+    items = query.order_by(DeudaPaciente.creado_en.desc()).all()
+    total_saldo = sum((deuda.saldo or 0) for deuda in items)
     return {
-        "total_saldo": float(dec2(total_saldo)),
-        "items": DeudaPacienteSchema(many=True).dump(items),
+        "data": DeudaPacienteSchema(many=True).dump(items),
+        "saldo_total": float(dec2(total_saldo)),
     }
+
 
 @bp.post("/deudas/abonar")
 @jwt_required()
+@role_required("administracion", "recepcionista")
 def deudas_abonar():
-    data = request.get_json(silent=True) or {}
-    paciente_id = data.get("paciente_id")
-    monto = data.get("monto")
-    metodo = _mp_from_str(data.get("metodo") or "efectivo")
-    nota = (data.get("nota") or "").strip() or None
+    payload = _json_payload()
+    paciente_id = payload.get("paciente_id")
+    monto_raw = payload.get("monto")
+    metodo = _mp_from_str(payload.get("metodo", MetodoPago.EFECTIVO.value))
+    nota = payload.get("nota") or ""
 
-    if not paciente_id or monto is None:
-        return {"message": "Datos inválidos."}, 400
+    if not paciente_id:
+        return {"message": "paciente_id requerido"}, 400
     try:
-        monto = dec2(monto)
+        monto = dec2(monto_raw)
         if monto <= 0:
-            return {"message": "Monto inválido."}, 400
+            return {"message": "Monto invalido."}, 400
     except Exception:
-        return {"message": "Monto inválido."}, 400
+        return {"message": "Monto invalido."}, 400
 
     deudas = (
         DeudaPaciente.query.filter(
@@ -617,35 +672,35 @@ def deudas_abonar():
 
     restante = monto
     abonado_total = Decimal("0.00")
-    for d in deudas:
+    for deuda in deudas:
         if restante <= 0:
             break
-        saldo_d = dec2(d.saldo or 0)
-        a_cubrir = saldo_d if saldo_d <= restante else restante
-        if a_cubrir <= 0:
+        saldo_deuda = dec2(deuda.saldo or 0)
+        cubrir = saldo_deuda if saldo_deuda <= restante else restante
+        if cubrir <= 0:
             continue
 
-        d.pagado = dec2(Decimal(str(d.pagado or 0)) + a_cubrir)
-        d.saldo = dec2(Decimal(str(d.total or 0)) - d.pagado)
-        if d.saldo <= 0:
-            d.estado = "cancelada"
+        deuda.pagado = dec2(Decimal(str(deuda.pagado or 0)) + cubrir)
+        deuda.saldo = dec2(Decimal(str(deuda.total or 0)) - deuda.pagado)
+        if deuda.saldo <= 0:
+            deuda.estado = "cancelada"
 
-        abonado_total = dec2(abonado_total + a_cubrir)
-        restante = dec2(restante - a_cubrir)
+        abonado_total = dec2(abonado_total + cubrir)
+        restante = dec2(restante - cubrir)
 
-        obs = f"Abono deuda comp {d.comprobante_id}"
+        observacion = f"Abono deuda comp {deuda.comprobante_id}"
         if nota:
-            obs = f"{obs} - {nota}"
+            observacion = f"{observacion} - {nota}"
 
-        cm = CajaMovimiento(
+        movimiento = CajaMovimiento(
             tipo=TipoMovimiento.INGRESO,
-            monto=a_cubrir,
+            monto=cubrir,
             metodo_pago=metodo,
             paciente_id=paciente_id,
-            comprobante_id=d.comprobante_id,
-            observacion=obs,
+            comprobante_id=deuda.comprobante_id,
+            observacion=observacion,
         )
-        db.session.add(cm)
+        db.session.add(movimiento)
 
     db.session.commit()
 
@@ -659,138 +714,144 @@ def deudas_abonar():
         .scalar()
         or Decimal("0")
     )
-    return {"ok": True, "abonado": float(dec2(abonado_total)), "saldo": float(dec2(pendientes))}
-
-# =========================
-# Helpers de cierre diario
-# =========================
-def _preview_for_date(f: date):
-    start = datetime.combine(f, datetime.min.time())
-    end = datetime.combine(f, datetime.max.time())
-    movs = CajaMovimiento.query.filter(CajaMovimiento.fecha >= start, CajaMovimiento.fecha <= end).all()
-
-    tot = Decimal("0")
-    tot_m = {k: Decimal("0") for k in ("efectivo", "tarjeta", "transferencia", "otro")}
-    for m in movs:
-        if m.tipo == TipoMovimiento.INGRESO:
-            monto = dec2(m.monto or 0)
-            tot += monto
-            key = (getattr(m.metodo_pago, "value", str(m.metodo_pago)) or "otro").lower()
-            if key not in tot_m:
-                key = "otro"
-            tot_m[key] = dec2(tot_m[key] + monto)
-
     return {
-        "fecha": f.isoformat(),
-        "total_ingresos": float(dec2(tot)),
-        "por_metodo": {k: float(dec2(v)) for k, v in tot_m.items()},
-        "conteo_movs": len(movs),
+        "ok": True,
+        "abonado": float(dec2(abonado_total)),
+        "saldo": float(dec2(pendientes)),
     }
 
-# =========================
-# Cierre diario
-# =========================
+
+def _preview_for_date(fecha: date):
+    inicio = datetime.combine(fecha, time.min)
+    fin = datetime.combine(fecha, time.max)
+    movimientos = CajaMovimiento.query.filter(
+        CajaMovimiento.fecha >= inicio,
+        CajaMovimiento.fecha <= fin,
+    ).all()
+
+    total = Decimal("0")
+    por_metodo: dict[str, Decimal] = {k: Decimal("0") for k in ("efectivo", "tarjeta", "transferencia", "otro")}
+    for movimiento in movimientos:
+        if movimiento.tipo == TipoMovimiento.INGRESO:
+            monto = dec2(movimiento.monto or 0)
+            total += monto
+            metodo_key = (getattr(movimiento.metodo_pago, "value", str(movimiento.metodo_pago)) or "otro").lower()
+            if metodo_key not in por_metodo:
+                metodo_key = "otro"
+            por_metodo[metodo_key] = dec2(por_metodo[metodo_key] + monto)
+
+    return {
+        "fecha": fecha.isoformat(),
+        "total_ingresos": float(dec2(total)),
+        "por_metodo": {k: float(dec2(v)) for k, v in por_metodo.items()},
+        "conteo_movs": len(movimientos),
+    }
+
+
 @bp.get("/cierres/diario/preview")
 @jwt_required()
 def cierre_preview():
-    fecha = (request.args.get("fecha") or date.today().isoformat())
+    fecha_raw = request.args.get("fecha") or date.today().isoformat()
     try:
-        f = date.fromisoformat(fecha)
+        fecha = date.fromisoformat(fecha_raw)
     except Exception:
-        return {"message": "fecha inválida (YYYY-MM-DD)"}, 400
-    return _preview_for_date(f)
+        return {"message": "fecha invalida (YYYY-MM-DD)"}, 400
+    return _preview_for_date(fecha)
 
 
 @bp.post("/cierres/diario")
 @jwt_required()
 @role_required("administracion")
 def cierre_confirmar():
-    fecha = (request.json or {}).get("fecha") or date.today().isoformat()
+    fecha_raw = _json_payload().get("fecha") or date.today().isoformat()
     try:
-        f = date.fromisoformat(fecha)
+        fecha = date.fromisoformat(fecha_raw)
     except Exception:
-        return {"message": "fecha inválida"}, 400
+        return {"message": "fecha invalida"}, 400
 
-    ya = CierreCaja.query.filter_by(fecha=f).first()
-    if ya:
-        return CierreCajaSchema().dump(ya), 200
+    existente = CierreCaja.query.filter_by(fecha=fecha).first()
+    if existente:
+        return cier_schema.dump(existente), 200
 
-    prev = _preview_for_date(f)
-
-    c = CierreCaja(
-        fecha=f,
-        total_ingresos=dec2(prev["total_ingresos"]),
+    preview = _preview_for_date(fecha)
+    cierre = CierreCaja(
+        fecha=fecha,
+        total_ingresos=dec2(preview["total_ingresos"]),
         total_egresos=dec2(0),
-        saldo=dec2(prev["total_ingresos"]),
+        saldo=dec2(preview["total_ingresos"]),
         usuario_id=get_jwt().get("sub"),
     )
-    db.session.add(c)
+    db.session.add(cierre)
     db.session.commit()
-    log_action(get_jwt().get("sub"), "cierre_diario", f"Cierre {f} ingresos {c.total_ingresos}")
-    return CierreCajaSchema().dump(c), 201
+    log_action(get_jwt().get("sub"), "cierre_diario", f"Cierre {fecha} ingresos {cierre.total_ingresos}")
+    return cier_schema.dump(cierre), 201
 
 
 @bp.get("/cierres/diario/<fecha>/pdf")
 @jwt_required()
-def cierre_diario_pdf(fecha):
-    if canvas is None or A4 is None:
+def cierre_diario_pdf(fecha: str):
+    if not reportlab_available():
         return {"message": "ReportLab no disponible"}, 501
     try:
-        f = date.fromisoformat(fecha)
+        fecha_obj = date.fromisoformat(fecha)
     except Exception:
-        return {"message": "fecha inválida (YYYY-MM-DD)"}, 400
+        return {"message": "fecha invalida (YYYY-MM-DD)"}, 400
 
-    prev = _preview_for_date(f)
+    preview = _preview_for_date(fecha_obj)
 
-    # PDF simple
-    buf = BytesIO()
-    p = canvas.Canvas(buf, pagesize=A4)
+    buffer = BytesIO()
+    lienzo = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    y = height - 50
+    cursor_y = height - 50
 
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, y, f"Cierre diario — {f.isoformat()}")
-    y -= 24
-    p.setFont("Helvetica", 11)
-    p.drawString(50, y, f"Total ingresos: S/ {prev.get('total_ingresos', 0):.2f}")
-    y -= 18
-    pm = prev.get("por_metodo", {}) or {}
-    p.drawString(50, y, f"  • Efectivo: S/ {float(pm.get('efectivo', 0)):.2f}")
-    y -= 16
-    p.drawString(50, y, f"  • Tarjeta: S/ {float(pm.get('tarjeta', 0)):.2f}")
-    y -= 16
-    p.drawString(50, y, f"  • Transferencia: S/ {float(pm.get('transferencia', 0)):.2f}")
-    y -= 16
-    p.drawString(50, y, f"  • Otro: S/ {float(pm.get('otro', 0)):.2f}")
-    y -= 24
-    p.drawString(50, y, f"Movimientos del día: {prev.get('conteo_movs', 0)}")
-    y -= 24
+    lienzo.setFont("Helvetica-Bold", 14)
+    lienzo.drawString(50, cursor_y, f"Cierre diario - {fecha_obj.isoformat()}")
+    cursor_y -= 24
 
-    p.setFont("Helvetica-Oblique", 9)
-    p.drawString(50, y, "Documento generado automáticamente por el sistema de gestión de Clínica Estética.")
-    p.showPage()
-    p.save()
-    pdf = buf.getvalue()
-    buf.close()
+    lienzo.setFont("Helvetica", 11)
+    lienzo.drawString(50, cursor_y, f"Total ingresos: S/ {preview.get('total_ingresos', 0):.2f}")
+    cursor_y -= 18
 
-    resp = Response(pdf, mimetype="application/pdf")
-    resp.headers["Content-Disposition"] = f"attachment; filename=cierre_diario_{f.isoformat()}.pdf"
-    return resp
+    por_metodo = preview.get("por_metodo", {}) or {}
+    lienzo.drawString(50, cursor_y, f"  - Efectivo: S/ {float(por_metodo.get('efectivo', 0)):.2f}")
+    cursor_y -= 16
+    lienzo.drawString(50, cursor_y, f"  - Tarjeta: S/ {float(por_metodo.get('tarjeta', 0)):.2f}")
+    cursor_y -= 16
+    lienzo.drawString(50, cursor_y, f"  - Transferencia: S/ {float(por_metodo.get('transferencia', 0)):.2f}")
+    cursor_y -= 16
+    lienzo.drawString(50, cursor_y, f"  - Otro: S/ {float(por_metodo.get('otro', 0)):.2f}")
+    cursor_y -= 24
 
-# =========================
-# Resumen (rango)
-# =========================
+    lienzo.drawString(50, cursor_y, f"Movimientos del dia: {preview.get('conteo_movs', 0)}")
+    cursor_y -= 24
+
+    lienzo.setFont("Helvetica-Oblique", 9)
+    lienzo.drawString(50, cursor_y, "Documento generado automaticamente por el sistema de gestion.")
+    lienzo.showPage()
+    lienzo.save()
+
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = Response(pdf, mimetype="application/pdf")
+    response.headers["Content-Disposition"] = f"attachment; filename=cierre_diario_{fecha_obj.isoformat()}.pdf"
+    return response
+
+
 @bp.get("/resumen")
 @jwt_required()
 def resumen():
-    desde = request.args.get("desde")
-    hasta = request.args.get("hasta")
-    start = datetime.fromisoformat(desde) if desde else datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    end = datetime.fromisoformat(hasta) if hasta else datetime.utcnow()
-    q = (
+    args = request.args
+    desde_raw = args.get("desde")
+    hasta_raw = args.get("hasta")
+
+    start = datetime.fromisoformat(desde_raw) if desde_raw else datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    end = datetime.fromisoformat(hasta_raw) if hasta_raw else datetime.utcnow()
+
+    query = (
         db.session.query(CajaMovimiento.tipo, func.coalesce(func.sum(CajaMovimiento.monto), 0))
         .filter(CajaMovimiento.fecha >= start, CajaMovimiento.fecha <= end)
         .group_by(CajaMovimiento.tipo)
     )
-    totals = {tipo: float(total) for tipo, total in q.all()}
-    return {"desde": start.isoformat(), "hasta": end.isoformat(), "totales": totals}
+    totales = {tipo: float(total) for tipo, total in query.all()}
+    return {"desde": start.isoformat(), "hasta": end.isoformat(), "totales": totales}

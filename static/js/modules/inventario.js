@@ -89,7 +89,7 @@ window.InventarioModule = (function(){
     const rows = (resp && resp.data) || [];
     openModal(`
       <div>
-        <h4>Historial de precios — Producto #${pid}</h4>
+        <h4>Historial de precios a Producto #${pid}</h4>
         ${rows.length ? `
           <table class="table">
             <thead><tr><th>Tipo</th><th>Valor</th><th>Vigente desde</th><th>Motivo</th></tr></thead>
@@ -164,7 +164,7 @@ window.InventarioModule = (function(){
     };
   }
 
-  // estilos mínimos (switch + celdas editables + sugerencias)
+  // estilos mAnimos (switch + celdas editables + sugerencias)
   (function injectStyles(){
     if(document.getElementById("inv-switch-style")) return;
     const st=document.createElement("style");
@@ -176,7 +176,6 @@ window.InventarioModule = (function(){
       .slider:before{position:absolute;content:"";height:18px;width:18px;left:2px;top:2px;background:white;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
       input:checked + .slider{background:#22c55e}
       input:checked + .slider:before{transform:translateX(20px)}
-      .suggest{position:absolute;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:10;max-height:240px;overflow:auto}
       .sug{padding:6px 8px;cursor:pointer}
       .sug.active,.sug:hover{background:#f3f4f6}
       .pl-row .ed{display:none;width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px}
@@ -217,15 +216,17 @@ window.InventarioModule = (function(){
     return `
       <tr data-row="${idx}">
         <td>
-          <input class="cp-prod-buscar" placeholder="SKU o nombre" autocomplete="off">
-          <div class="suggest cp-sug"></div>
+          <div class="ac-wrap">
+            <input class="cp-prod-buscar" placeholder="SKU o nombre" autocomplete="off">
+            <div class="ac-list cp-sug" style="display:none"></div>
+          </div>
           <input type="hidden" class="cp-prod-id">
           <div class="muted cp-prod-chosen"></div>
         </td>
         <td><input class="cp-cant" type="number" step="0.001"></td>
         <td><input class="cp-costo" type="number" step="0.01"></td>
         <td class="cp-subtotal">${money(0)}</td>
-        <td><button class="cp-eliminar">×</button></td>
+        <td><button class="cp-eliminar">A</button></td>
       </tr>
     `;
   }
@@ -233,10 +234,14 @@ window.InventarioModule = (function(){
     return `
       <tr data-row="${idx}">
         <td>
-          <input class="lt-prod-buscar" placeholder="Buscar producto" autocomplete="off">
-          <div class="suggest lt-sug"></div>
+          <div class="ac-wrap">
+            <input class="lt-prod-buscar" placeholder="Buscar producto" autocomplete="off">
+            <div class="ac-list lt-sug" style="display:none"></div>
+          </div>
           <input type="hidden" class="lt-prod-id">
           <div class="muted lt-prod-chosen"></div>
+        </td>
+prod-chosen"></div>
         </td>
         <td>
           <select class="lt-tipo">
@@ -248,7 +253,7 @@ window.InventarioModule = (function(){
         <td><input class="lt-cant" type="number" step="0.001"></td>
         <td><input class="lt-motivo" placeholder="motivo"></td>
         <td><input class="lt-ref" placeholder="ref"></td>
-        <td><button class="lt-eliminar">×</button></td>
+        <td><button class="lt-eliminar">A</button></td>
       </tr>
     `;
   }
@@ -260,145 +265,196 @@ window.InventarioModule = (function(){
     routeTitle.textContent = "Inventario";
 
     routeContent.innerHTML = `
-      <div class="card">
-        <h3>Producto (crear rápido)</h3>
-        <div class="row">
-          <div class="col"><label>SKU</label><input id="pr-sku"></div>
-          <div class="col"><label>Nombre</label><input id="pr-nombre" required></div>
-          <div class="col"><label>Stock mínimo</label><input id="pr-min" type="number" step="0.001"></div>
-          <div class="col"><label>Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
-          <div class="col"><label>&nbsp;</label><button id="pr-guardar">Guardar</button></div>
-        </div>
-        <div id="pr-msg" class="muted"></div>
-      </div>
+      <div class="ui-page inventario-page">
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--quick">
+            <header class="ui-card__header">
+              <p class="ui-card__eyebrow">Inventario</p>
+              <h2 class="ui-card__title">Crear producto rapido</h2>
+              <p class="ui-card__subtitle">Registra referencias basicas para cargar stock en segundos.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-grid ui-grid--cols-5 inv-quick-grid">
+                <div class="form__field"><label for="pr-sku">SKU</label><input id="pr-sku"></div>
+                <div class="form__field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required></div>
+                <div class="form__field"><label for="pr-min">Stock minimo</label><input id="pr-min" type="number" step="0.001"></div>
+                <div class="form__field"><label for="pr-pv">Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
+                <div class="form__field form__field--button"><span class="form__label-placeholder">Guardar</span><button id="pr-guardar" class="btn btn-primary btn-pill">Guardar</button></div>
+              </div>
+              <div id="pr-msg" class="alert"></div>
+            </div>
+          </article>
+        </section>
 
-      <div class="card">
-        <h3>Listado de productos</h3>
-        <div class="row">
-          <div class="col"><label>Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
-          <div class="col">
-            <label>Estado</label>
-            <select id="pl-estado">
-              <option value="">Todos</option>
-              <option value="true">Activos</option>
-              <option value="false">Inactivos</option>
-            </select>
-          </div>
-          <div class="col">
-            <label>Por página</label>
-            <select id="pl-per"><option>10</option><option>25</option><option>50</option></select>
-          </div>
-          <div class="col"><label>&nbsp;</label><button id="pl-filtrar">Aplicar</button></div>
-        </div>
-        <table class="table">
-          <thead><tr>
-            <th>SKU</th><th>Nombre</th><th>Stock</th><th>Mínimo</th><th>Precio venta</th><th>Últ. costo</th><th>Activo</th><th>Acciones</th>
-          </tr></thead>
-          <tbody id="pl-tbody"></tbody>
-        </table>
-        <div class="pager">
-          <button id="pl-prev">Prev</button>
-          <span id="pl-info"></span>
-          <button id="pl-next">Next</button>
-        </div>
-        <div id="pl-msg" class="muted"></div>
-      </div>
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--list">
+            <header class="ui-card__header">
+              <h2 class="ui-card__title">Listado de productos</h2>
+              <p class="ui-card__subtitle">Administra precios, stock y estado de cada referencia.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-grid ui-grid--cols-4 inv-filters">
+                <div class="form__field"><label for="pl-q">Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
+                <div class="form__field"><label for="pl-estado">Estado</label>
+                  <select id="pl-estado">
+                    <option value="">Todos</option>
+                    <option value="true">Activos</option>
+                    <option value="false">Inactivos</option>
+                  </select>
+                </div>
+                <div class="form__field"><label for="pl-per">Por pagina</label>
+                  <select id="pl-per"><option>10</option><option>25</option><option>50</option></select>
+                </div>
+                <div class="form__field form__field--button"><span class="form__label-placeholder">Aplicar</span><button id="pl-filtrar" class="btn btn-primary btn-pill">Aplicar</button></div>
+              </div>
+              <div class="ui-table-wrapper">
+                <table class="table">
+                  <thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Minimo</th><th>Precio venta</th><th>Ult. costo</th><th>Activo</th><th>Acciones</th></tr></thead>
+                  <tbody id="pl-tbody"></tbody>
+                </table>
+              </div>
+              <div class="table-pagination">
+                <button id="pl-prev" class="btn btn--ghost">Anterior</button>
+                <span id="pl-info" class="table-pagination__info"></span>
+                <button id="pl-next" class="btn btn--ghost">Siguiente</button>
+              </div>
+              <div id="pl-msg" class="alert"></div>
+            </div>
+          </article>
+        </section>
 
-      <div class="card" id="card-compra">
-        <h3>Registrar compra (boleta/factura)</h3>
-        <div class="row">
-          <div class="col"><label>Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
-          <div class="col"><label>Tipo doc</label>
-            <select id="cp-tipo"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
-          </div>
-          <div class="col"><label>Número</label><input id="cp-numero" placeholder="Serie-00000000"></div>
-          <div class="col"><label>Nro. registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
-        </div>
-        <table class="table" id="cp-tabla">
-          <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit</th><th>Subtotal</th><th></th></tr></thead>
-          <tbody id="cp-tbody"></tbody>
-          <tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td id="cp-total" style="font-weight:bold">${money(0)}</td><td></td></tr></tfoot>
-        </table>
-        <div class="row">
-          <div class="col"><button id="cp-add-row">Agregar ítem</button></div>
-          <div class="col"><label>&nbsp;</label><button id="cp-guardar" class="primary">Guardar compra</button></div>
-          <div class="col" style="display:none" id="cp-cancelar-wrap"><label>&nbsp;</label><button id="cp-cancelar-ed">Cancelar edición</button></div>
-        </div>
-        <div id="cp-compra-msg" class="muted"></div>
-      </div>
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--purchase">
+            <header class="ui-card__header">
+              <h2 class="ui-card__title">Registrar compra</h2>
+              <p class="ui-card__subtitle">Carga facturas o boletas para actualizar stock y costos.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-grid ui-grid--cols-4 inv-compra-grid">
+                <div class="form__field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
+                <div class="form__field"><label for="cp-tipo">Tipo doc</label>
+                  <select id="cp-tipo"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
+                </div>
+                <div class="form__field"><label for="cp-numero">Numero</label><input id="cp-numero" placeholder="Serie-00000000"></div>
+                <div class="form__field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
+              </div>
+              <div class="ui-table-wrapper">
+                <table class="table" id="cp-tabla">
+                  <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit</th><th>Subtotal</th><th></th></tr></thead>
+                  <tbody id="cp-tbody"></tbody>
+                  <tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td id="cp-total"><b>${money(0)}</b></td><td></td></tr></tfoot>
+                </table>
+              </div>
+              <div class="ui-actions inv-compra-actions">
+                <button id="cp-add-row" class="btn btn-light btn-pill">Agregar item</button>
+                <div class="inv-compra-actions__right">
+                  <button id="cp-cancelar-ed" class="btn btn-light btn-pill" style="display:none">Cancelar edicion</button>
+                  <button id="cp-guardar" class="btn btn-primary btn-pill">Guardar compra</button>
+                </div>
+              </div>
+              <div id="cp-compra-msg" class="alert"></div>
+            </div>
+          </article>
+        </section>
 
-      <div class="card">
-        <h3>Movimientos por lotes</h3>
-        <table class="table">
-          <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
-          <tbody id="lt-tbody"></tbody>
-        </table>
-        <div class="row">
-          <div class="col"><button id="lt-add-row">Agregar ítem</button></div>
-          <div class="col"><label>&nbsp;</label><button id="lt-guardar">Guardar todos</button></div>
-        </div>
-        <div id="lt-msg" class="muted"></div>
-      </div>
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--lotes">
+            <header class="ui-card__header">
+              <h2 class="ui-card__title">Movimientos por lotes</h2>
+              <p class="ui-card__subtitle">Aplica ajustes masivos de stock con una sola confirmacion.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-table-wrapper">
+                <table class="table">
+                  <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
+                  <tbody id="lt-tbody"></tbody>
+                </table>
+              </div>
+              <div class="ui-actions">
+                <button id="lt-add-row" class="btn btn-light btn-pill">Agregar item</button>
+                <button id="lt-guardar" class="btn btn-primary btn-pill">Guardar todos</button>
+              </div>
+              <div id="lt-msg" class="alert"></div>
+            </div>
+          </article>
+        </section>
 
-      <div class="card">
-        <h3>Listado de movimientos</h3>
-        <div class="row">
-          <div class="col"><label>Desde</label><input id="fl-desde" type="datetime-local"></div>
-          <div class="col"><label>Hasta</label><input id="fl-hasta" type="datetime-local"></div>
-          <div class="col"><label>Tipo</label>
-            <select id="fl-tipo"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
-          </div>
-          <div class="col"><label>&nbsp;</label><button id="fl-filtrar">Filtrar</button></div>
-        </div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Dato</th>
-              <th>Tipo</th>
-              <th>Cantidad</th>
-              <th>Motivo</th>
-              <th>Ref</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="mv-tbody"></tbody>
-        </table>
-        <div class="pager">
-          <button id="mv-prev">Prev</button>
-          <span id="mv-info"></span>
-          <button id="mv-next">Next</button>
-        </div>
-      </div>
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--movimientos">
+            <header class="ui-card__header">
+              <h2 class="ui-card__title">Listado de movimientos</h2>
+              <p class="ui-card__subtitle">Consulta ingresos, egresos y ajustes con filtros rapidos.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-grid ui-grid--cols-4 inv-mov-filters">
+                <div class="form__field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local"></div>
+                <div class="form__field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local"></div>
+                <div class="form__field"><label for="fl-tipo">Tipo</label>
+                  <select id="fl-tipo"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
+                </div>
+                <div class="form__field form__field--button"><span class="form__label-placeholder">Filtrar</span><button id="fl-filtrar" class="btn btn-primary btn-pill">Filtrar</button></div>
+              </div>
+              <div class="ui-table-wrapper">
+                <table class="table">
+                  <thead><tr><th>Fecha</th><th>Dato</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
+                  <tbody id="mv-tbody"></tbody>
+                </table>
+              </div>
+              <div class="table-pagination">
+                <button id="mv-prev" class="btn btn--ghost">Anterior</button>
+                <span id="mv-info" class="table-pagination__info"></span>
+                <button id="mv-next" class="btn btn--ghost">Siguiente</button>
+              </div>
+            </div>
+          </article>
+        </section>
 
-      <div class="card">
-        <h3>Kardex</h3>
-        <div class="row">
-          <div class="col">
-            <label>Producto</label>
-            <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
-            <div id="kx-sug" class="suggest"></div>
-            <input type="hidden" id="kx-prod-id">
-          </div>
-          <div class="col">
-            <label>Mostrar</label>
-            <select id="kx-perpage"><option value="10">Últimos 10</option><option value="25">25</option><option value="50">50</option></select>
-          </div>
-          <div class="col"><label>&nbsp;</label><button id="kx-ver">Ver</button></div>
-        </div>
-        <table class="table">
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Ref</th></tr></thead>
-          <tbody id="kx-tbody"></tbody>
-        </table>
-        <div class="pager">
-          <button id="kx-prev">Prev</button>
-          <span id="kx-info"></span>
-          <button id="kx-next">Next</button>
-        </div>
+        <section class="ui-section">
+          <article class="ui-card inv-card inv-card--kardex">
+            <header class="ui-card__header">
+              <h2 class="ui-card__title">Kardex</h2>
+              <p class="ui-card__subtitle">Revisa el detalle de movimientos y saldos por producto.</p>
+            </header>
+            <div class="ui-card__body">
+              <div class="ui-grid ui-grid--cols-4 inv-kardex-grid">
+                <div class="form__field">
+                  <label for="kx-prod">Producto</label>
+                  <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
+                  <div id="kx-sug" class="ac-list" style="display:none"></div>
+                  <input type="hidden" id="kx-prod-id">
+                </div>
+                <div class="form__field">
+                  <label for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local">
+                </div>
+                <div class="form__field">
+                  <label for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local">
+                </div>
+                <div class="form__field">
+                  <label for="kx-perpage">Mostrar</label>
+                  <select id="kx-perpage"><option value="10">Ultimos 10</option><option value="25">25</option><option value="50">50</option></select>
+                </div>
+              </div>
+              <div class="ui-actions">
+                <button id="kx-ver" class="btn btn-primary btn-pill">Ver kardex</button>
+              </div>
+              <div class="ui-table-wrapper">
+                <table class="table">
+                  <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Ref</th></tr></thead>
+                  <tbody id="kx-tbody"></tbody>
+                </table>
+              </div>
+              <div class="table-pagination">
+                <button id="kx-prev" class="btn btn--ghost">Anterior</button>
+                <span id="kx-info" class="table-pagination__info"></span>
+                <button id="kx-next" class="btn btn--ghost">Siguiente</button>
+              </div>
+            </div>
+          </article>
+        </section>
       </div>
     `;
 
-    // ===== Crear producto rápido =====
+    // ===== Crear producto rApido =====
     document.getElementById("pr-guardar").addEventListener("click", async ()=>{
       const sku = document.getElementById("pr-sku").value;
       const nombre = document.getElementById("pr-nombre").value;
@@ -408,11 +464,11 @@ window.InventarioModule = (function(){
       msg.textContent = "";
       if (!nombre){ msg.textContent = "Nombre requerido"; return; }
       try{
-        // si el SKU ya existe, forzamos edición (precargamos)
+        // si el SKU ya existe, forzamos ediciA3n (precargamos)
         if ((sku||"").trim()){
           const ex = await getProductoBySku(sku.trim());
           if (ex && ex.id){
-            await actualizarProducto(ex.id, { sku, nombre, stock_minimo, precio_venta }); // actualizo rápido
+            await actualizarProducto(ex.id, { sku, nombre, stock_minimo, precio_venta }); // actualizo rApido
             msg.textContent = `Producto #${ex.id} actualizado.`;
             plLoad();
             document.getElementById("pr-sku").value="";
@@ -432,7 +488,7 @@ window.InventarioModule = (function(){
       }catch(e){ msg.textContent = e.message || "No se pudo crear/actualizar el producto."; }
     });
 
-    // ===== Listado de productos (paginado + switch activo + edición inline) =====
+    // ===== Listado de productos (paginado + switch activo + ediciA3n inline) =====
     const plQ = document.getElementById("pl-q");
     const plEstado = document.getElementById("pl-estado");
     const plPer = document.getElementById("pl-per");
@@ -492,7 +548,7 @@ window.InventarioModule = (function(){
         plTbody.innerHTML = rows.map(rowTpl).join("");
 
         const maxPage = Math.max(1, Math.ceil(plTotal/plPerPage));
-        plInfo.textContent = `Página ${plPage} de ${maxPage} — ${plTotal} productos`
+        plInfo.textContent = `PAgina ${plPage} de ${maxPage} a ${plTotal} productos`
         document.getElementById("pl-prev").disabled = (plPage<=1);
         document.getElementById("pl-next").disabled = (plPage>=maxPage);
       }catch(e){
@@ -521,7 +577,7 @@ window.InventarioModule = (function(){
       }
     });
 
-    // Edición inline
+    // EdiciA3n inline
     function setRowMode(tr, editing){
       tr.classList.toggle("editing", !!editing);
       tr.querySelector(".pl-edit").style.display   = editing ? "none":"inline-block";
@@ -588,10 +644,10 @@ window.InventarioModule = (function(){
         if(!nombre){ plMsg.textContent="Nombre requerido"; return; }
         try{
           const payload = { sku, nombre, stock_minimo, precio_venta };
-          // Si cambió PV, pedimos motivo
+          // Si cambiA3 PV, pedimos motivo
           const origPv = Number(tr.dataset.origPv || "0");
           if (Number(precio_venta.toFixed ? precio_venta.toFixed(2) : precio_venta) !== Number(origPv.toFixed ? origPv.toFixed(2) : origPv)) {
-            payload.motivo = prompt("Motivo del cambio de precio de venta:", "actualización manual") || "actualización manual";
+            payload.motivo = prompt("Motivo del cambio de precio de venta:", "actualizaciA3n manual") || "actualizaciA3n manual";
           }
           const r = await actualizarProducto(id, payload);
           updateRowRO(tr, r);
@@ -643,7 +699,7 @@ window.InventarioModule = (function(){
       makeSuggestionNavigator({
         inputEl, listEl,
         fetcher: buscarProductos,
-        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} — ${p.nombre||""}</div>`).join(""),
+        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} a ${p.nombre||""}</div>`).join(""),
         onChoose
       });
     }
@@ -655,7 +711,7 @@ window.InventarioModule = (function(){
       const tr = cpTbody.querySelector(`tr[data-row="${idx}"]`);
       const inp=tr.querySelector(".cp-prod-buscar"), sug=tr.querySelector(".cp-sug");
       const hid=tr.querySelector(".cp-prod-id"), chosen=tr.querySelector(".cp-prod-chosen");
-      makeSuggestionNavigatorRow(inp, sug, p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} — ${p.nombre||""}`; inp.value=""; });
+      makeSuggestionNavigatorRow(inp, sug, p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} a ${p.nombre||""}`; inp.value=""; });
       tr.querySelector(".cp-cant").addEventListener("input", recalcCompra);
       tr.querySelector(".cp-costo").addEventListener("input", recalcCompra);
 
@@ -666,7 +722,7 @@ window.InventarioModule = (function(){
 
         try {
           const p = prefill.producto ? prefill.producto : await getProducto(prefill.producto_id);
-          chosen.textContent = `${p.sku||""} — ${p.nombre||""}`;
+          chosen.textContent = `${p.sku||""} a ${p.nombre||""}`;
         } catch {
           chosen.textContent = `ID ${prefill.producto_id}`;
         }
@@ -725,7 +781,7 @@ window.InventarioModule = (function(){
         const costo=Number(tr.querySelector(".cp-costo").value||"0");
         if(pid && cant>0 && costo>0) items.push({ producto_id: pid, cantidad: cant, costo_unitario: costo });
       });
-      if(!items.length){ cpMsg.textContent="Agregá al menos un ítem válido."; return; }
+      if(!items.length){ cpMsg.textContent="AgregA al menos un Atem vAlido."; return; }
 
       try{
         let r;
@@ -777,7 +833,7 @@ window.InventarioModule = (function(){
           <td>${fallbackProductoLabel(r)}</td>
           <td>${(r.tipo||"").toUpperCase()}</td>
           <td>${money(fallbackMonto(r))}</td>
-          <td>${((r.motivo || "") + "").toUpperCase()}</td>
+          <td>${(r.motivo || "").toUpperCase()}</td>
           <td>${r.referencia||""}</td>
           <td>
             <button class="mv-revisar" data-id="${r.id}">Revisar</button>
@@ -787,7 +843,7 @@ window.InventarioModule = (function(){
       `).join("");
 
       const maxPage = Math.max(1, Math.ceil(mvTotal/mvPerPage));
-      mvInfo.textContent = `Página ${mvPage} de ${maxPage} — ${mvTotal} movimientos`;
+      mvInfo.textContent = `PAgina ${mvPage} de ${maxPage} a ${mvTotal} movimientos`;
       document.getElementById("mv-prev").disabled = (mvPage<=1);
       document.getElementById("mv-next").disabled = (mvPage>=maxPage);
     }
@@ -823,18 +879,12 @@ window.InventarioModule = (function(){
           const isIngreso = String(m.tipo||'').toLowerCase() === 'ingreso';
 
           const nroReg = (m.compra && (m.compra.nro_registro || m.compra.nroRegistro || m.compra.registro)) || "-";
-          const motivoTxt = ((m.motivo || "") + "").toUpperCase();
-          const pacienteTxt = (() => {
-            if (isIngreso) return "";
-            const nombre = ((m.cliente_nombre || "") + "").trim();
-            let doc = ((m.cliente_documento || "") + "").trim();
-            if (doc.toLowerCase && doc.toLowerCase() === 'none') doc = "";
-            const docLabel = /^\d+$/.test(doc) ? 'DNI' : 'Doc.';
-            if (nombre && doc) return `${nombre} - ${docLabel} ${doc}`;
-            if (nombre) return nombre;
-            if (doc) return `${docLabel} ${doc}`;
-            return "";
-          })();
+          const motivoTxt = (m.motivo || "").toUpperCase();
+          const pacienteNombre = String(m.cliente_nombre || m.paciente_nombre || '').trim();
+          const rawDoc = m.cliente_documento ?? m.paciente_documento ?? '';
+          let pacienteDoc = String(rawDoc || '').trim();
+          if (pacienteDoc.toLowerCase && pacienteDoc.toLowerCase() === 'none') pacienteDoc = '';
+          const pacienteDocLabel = /^\d+$/.test(pacienteDoc) ? 'DNI' : 'Doc.';
 
           const itemsHtml = items.length ? `
             <hr>
@@ -844,11 +894,14 @@ window.InventarioModule = (function(){
               <tbody>
                 ${items.map(it=>{
                   const pr = it.producto || {};
-                  const nombre = pr.nombre || it.nombre || "";
+                  const tipo = (it.tipo || "").toString().trim();
+                  const nombreBase = pr.nombre || it.nombre || "";
+                  const prefix = tipo ? `${tipo.charAt(0).toUpperCase()}${tipo.slice(1).toLowerCase()} - ` : "";
+                  const nombre = `${prefix}${nombreBase}`.trim();
                   const sku = pr.sku || "";
                   return `
                     <tr>
-                      <td>${sku ? sku+" — " : ""}${nombre}</td>
+                      <td>${sku ? sku+" - " : ""}${nombre}</td>
                       <td>${Number(it.cantidad||0).toFixed(3)}</td>
                       <td>${money((it.precio_unitario ?? it.costo_unitario) || 0)}</td>
                       <td>${money((it.subtotal!=null?it.subtotal:Number(it.cantidad||0)*Number((it.precio_unitario ?? it.costo_unitario)||0)))}</td>
@@ -867,9 +920,14 @@ window.InventarioModule = (function(){
               <h4>Movimiento #${m.id}</h4>
               <p><b>Fecha:</b> ${fmtDateIso(m.fecha)}</p>
               <p><b>Tipo:</b> ${(m.tipo||"").toUpperCase()}</p>
-              <p><b>${isIngreso ? 'Total compra' : 'Total venta'}:</b> ${money((m.total||m.monto||m.grupo?.total||0))}</p>
               <p><b>Motivo:</b> ${motivoTxt}</p>
-              <p><b>${isIngreso ? 'Proveedor' : 'Paciente'}:</b> ${isIngreso ? (proveedorTxt||'') : (pacienteTxt||'')}</p>
+              ${isIngreso
+                ? `<p><b>Proveedor:</b> ${proveedorTxt||''}</p>`
+                : [
+                    `<p><b>Paciente:</b> ${(pacienteNombre || '-')}</p>`,
+                    pacienteDoc ? `<p><b>Documento:</b> ${(pacienteDocLabel || 'Doc.')} ${pacienteDoc}</p>` : ''
+                  ].join('')
+              }
               ${m.compra ? `<p><b>Comprobante:</b> ${(m.compra.tipo_doc||"").toUpperCase()} ${m.compra.numero||""}</p>` : ""}
               ${(m.compra && nroReg && nroReg !== '-') ? `<p><b>Nro. registro:</b> ${nroReg}</p>` : ""}
               ${itemsHtml}
@@ -899,7 +957,7 @@ window.InventarioModule = (function(){
         }
 
         if (!compra) {
-          openModal(`<div class="inv-modal-body"><p>No pude ubicar la compra de este movimiento.</p><p>Motivo: ${m.motivo||"-"} — Ref: ${m.referencia||"-"}</p></div>`);
+          openModal(`<div class="inv-modal-body"><p>No pude ubicar la compra de este movimiento.</p><p>Motivo: ${m.motivo||"-"} a Ref: ${m.referencia||"-"}</p></div>`);
           return;
         }
         enterCompraEditMode(compra);
@@ -919,8 +977,8 @@ window.InventarioModule = (function(){
       const hid=tr.querySelector(".lt-prod-id"), chosen=tr.querySelector(".lt-prod-chosen");
       makeSuggestionNavigator({
         inputEl: inp, listEl: sug, fetcher: buscarProductos,
-        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} — ${p.nombre||""}</div>`).join(""),
-        onChoose: p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} — ${p.nombre||""}`; }
+        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} a ${p.nombre||""}</div>`).join(""),
+        onChoose: p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} a ${p.nombre||""}`; }
       });
     }
     document.getElementById("lt-add-row").addEventListener("click", ()=> makeLoteRow());
@@ -937,7 +995,7 @@ window.InventarioModule = (function(){
         const ref=tr.querySelector(".lt-ref").value||"";
         if(pid && cant>0) items.push({ producto_id: pid, tipo, cantidad: cant, motivo: mot, referencia: ref });
       });
-      if(!items.length){ ltMsg.textContent="Agregá al menos un ítem válido."; return; }
+      if(!items.length){ ltMsg.textContent="AgregA al menos un Atem vAlido."; return; }
       try{
         await crearMovLote(items);
         ltMsg.textContent="Movimientos registrados.";
@@ -955,8 +1013,8 @@ window.InventarioModule = (function(){
 
     makeSuggestionNavigator({
       inputEl: kxInp, listEl: kxSug, fetcher: buscarProductos,
-      tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} — ${p.nombre||""}</div>`).join(""),
-      onChoose: p=>{ kxPid.value=p.id; kxInp.value=`${p.sku||""} — ${p.nombre||""}`; }
+      tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} a ${p.nombre||""}</div>`).join(""),
+      onChoose: p=>{ kxPid.value=p.id; kxInp.value=`${p.sku||""} a ${p.nombre||""}`; }
     });
 
     async function kxLoad(){
@@ -976,7 +1034,7 @@ window.InventarioModule = (function(){
         </tr>
       `).join("");
       const maxPage = Math.max(1, Math.ceil(total/per_page));
-      kxInfo.textContent = `Página ${kxPage} de ${maxPage} — ${total} movs`;
+      kxInfo.textContent = `PAgina ${kxPage} de ${maxPage} a ${total} movs`;
       document.getElementById("kx-prev").disabled = (kxPage<=1);
       document.getElementById("kx-next").disabled = (kxPage>=maxPage);
     }
@@ -987,3 +1045,5 @@ window.InventarioModule = (function(){
 
   return { render };
 })();
+
+

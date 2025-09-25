@@ -46,7 +46,7 @@ window.TurnosModule = (function () {
       d.getMinutes()
     )}`;
   }
-  const money = (n) => (Number(n || 0)).toLocaleString("es-AR", { style: "currency", currency: "ARS" });
+  const money = (n) => (Number(n || 0)).toLocaleString("es-PE", { style: "currency", currency: "PEN" });
 
   const debounce = (fn, ms = 250) => {
     let t;
@@ -84,7 +84,7 @@ window.TurnosModule = (function () {
 
   function renderItemsTable(items, targetBody, totalEl) {
     if (!items.length) {
-      targetBody.innerHTML = `<tr><td colspan="6" class="muted">Sin servicios</td></tr>`;
+      targetBody.innerHTML = `<tr><td colspan="6" class="table__empty muted">Sin servicios</td></tr>`;
       totalEl.textContent = money(0);
       return;
     }
@@ -100,7 +100,7 @@ window.TurnosModule = (function () {
           <td>${cant}</td>
           <td>${money(desc)}</td>
           <td>${money(sub)}</td>
-          <td class="right"><button class="btn btn-danger t-item-del" data-i="${i}">X</button></td>
+          <td class="table__actions"><button class="button button--danger t-item-del" data-i="${i}">Quitar</button></td>
         </tr>`;
       })
       .join("");
@@ -120,123 +120,195 @@ window.TurnosModule = (function () {
   function render() {
     routeTitle.textContent = "Turnos";
     routeContent.innerHTML = `
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Estado</label>
-            <select id="t-estado">
-              <option value="">Todos</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="confirmado">Confirmado</option>
-              <option value="cancelado">Cancelado</option>
-              <option value="atendido">Atendido</option>
-            </select>
+      <div class="page-shell turnos-page">
+        <section class="section-block">
+          <article class="card form-card">
+            <header class="card__header">
+              <p class="card__eyebrow">Gestion de turnos</p>
+              <h2 class="card__title">Registrar turno</h2>
+              <p class="card__subtitle">Completa los datos del paciente, asigna los servicios y guarda el turno.</p>
+            </header>
+            <div class="card__body">
+              <div class="form-grid form-grid--three turnos-form-head">
+                <div class="form-field">
+                  <label class="form-field__label">Paciente</label>
+                  <div class="input-group">
+                    <div class="input-group__column">
+                      <span class="input-group__label">Nombre y apellido</span>
+                      <div class="auto-complete">
+                        <input id="t-pac-buscar" placeholder="Ej: Ana Perez" autocomplete="off" />
+                        <div id="t-pac-sug" class="ac-list" style="display:none"></div>
+                      </div>
+                    </div>
+                    <div class="input-group__column input-group__column--compact">
+                      <span class="input-group__label">DNI</span>
+                      <div class="auto-complete auto-complete--mini">
+                        <input id="t-pac-dni" placeholder="DNI" autocomplete="off" inputmode="numeric" />
+                        <div id="t-pac-dni-sug" class="ac-list" style="display:none"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <input id="t-paciente-id" type="hidden" />
+                  <p id="t-pac-chosen" class="form-field__note"></p>
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="t-fecha">Fecha y hora</label>
+                  <input id="t-fecha" class="input" type="datetime-local" />
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label">Profesional (opcional)</label>
+                  <div class="input-group">
+                    <div class="input-group__column">
+                      <span class="input-group__label">Nombre y apellido</span>
+                      <div class="auto-complete">
+                        <input id="t-pro-buscar" placeholder="Ej: Dra. Lopez" autocomplete="off" />
+                        <div id="t-pro-sug" class="ac-list" style="display:none"></div>
+                      </div>
+                    </div>
+                    <div class="input-group__column input-group__column--compact">
+                      <span class="input-group__label">DNI</span>
+                      <div class="auto-complete auto-complete--mini">
+                        <input id="t-pro-dni" placeholder="DNI" autocomplete="off" inputmode="numeric" />
+                        <div id="t-pro-dni-sug" class="ac-list" style="display:none"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <input id="t-prof-id" type="hidden" />
+                  <p id="t-pro-chosen" class="form-field__note"></p>
+                </div>
+              </div>
+
+              <hr class="section-divider" />
+
+              <div class="card-section">
+                <h3 class="card-section__title">Servicios del turno</h3>
+                <div class="card-section__body">
+                  <div class="form-grid form-grid--services">
+                    <div class="form-field">
+                      <label class="form-field__label">Servicio</label>
+                      <div class="auto-complete">
+                        <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off" />
+                        <div id="t-srv-sug" class="ac-list" style="display:none"></div>
+                      </div>
+                      <input id="t-servicio-id" type="hidden" />
+                      <p id="t-srv-chosen" class="form-field__note"></p>
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="t-item-precio">Precio</label>
+                      <input id="t-item-precio" class="input" type="number" step="0.01" placeholder="Precio" />
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="t-item-cant">Cantidad</label>
+                      <input id="t-item-cant" class="input input--sm" type="number" step="0.01" value="1" min="1" />
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="t-item-desc">Descuento</label>
+                      <input id="t-item-desc" class="input input--sm" type="number" step="0.01" value="0" min="0" />
+                    </div>
+                    <div class="form-field form-field--cta">
+                      <span class="form-field__placeholder">Agregar</span>
+                      <button id="t-item-add" type="button" class="button button--primary">Agregar servicio</button>
+                    </div>
+                  </div>
+
+                  <div class="table-shell">
+                    <table class="table table--compact">
+                      <thead>
+                        <tr><th>Servicio</th><th>Precio</th><th>Cant.</th><th>Desc.</th><th>Subtotal</th><th></th></tr>
+                      </thead>
+                      <tbody id="t-items"></tbody>
+                      <tfoot>
+                        <tr class="table__summary">
+                          <td colspan="4" class="table__summary-label">Total</td>
+                          <td id="t-total" class="table__summary-value">S/ 0.00</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div class="form-actions turnos-actions">
+                    <p id="t-msg" class="form-actions__feedback"></p>
+                    <button id="t-crear" class="button button--primary">Guardar turno</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="section-block">
+          <article class="card list-card">
+            <header class="card__header">
+              <p class="card__eyebrow">Gesti�n de turnos</p>
+              <h2 class="card__title">Listado de turnos</h2>
+              <p class="card__subtitle">Consulta los turnos mas recientes cargados en el sistema.</p>
+            </header>
+            <div class="card__body">
+              <div class="card-section card-section--filters">
+                <div class="form-field">
+                  <label class="form-field__label" for="t-estado">Estado</label>
+                  <select id="t-estado" class="input input--select">
+                    <option value="">Todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="confirmado">Confirmado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="atendido">Atendido</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="table-shell">
+                <table class="table table--full">
+                  <thead>
+                    <tr><th>ID</th><th>Paciente</th><th>Servicios</th><th>Profesional</th><th>Fecha/Hora</th><th>Estado</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody id="t-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <div id="turno-modal-backdrop" class="dialog-backdrop"></div>
+        <div id="turno-modal" class="dialog">
+          <div class="dialog__panel">
+            <div class="dialog__header"><strong id="turno-modal-title">Detalles del turno</strong></div>
+            <div class="dialog__body" id="turno-modal-body"></div>
+            <div class="dialog__footer">
+              <button id="turno-modal-close" type="button" class="button button--ghost">Cerrar</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="card" style="margin-top:10px">
-        <h3>Nuevo Turno</h3>
-        <div class="row">
-          <div class="col">
-            <label>Paciente (DNI o nombre)</label>
-            <div class="ac-wrap">
-              <input id="t-pac-buscar" placeholder="Ej: 12345678 o Ana Pérez" autocomplete="off">
-              <div id="t-pac-sug" class="suggest ac-list" style="display:none"></div>
+        <div id="cr-backdrop" class="dialog-backdrop"></div>
+        <div id="cr-modal" class="dialog">
+          <div class="dialog__panel">
+            <div class="dialog__header"><strong>Cancelar / Reprogramar turno</strong></div>
+            <div class="dialog__body">
+              <div class="tab-group">
+                <button id="cr-tab-cancelar" class="button button--ghost">Cancelar</button>
+                <button id="cr-tab-reprogramar" class="button button--ghost" style="opacity:.7">Reprogramar</button>
+              </div>
+              <div id="cr-pane-cancelar">
+                <p>Para cancelar, escriba <b>CANCELAR</b> y opcionalmente indica un motivo.</p>
+                <input id="cr-cancelar-texto" class="input" placeholder="Escriba: CANCELAR" />
+                <input id="cr-cancelar-motivo" class="input" placeholder="Motivo (opcional)" />
+              </div>
+              <div id="cr-pane-reprogramar" style="display:none">
+                <label class="form-field__label" for="cr-reprog-fecha">Nueva fecha/hora</label>
+                <input id="cr-reprog-fecha" class="input" type="datetime-local" />
+                <div class="muted">Estado post-reprogramaci�n:</div>
+                <select id="cr-reprog-estado" class="input input--select">
+                  <option value="pendiente">Pendiente</option>
+                  <option value="confirmado">Confirmado</option>
+                </select>
+              </div>
             </div>
-            <input id="t-paciente-id" type="hidden">
-            <div id="t-pac-chosen" class="muted"></div>
-          </div>
-          <div class="col">
-            <label>Fecha/Hora</label>
-            <input id="t-fecha" type="datetime-local">
-          </div>
-          <div class="col">
-            <label>Profesional (DNI o nombre) — opcional</label>
-            <div class="ac-wrap">
-              <input id="t-pro-buscar" placeholder="Ej: 56789012 o Dra. López" autocomplete="off">
-              <div id="t-pro-sug" class="suggest ac-list" style="display:none"></div>
+            <div class="dialog__footer">
+              <button id="cr-cerrar" type="button" class="button button--ghost">Cerrar</button>
+              <button id="cr-guardar" type="button" class="button button--primary">Aplicar</button>
             </div>
-            <input id="t-prof-id" type="hidden">
-            <div id="t-pro-chosen" class="muted"></div>
-          </div>
-        </div>
-
-        <hr>
-        <h4>Servicios del turno</h4>
-        <div class="row">
-          <div class="col">
-            <label>Servicio (nombre)</label>
-            <div class="ac-wrap">
-              <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off">
-              <div id="t-srv-sug" class="suggest ac-list" style="display:none"></div>
-            </div>
-            <input id="t-servicio-id" type="hidden">
-            <div id="t-srv-chosen" class="muted"></div>
-          </div>
-          <div class="col"><label>Precio</label><input id="t-item-precio" type="number" step="0.01" placeholder="Precio"></div>
-          <div class="col"><label>Cant.</label><input id="t-item-cant" type="number" step="0.01" value="1" min="1"></div>
-          <div class="col"><label>Desc.</label><input id="t-item-desc" type="number" step="0.01" value="0" min="0"></div>
-          <div class="col"><label>&nbsp;</label><button id="t-item-add" class="btn">Agregar</button></div>
-        </div>
-
-        <table class="table" style="margin-top:8px">
-          <thead><tr><th>Servicio</th><th>Precio</th><th>Cant.</th><th>Desc.</th><th>Subtotal</th><th></th></tr></thead>
-          <tbody id="t-items"></tbody>
-          <tfoot><tr><td colspan="4" style="text-align:right"><b>Total:</b></td><td id="t-total">$0.00</td><td></td></tr></tfoot>
-        </table>
-
-        <button id="t-crear" class="btn btn-primary">Guardar</button>
-        <div id="t-msg" class="muted" style="margin-top:6px"></div>
-      </div>
-
-      <div class="card" style="margin-top:10px">
-        <table class="table">
-          <thead>
-            <tr><th>ID</th><th>Paciente</th><th>Servicios</th><th>Profesional</th><th>Fecha/Hora</th><th>Estado</th><th>Acciones</th></tr>
-          </thead>
-          <tbody id="t-tbody"></tbody>
-        </table>
-      </div>
-
-      <!-- Modal detalle turno -->
-      <div id="turno-modal-backdrop" class="modal-backdrop"></div>
-      <div id="turno-modal" class="modal">
-        <div class="modal-card">
-          <div class="modal-header"><strong id="turno-modal-title">Detalles del turno</strong></div>
-          <div class="modal-body" id="turno-modal-body"></div>
-          <div class="modal-footer"><button id="turno-modal-close" type="button" class="btn">Cerrar</button></div>
-        </div>
-      </div>
-
-      <!-- Modal Cancelar / Reprogramar -->
-      <div id="cr-backdrop" class="modal-backdrop"></div>
-      <div id="cr-modal" class="modal">
-        <div class="modal-card">
-          <div class="modal-header"><strong>Cancelar / Reprogramar turno</strong></div>
-          <div class="modal-body">
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <button id="cr-tab-cancelar" class="btn">Cancelar</button>
-              <button id="cr-tab-reprogramar" class="btn" style="opacity:.7">Reprogramar</button>
-            </div>
-            <div id="cr-pane-cancelar">
-              <p>Para cancelar, escribí <b>CANCELAR</b> y opcionalmente indicá un motivo.</p>
-              <input id="cr-cancelar-texto" placeholder="Escribí: CANCELAR" />
-              <input id="cr-cancelar-motivo" placeholder="Motivo (opcional)" />
-            </div>
-            <div id="cr-pane-reprogramar" style="display:none">
-              <label>Nueva fecha/hora</label>
-              <input id="cr-reprog-fecha" type="datetime-local" />
-              <div class="muted">Estado post-reprogramación:</div>
-              <select id="cr-reprog-estado">
-                <option value="pendiente">Pendiente</option>
-                <option value="confirmado">Confirmado</option>
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
-            <button id="cr-cerrar" type="button" class="btn">Cerrar</button>
-            <button id="cr-guardar" type="button" class="btn btn-primary">Aplicar</button>
           </div>
         </div>
       </div>
@@ -483,7 +555,7 @@ window.TurnosModule = (function () {
         this.title.textContent = h || "Detalle";
         this.body.innerHTML = html || "";
         this.back.style.display = "block";
-        this.box.style.display = "block";
+        this.box.style.display = "flex";
       },
       close() {
         this.back.style.display = "none";
@@ -518,7 +590,7 @@ window.TurnosModule = (function () {
     function openCR(id) {
       crTurnoId = id;
       document.getElementById("cr-backdrop").style.display = "block";
-      document.getElementById("cr-modal").style.display = "block";
+      document.getElementById("cr-modal").style.display = "flex";
     }
     function closeCR() {
       crTurnoId = null;
@@ -554,12 +626,12 @@ window.TurnosModule = (function () {
     // Listado
     // =========================
     async function cargarListado() {
-      tbody.innerHTML = `<tr><td colspan="7" class="muted">Cargando…</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Cargando...</td></tr>`;
       try {
         const estado = selEstado.value || "";
         const data = await apiList(estado);
         if (!data.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="muted">Sin turnos</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Sin turnos</td></tr>`;
           return;
         }
         const rows = data
@@ -580,17 +652,17 @@ window.TurnosModule = (function () {
               <td>${proStr}</td>
               <td>${fechaStr}</td>
               <td>${estadoStr}</td>
-              <td class="right" style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap">
-                <button class="btn btn-light t-detalle" data-id="${t.id}">Detalle</button>
-                <button class="btn t-cr" data-id="${t.id}">Cancelar/Reprogramar</button>
-                <button class="btn btn-primary btn-cobrar" data-turno-id="${t.id}">Atender + Cobrar</button>
+              <td class="table__actions">
+                <button class="button button--ghost t-detalle" data-id="${t.id}">Detalle</button>
+                <button class="button button--ghost t-cr" data-id="${t.id}">Cancelar/Reprogramar</button>
+                <button class="button button--primary btn-cobrar" data-turno-id="${t.id}">Atender + Cobrar</button>
               </td>
             </tr>`;
           })
           .join("");
         tbody.innerHTML = rows;
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="7">Error cargando turnos: ${e.message || e}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="table__empty">Error cargando turnos: ${e.message || e}</td></tr>`;
       }
     }
 
@@ -658,3 +730,7 @@ window.TurnosModule = (function () {
   // API pública
   return { render };
 })();
+
+
+
+
