@@ -828,7 +828,7 @@ textarea:focus {
   }
 
   .form-grid--services {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .table-footer {
@@ -843,23 +843,22 @@ textarea:focus {
 }
 
 @media (min-width: 900px) {
+  /* Nombre 1fr + DNI compacto */
   .turnos-form-head .input-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--space-3);
+    grid-template-columns: 1fr 180px;        /* ← antes: repeat(2, 1fr) */
+    column-gap: var(--space-4);
+    align-items: end;
   }
+  .input-group__column--compact { max-width: 180px; }
 
-  .form-grid--three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: flex-start;
-  }
-
+  /* Servicio (2fr) | Precio (1fr) | Cant (.8fr) | Desc (.8fr) | CTA (auto) */
   .form-grid--services {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: 2fr 1fr 0.8fr 0.8fr auto;  /* ← antes: repeat(5, 1fr) */
+    column-gap: var(--space-4);
+    align-items: end;
   }
 
-  .form-field--cta {
-    align-items: flex-end;
-  }
+  .form-field--cta { display: flex; align-items: end; height: 100%; }
 }
 
 @media (min-width: 1024px) {
@@ -900,3 +899,82 @@ textarea:focus {
   }
 }
 
+/* ===== Turnos tweaks (layout responsive y alineación) ===== */
+
+/* 1) Autocomplete: el input ocupa todo el ancho del contenedor */
+.auto-complete input { width: 100%; }
+
+/* 2) Grupos Paciente/Profesional: 1 columna en mobile, 1fr + compact en desktop */
+.turnos-form-head .input-group { grid-template-columns: 1fr; }
+
+/* 3) Un poco más de aire dentro de la card del formulario */
+.form-card .card__body .form-field:last-child { margin-bottom: 0; }
+
+/* === Turnos: cabecera en 3 columnas y alineación === */
+
+/* Mobile: 1 columna (ya lo tienes) */
+.form-grid--three {
+  grid-template-columns: 1fr;      /* asegúrate de forzar 1 col en mobile */
+  gap: var(--space-4);
+}
+
+  /* Dentro de Paciente y Profesional: nombre 1fr + DNI compacto */
+  .turnos-form-head .input-group {
+    grid-template-columns: 1fr 160px;        /* nombre/apellido | DNI */
+    column-gap: var(--space-4);
+  }
+  .input-group__column--compact { max-width: 160px; }
+
+/* === Turnos: fila "Servicios del turno" bien alineada === */
+
+/* En desktop: Servicio (2fr) | Precio (1fr) | Cant (.8) | Desc (.8) | CTA auto */
+@media (min-width: 900px) {
+  .form-grid--services {
+    grid-template-columns: 2fr 1fr 0.8fr 0.8fr auto;
+    column-gap: var(--space-4);
+    align-items: end;                         /* base común */
+  }
+}
+
+/* Celda del botón: columna (label arriba, botón abajo) y pegado a la derecha */
+.form-grid--services .form-field--cta {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+}
+
+/* El "label" de esa celda con el mismo look que los labels */
+.form-field__placeholder {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+}
+
+/* Misma altura visual entre inputs y botón */
+
+.form-grid--services .form-field--cta .button {
+  height: 42px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+/* Mobile: la fila de servicios se apila y el botón ocupa ancho completo */
+@media (max-width: 899px) {
+  .form-grid--services { grid-template-columns: 1fr; }
+  .form-grid--services .form-field--cta .button { width: 100%; }
+}
+
+/* Separador limpio entre bloques (si ves una línea/“puntito”) */
+.section-divider {
+  border: none;
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-5) 0;
+}
+
+/* (Por si aparece un borde negro “de debug”) */
+.turnos-page fieldset { border: 0; }

@@ -240,7 +240,7 @@ window.TurnosModule = (function () {
         <section class="section-block">
           <article class="card list-card">
             <header class="card__header">
-              <p class="card__eyebrow">Gesti�n de turnos</p>
+              <p class="card__eyebrow">Gestion de turnos</p>
               <h2 class="card__title">Listado de turnos</h2>
               <p class="card__subtitle">Consulta los turnos mas recientes cargados en el sistema.</p>
             </header>
@@ -266,6 +266,7 @@ window.TurnosModule = (function () {
                   <tbody id="t-tbody"></tbody>
                 </table>
               </div>
+              <div id="t-pagination" class="table-pagination"></div>
             </div>
           </article>
         </section>
