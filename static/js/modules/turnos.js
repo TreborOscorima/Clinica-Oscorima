@@ -1,4 +1,3 @@
-// static/js/modules/turnos.js
 /* global API, routeTitle, routeContent */
 "use strict";
 
@@ -7,8 +6,12 @@ window.TurnosModule = (function () {
   // API helpers
   // =========================
   async function apiList(estado = "") {
-    const q = estado ? `?estado=${encodeURIComponent(estado)}` : "";
-    const res = await API.request("/api/turnos" + q);
+    // Pedimos más registros para que la paginación client-side tenga varias páginas
+    const params = new URLSearchParams();
+    if (estado) params.append("estado", estado);
+    params.append("limit", "500"); // si el backend lo soporta, nos da hasta 500
+    const res = await API.request("/api/turnos" + (params.toString() ? `?${params}` : ""));
+    // En nuestro wrapper res.data suele ser array
     return res.data || [];
   }
   async function apiCreate(data) {
@@ -37,7 +40,7 @@ window.TurnosModule = (function () {
   }
 
   // =========================
-  // UI helpers
+  // Utils
   // =========================
   function nowPlus(hours = 1) {
     const d = new Date(Date.now() + hours * 3600 * 1000);
@@ -46,15 +49,7 @@ window.TurnosModule = (function () {
       d.getMinutes()
     )}`;
   }
-  const money = (n) => (Number(n || 0)).toLocaleString("es-PE", { style: "currency", currency: "PEN" });
-
-  const debounce = (fn, ms = 250) => {
-    let t;
-    return (...a) => {
-      clearTimeout(t);
-      t = setTimeout(() => fn(...a), ms);
-    };
-  };
+  const money = (n) => Number(n || 0).toLocaleString("es-PE", { style: "currency", currency: "PEN" });
 
   function sugTpl(list, tipo) {
     if (!list || !list.length) return `<div class="ac-list-empty">Sin resultados</div>`;
@@ -128,6 +123,7 @@ window.TurnosModule = (function () {
               <h2 class="card__title">Registrar turno</h2>
               <p class="card__subtitle">Completa los datos del paciente, asigna los servicios y guarda el turno.</p>
             </header>
+
             <div class="card__body">
               <div class="form-grid form-grid--three turnos-form-head">
                 <div class="form-field">
@@ -151,10 +147,13 @@ window.TurnosModule = (function () {
                   <input id="t-paciente-id" type="hidden" />
                   <p id="t-pac-chosen" class="form-field__note"></p>
                 </div>
-                <div class="form-field">
+
+                <!-- 1) FECHA centrada (clase form-field--center) -->
+                <div class="form-field form-field--center">
                   <label class="form-field__label" for="t-fecha">Fecha y hora</label>
                   <input id="t-fecha" class="input" type="datetime-local" />
                 </div>
+
                 <div class="form-field">
                   <label class="form-field__label">Profesional (opcional)</label>
                   <div class="input-group">
@@ -183,6 +182,7 @@ window.TurnosModule = (function () {
               <div class="card-section">
                 <h3 class="card-section__title">Servicios del turno</h3>
                 <div class="card-section__body">
+                  <!-- 2) GRID ordenado y responsive -->
                   <div class="form-grid form-grid--services">
                     <div class="form-field">
                       <label class="form-field__label">Servicio</label>
@@ -199,14 +199,13 @@ window.TurnosModule = (function () {
                     </div>
                     <div class="form-field">
                       <label class="form-field__label" for="t-item-cant">Cantidad</label>
-                      <input id="t-item-cant" class="input input--sm" type="number" step="0.01" value="1" min="1" />
+                      <input id="t-item-cant" class="input" type="number" step="0.01" value="1" min="1" />
                     </div>
                     <div class="form-field">
                       <label class="form-field__label" for="t-item-desc">Descuento</label>
-                      <input id="t-item-desc" class="input input--sm" type="number" step="0.01" value="0" min="0" />
+                      <input id="t-item-desc" class="input" type="number" step="0.01" value="0" min="0" />
                     </div>
                     <div class="form-field form-field--cta">
-                      <span class="form-field__placeholder">Agregar</span>
                       <button id="t-item-add" type="button" class="button button--primary">Agregar servicio</button>
                     </div>
                   </div>
@@ -266,11 +265,14 @@ window.TurnosModule = (function () {
                   <tbody id="t-tbody"></tbody>
                 </table>
               </div>
+
+              <!-- 3) Paginación UI -->
               <div id="t-pagination" class="table-pagination"></div>
             </div>
           </article>
         </section>
 
+        <!-- Modales -->
         <div id="turno-modal-backdrop" class="dialog-backdrop"></div>
         <div id="turno-modal" class="dialog">
           <div class="dialog__panel">
@@ -299,7 +301,7 @@ window.TurnosModule = (function () {
               <div id="cr-pane-reprogramar" style="display:none">
                 <label class="form-field__label" for="cr-reprog-fecha">Nueva fecha/hora</label>
                 <input id="cr-reprog-fecha" class="input" type="datetime-local" />
-                <div class="muted">Estado post-reprogramaci�n:</div>
+                <div class="muted">Estado post-reprogramación:</div>
                 <select id="cr-reprog-estado" class="input input--select">
                   <option value="pendiente">Pendiente</option>
                   <option value="confirmado">Confirmado</option>
@@ -318,6 +320,7 @@ window.TurnosModule = (function () {
     // ====== refs ======
     const tbody = document.getElementById("t-tbody");
     const selEstado = document.getElementById("t-estado");
+    const paginationEl = document.getElementById("t-pagination");
     const msg = document.getElementById("t-msg");
 
     const pacBuscar = document.getElementById("t-pac-buscar");
@@ -346,147 +349,168 @@ window.TurnosModule = (function () {
 
     let items = []; // {servicio_id, nombre, precio, cantidad, descuento}
 
+    // ===== Listado + paginación (en memoria) =====
+    let allRows = [];
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function paginate(data, page, size) {
+      const total = data.length;
+      const totalPages = Math.max(1, Math.ceil(total / size));
+      const p = Math.min(Math.max(1, page), totalPages);
+      const start = (p - 1) * size;
+      const end = Math.min(start + size, total);
+      return { slice: data.slice(start, end), page: p, total, totalPages, start: start + 1, end };
+    }
+
+    function rowTpl(t) {
+      const serviciosStr =
+        (t.items && t.items.length
+          ? t.items.map((it) => `${it.servicio_nombre || "-"} x${it.cantidad || 1}`).join(", ")
+          : t.servicio_nombre || "-") || "-";
+      const proStr = t.profesional_nombre || "-";
+      const fechaStr = (t.fecha_hora || "").replace("T", " ").slice(0, 16);
+      const estadoStr = (t.estado || "").toUpperCase();
+      return `<tr>
+        <td>${t.id}</td>
+        <td>${t.paciente_nombre || "-"}<br><small class="muted">${t.paciente_documento || ""}</small></td>
+        <td>${serviciosStr}</td>
+        <td>${proStr}</td>
+        <td>${fechaStr}</td>
+        <td>${estadoStr}</td>
+        <td class="table__actions">
+          <button class="button button--ghost t-detalle" data-id="${t.id}">Detalle</button>
+          <button class="button button--ghost t-cr" data-id="${t.id}">Cancelar/Reprogramar</button>
+          <button class="button button--primary btn-cobrar" data-turno-id="${t.id}">Atender + Cobrar</button>
+        </td>
+      </tr>`;
+    }
+
+    function renderTablePage() {
+      const { slice, page, total, totalPages, start, end } = paginate(allRows, currentPage, pageSize);
+      if (!total) {
+        tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Sin turnos</td></tr>`;
+        paginationEl.innerHTML = "";
+        return;
+      }
+      tbody.innerHTML = slice.map(rowTpl).join("");
+
+      // ventana de 5 páginas
+      const win = 5;
+      let first = Math.max(1, page - Math.floor(win / 2));
+      let last = Math.min(totalPages, first + win - 1);
+      if (last - first + 1 < win) first = Math.max(1, last - win + 1);
+
+      const numBtns = [];
+      for (let p = first; p <= last; p++) {
+        numBtns.push(
+          `<button class="button ${p === page ? "is-current" : ""}" data-page="${p}" aria-label="Página ${p}">${p}</button>`
+        );
+      }
+
+      paginationEl.innerHTML = `
+        <div class="table-pagination__controls">
+          <span class="table-pagination__info">Mostrando ${start}-${end} de ${total}</span>
+          <div class="table-pagination__buttons">
+            <button class="button" data-page="first" ${page === 1 ? "disabled" : ""}>«</button>
+            <button class="button" data-page="prev" ${page === 1 ? "disabled" : ""}>‹</button>
+            ${numBtns.join("")}
+            <button class="button" data-page="next" ${page === totalPages ? "disabled" : ""}>›</button>
+            <button class="button" data-page="last" ${page === totalPages ? "disabled" : ""}>»</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Clicks de paginación (delegado)
+    paginationEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-page]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-page");
+      const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
+      if (action === "first") currentPage = 1;
+      else if (action === "prev") currentPage = Math.max(1, currentPage - 1);
+      else if (action === "next") currentPage = Math.min(totalPages, currentPage + 1);
+      else if (action === "last") currentPage = totalPages;
+      else currentPage = Number(action) || 1;
+      renderTablePage();
+    });
+
     // =========================
     // Autocompletes
     // =========================
-    let pacTimer = null,
-      proTimer = null,
-      srvTimer = null;
+    let pacTimer = null, proTimer = null, srvTimer = null;
     const openList = (el) => (el.style.display = "block");
-    const closeList = (el) => {
-      el.style.display = "none";
-      el.innerHTML = "";
-    };
+    const closeList = (el) => { el.style.display = "none"; el.innerHTML = ""; };
 
     // Paciente
     pacBuscar.addEventListener("input", () => {
       clearTimeout(pacTimer);
       const q = pacBuscar.value.trim();
-      if (!q) {
-        closeList(pacSug);
-        return;
-      }
+      if (!q) { closeList(pacSug); return; }
       pacTimer = setTimeout(async () => {
-        try {
-          const r = await buscarPacientes(q);
-          pacSug.innerHTML = sugTpl(r, "pac");
-          openList(pacSug);
-        } catch {
-          closeList(pacSug);
-        }
+        try { pacSug.innerHTML = sugTpl(await buscarPacientes(q), "pac"); openList(pacSug); }
+        catch { closeList(pacSug); }
       }, 220);
     });
-    pacBuscar.addEventListener("focus", () => {
-      if (pacSug.innerHTML) openList(pacSug);
-    });
+    pacBuscar.addEventListener("focus", () => { if (pacSug.innerHTML) openList(pacSug); });
     pacBuscar.addEventListener("blur", () => setTimeout(() => closeList(pacSug), 120));
     pacSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug");
-      if (!d) return;
-      pacId.value = d.dataset.id;
-      pacChosen.textContent = d.dataset.label || "";
-      pacBuscar.value = d.dataset.label || "";
+      const d = e.target.closest(".sug"); if (!d) return;
+      pacId.value = d.dataset.id; pacChosen.textContent = d.dataset.label || ""; pacBuscar.value = d.dataset.label || "";
     });
 
     // Profesional
     proBuscar.addEventListener("input", () => {
       clearTimeout(proTimer);
       const q = proBuscar.value.trim();
-      if (!q) {
-        closeList(proSug);
-        return;
-      }
+      if (!q) { closeList(proSug); return; }
       proTimer = setTimeout(async () => {
-        try {
-          const r = await buscarProfes(q);
-          proSug.innerHTML = sugTpl(r, "pro");
-          openList(proSug);
-        } catch {
-          closeList(proSug);
-        }
+        try { proSug.innerHTML = sugTpl(await buscarProfes(q), "pro"); openList(proSug); }
+        catch { closeList(proSug); }
       }, 220);
     });
-    proBuscar.addEventListener("focus", () => {
-      if (proSug.innerHTML) openList(proSug);
-    });
+    proBuscar.addEventListener("focus", () => { if (proSug.innerHTML) openList(proSug); });
     proBuscar.addEventListener("blur", () => setTimeout(() => closeList(proSug), 120));
     proSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug");
-      if (!d) return;
-      proId.value = d.dataset.id;
-      proChosen.textContent = d.dataset.label || "";
-      proBuscar.value = d.dataset.label || "";
+      const d = e.target.closest(".sug"); if (!d) return;
+      proId.value = d.dataset.id; proChosen.textContent = d.dataset.label || ""; proBuscar.value = d.dataset.label || "";
     });
 
-    // Servicios del turno
+    // Servicios
     srvBuscar.addEventListener("input", () => {
       clearTimeout(srvTimer);
       const q = srvBuscar.value.trim();
-      if (!q) {
-        closeList(srvSug);
-        return;
-      }
+      if (!q) { closeList(srvSug); return; }
       srvTimer = setTimeout(async () => {
-        try {
-          const r = await buscarServicios(q);
-          srvSug.innerHTML = sugTpl(r, "srv");
-          openList(srvSug);
-        } catch {
-          closeList(srvSug);
-        }
+        try { srvSug.innerHTML = sugTpl(await buscarServicios(q), "srv"); openList(srvSug); }
+        catch { closeList(srvSug); }
       }, 220);
     });
-    srvBuscar.addEventListener("focus", () => {
-      if (srvSug.innerHTML) openList(srvSug);
-    });
+    srvBuscar.addEventListener("focus", () => { if (srvSug.innerHTML) openList(srvSug); });
     srvBuscar.addEventListener("blur", () => setTimeout(() => closeList(srvSug), 120));
     srvSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug");
-      if (!d) return;
-      srvId.value = d.dataset.id;
-      srvChosen.textContent = d.dataset.label || "";
-      srvBuscar.value = d.dataset.label || "";
-      // Si el servicio trae precio, autocompletar
+      const d = e.target.closest(".sug"); if (!d) return;
+      srvId.value = d.dataset.id; srvChosen.textContent = d.dataset.label || ""; srvBuscar.value = d.dataset.label || "";
       const p = Number(d.dataset.precio || 0);
       if (p > 0 && !iPrecio.value) iPrecio.value = p;
     });
 
-    // Agregar servicio al listado del turno (en el formulario de alta)
+    // Agregar item
     document.getElementById("t-item-add").addEventListener("click", () => {
       const sid = Number(srvId.value || 0);
       const nombre = srvBuscar.value.trim() || srvChosen.textContent.trim();
       const precio = Number(iPrecio.value || 0);
       const cantidad = Number(iCant.value || 1);
       const descuento = Number(iDesc.value || 0);
-      if (!sid) {
-        msg.textContent = "Elegí un servicio del listado";
-        setTimeout(() => (msg.textContent = ""), 1800);
-        return;
-      }
-      if (cantidad <= 0) {
-        msg.textContent = "Cantidad inválida";
-        setTimeout(() => (msg.textContent = ""), 1800);
-        return;
-      }
+      if (!sid) { msg.textContent = "Elegí un servicio del listado"; setTimeout(() => (msg.textContent = ""), 1800); return; }
+      if (cantidad <= 0) { msg.textContent = "Cantidad inválida"; setTimeout(() => (msg.textContent = ""), 1800); return; }
       items.push({ servicio_id: sid, nombre, precio, cantidad, descuento });
-      // limpiar campos
-      srvId.value = "";
-      srvBuscar.value = "";
-      srvChosen.textContent = "";
-      iPrecio.value = "";
-      iCant.value = "1";
-      iDesc.value = "0";
-
+      // limpiar
+      srvId.value = ""; srvBuscar.value = ""; srvChosen.textContent = "";
+      iPrecio.value = ""; iCant.value = "1"; iDesc.value = "0";
       renderItemsTable(items, itemsBody, totalEl);
-      // rebind borrar
-      itemsBody.querySelectorAll(".t-item-del").forEach((btn) =>
-        btn.addEventListener("click", (e) => {
-          const i = Number(e.currentTarget.dataset.i);
-          items.splice(i, 1);
-          renderItemsTable(items, itemsBody, totalEl);
-          bindDelButtons();
-        })
-      );
+      bindDelButtons();
     });
 
     function bindDelButtons() {
@@ -520,16 +544,11 @@ window.TurnosModule = (function () {
         const r = await apiCreate(payload);
         msg.textContent = `Turno #${r.id} creado.`;
         // limpiar formulario
-        pacId.value = "";
-        pacBuscar.value = "";
-        pacChosen.textContent = "";
-        proId.value = "";
-        proBuscar.value = "";
-        proChosen.textContent = "";
-        items = [];
-        renderItemsTable(items, itemsBody, totalEl);
+        pacId.value = ""; pacBuscar.value = ""; pacChosen.textContent = "";
+        proId.value = ""; proBuscar.value = ""; proChosen.textContent = "";
+        items = []; renderItemsTable(items, itemsBody, totalEl);
         // refrescar listado
-        await cargarListado();
+        await cargarListado(true);
         setTimeout(() => (msg.textContent = ""), 2000);
       } catch (e) {
         msg.textContent = `Error: ${e.message || e}`;
@@ -538,13 +557,13 @@ window.TurnosModule = (function () {
     });
 
     // Filtro por estado
-    selEstado.addEventListener("change", cargarListado);
+    selEstado.addEventListener("change", () => cargarListado(true));
 
     // Primera carga
     cargarListado();
 
     // =========================
-    // Modales básicos (detalle y cancelar/reprogramar)
+    // Modales (detalle / cancelar-reprogramar)
     // =========================
     const modal = {
       back: document.getElementById("turno-modal-backdrop"),
@@ -564,6 +583,7 @@ window.TurnosModule = (function () {
       },
     };
     modal.closeBtn.addEventListener("click", () => modal.close());
+
     document.getElementById("cr-cerrar").addEventListener("click", () => closeCR());
     document.getElementById("cr-guardar").addEventListener("click", onGuardarCR());
     document.getElementById("cr-tab-cancelar").addEventListener("click", () => switchCR("cancelar"));
@@ -575,15 +595,9 @@ window.TurnosModule = (function () {
       const pc = document.getElementById("cr-pane-cancelar");
       const pr = document.getElementById("cr-pane-reprogramar");
       if (p === "cancelar") {
-        a.style.opacity = "1";
-        b.style.opacity = ".7";
-        pc.style.display = "block";
-        pr.style.display = "none";
+        a.style.opacity = "1"; b.style.opacity = ".7"; pc.style.display = "block"; pr.style.display = "none";
       } else {
-        a.style.opacity = ".7";
-        b.style.opacity = "1";
-        pc.style.display = "none";
-        pr.style.display = "block";
+        a.style.opacity = ".7"; b.style.opacity = "1"; pc.style.display = "none"; pr.style.display = "block";
       }
     }
 
@@ -601,7 +615,6 @@ window.TurnosModule = (function () {
     function onGuardarCR() {
       return async () => {
         if (!crTurnoId) return;
-        // detectar pane activo
         const paneCancelarVisible = document.getElementById("cr-pane-cancelar").style.display !== "none";
         try {
           if (paneCancelarVisible) {
@@ -624,54 +637,25 @@ window.TurnosModule = (function () {
     }
 
     // =========================
-    // Listado
+    // Listado + fetch
     // =========================
-    async function cargarListado() {
+    async function cargarListado(resetPage = false) {
       tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Cargando...</td></tr>`;
       try {
         const estado = selEstado.value || "";
         const data = await apiList(estado);
-        if (!data.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Sin turnos</td></tr>`;
-          return;
-        }
-        const rows = data
-          .map((t) => {
-            const serviciosStr =
-              (t.items && t.items.length
-                ? t.items.map((it) => `${it.servicio_nombre || "-"} x${it.cantidad || 1}`).join(", ")
-                : t.servicio_nombre || "-") || "-";
-            const proStr = t.profesional_nombre || "-";
-            const fechaStr = (t.fecha_hora || "").replace("T", " ").slice(0, 16);
-            const estadoStr = (t.estado || "").toUpperCase();
-
-            // Acciones: Detalle, Cancelar/Reprogramar, Atender + Cobrar
-            return `<tr>
-              <td>${t.id}</td>
-              <td>${t.paciente_nombre || "-"}<br><small class="muted">${t.paciente_documento || ""}</small></td>
-              <td>${serviciosStr}</td>
-              <td>${proStr}</td>
-              <td>${fechaStr}</td>
-              <td>${estadoStr}</td>
-              <td class="table__actions">
-                <button class="button button--ghost t-detalle" data-id="${t.id}">Detalle</button>
-                <button class="button button--ghost t-cr" data-id="${t.id}">Cancelar/Reprogramar</button>
-                <button class="button button--primary btn-cobrar" data-turno-id="${t.id}">Atender + Cobrar</button>
-              </td>
-            </tr>`;
-          })
-          .join("");
-        tbody.innerHTML = rows;
+        // Orden descendente por id si viene mezclado
+        allRows = Array.isArray(data) ? [...data].sort((a,b) => (b.id||0) - (a.id||0)) : [];
+        if (resetPage) currentPage = 1;
+        renderTablePage();
       } catch (e) {
         tbody.innerHTML = `<tr><td colspan="7" class="table__empty">Error cargando turnos: ${e.message || e}</td></tr>`;
+        paginationEl.innerHTML = "";
       }
     }
 
-    // =========================
-    // Listeners delegados (filas)
-    // =========================
+    // Delegados tabla
     document.body.addEventListener("click", async (e) => {
-      // Detalle
       const btnDet = e.target.closest(".t-detalle");
       if (btnDet) {
         const id = Number(btnDet.dataset.id);
@@ -690,7 +674,7 @@ window.TurnosModule = (function () {
                     )}) = <b>${money(sub)}</b></li>`;
                   })
                   .join("")}</ul>`
-              : `<div class="muted">Sin items (legacy: servicio_id=${t.servicio_id || "-"})</div>`;
+              : `<div class="muted">Sin items</div>`;
           const html = `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div><b>Paciente:</b> ${t.paciente_nombre || t.paciente_id}</div>
@@ -702,22 +686,33 @@ window.TurnosModule = (function () {
             <b>Servicios</b>
             ${serviciosHtml}
           `;
-          modal.open(`Turno #${t.id}`, html);
+          const modal = {
+            back: document.getElementById("turno-modal-backdrop"),
+            box: document.getElementById("turno-modal"),
+            title: document.getElementById("turno-modal-title"),
+            body: document.getElementById("turno-modal-body"),
+          };
+          modal.title.textContent = `Turno #${t.id}`;
+          modal.body.innerHTML = html;
+          modal.back.style.display = "block";
+          modal.box.style.display = "flex";
         } catch (err) {
           alert(err.message || err);
         }
         return;
       }
 
-      // Cancelar/Reprogramar
       const btnCR = e.target.closest(".t-cr");
-      if (btnCR) {
+      if (btnCR) { 
         const id = Number(btnCR.dataset.id);
-        openCR(id);
+        document.getElementById("cr-backdrop").style.display = "block";
+        document.getElementById("cr-modal").style.display = "flex";
+        // guardar id actual
+        const ev = new CustomEvent("set-cr-id", { detail: { id } });
+        document.dispatchEvent(ev);
         return;
       }
 
-      // ★ Atender + Cobrar → redirige al POS con turno_id (no cambia estado ni consume insumos aquí)
       const btnCobrar = e.target.closest(".btn-cobrar");
       if (btnCobrar) {
         const tid = btnCobrar.dataset.turnoId || btnCobrar.getAttribute("data-turno-id");
@@ -726,12 +721,39 @@ window.TurnosModule = (function () {
         return;
       }
     });
+
+    // guardado simple de id para CR
+    let crId = null;
+    document.addEventListener("set-cr-id", (e) => { crId = e.detail.id; });
+    document.getElementById("cr-cerrar").addEventListener("click", () => {
+      document.getElementById("cr-backdrop").style.display = "none";
+      document.getElementById("cr-modal").style.display = "none";
+      crId = null;
+    });
+    document.getElementById("cr-guardar").addEventListener("click", async () => {
+      try {
+        const cancelarVisible = document.getElementById("cr-pane-cancelar").style.display !== "none";
+        if (cancelarVisible) {
+          const texto = document.getElementById("cr-cancelar-texto").value.trim();
+          const motivo = document.getElementById("cr-cancelar-motivo").value.trim();
+          if (texto !== "CANCELAR") throw new Error('Escribí exactamente "CANCELAR"');
+          await apiSetEstado(crId, { estado: "cancelado", motivo_cancelacion: motivo || undefined });
+        } else {
+          const nueva = document.getElementById("cr-reprog-fecha").value;
+          const estado = document.getElementById("cr-reprog-estado").value || "pendiente";
+          if (!nueva) throw new Error("Indicá la nueva fecha/hora.");
+          await apiReprogramar(crId, { fecha_hora: nueva, estado });
+        }
+        document.getElementById("cr-backdrop").style.display = "none";
+        document.getElementById("cr-modal").style.display = "none";
+        crId = null;
+        await cargarListado();
+      } catch (e) {
+        alert(e.message || e);
+      }
+    });
   }
 
   // API pública
   return { render };
 })();
-
-
-
-
