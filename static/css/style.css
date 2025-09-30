@@ -164,6 +164,11 @@ button, .button, .btn {
   text-transform: uppercase; letter-spacing:.08em;
 }
 .form-field__note { font-size:.9rem; color: var(--color-muted); }
+.form-field--cta { align-self:end; }
+.form-actions { display:flex; flex-wrap:wrap; align-items:center; gap: var(--space-3); }
+.form-feedback--success { color: var(--color-success); }
+.form-feedback--error { color: var(--color-danger); }
+
 
 input, select, textarea {
   font: inherit; padding:.65rem .9rem; border:1px solid var(--color-border); border-radius: 8px;
@@ -200,24 +205,47 @@ input:focus, select:focus, textarea:focus { outline:none; border-color: var(--co
 .form-grid--three { grid-template-columns: 1fr; }
 .turnos-form-head .input-group { grid-template-columns: 1fr; }
 
-/* ---- 2) SERVICIOS DEL TURNO ORDENADO ---- */
-.form-grid--services{
-  display:grid; gap: var(--space-4);
+/* ---- Servicios del turno ordenado ---- */
+.input-group--services {
   grid-template-columns: 1fr;
-  align-items:end;
+  gap: var(--space-3);
 }
-@media (min-width: 900px){
-  .form-grid--services{
-    grid-template-columns:
-      minmax(240px, 2fr)
-      minmax(140px, 1fr)
-      minmax(110px, .8fr)
-      minmax(110px, .8fr)
-      auto;
+.input-group--services .input-group__column--grow {
+  min-width: 0;
+}
+.input-group--services .input-group__cta {
+  display: flex;
+  align-items: flex-end;
+}
+.input-group--services .input-group__cta .button {
+  width: 100%;
+  height: 44px;
+  white-space: nowrap;
+}
+
+@media (max-width: 899px) {
+  .input-group--services .input-group__column--grow,
+  .input-group--services .input-group__cta {
+    grid-column: 1 / -1;
   }
 }
-.form-grid--services .button{ height:44px; white-space:nowrap; }
-.form-field--cta{ align-self:end; }
+
+@media (min-width: 900px) {
+  .input-group--services {
+    grid-template-columns:
+      minmax(260px, 2.3fr)
+      minmax(140px, 1fr)
+      minmax(120px, 0.8fr)
+      minmax(120px, 0.8fr)
+      auto;
+    gap: var(--space-4);
+    align-items: end;
+  }
+  .input-group--services .input-group__cta .button {
+    width: auto;
+  }
+}
+
 
 /* Autocomplete */
 .auto-complete{ position:relative; }
@@ -309,8 +337,111 @@ input:focus, select:focus, textarea:focus { outline:none; border-color: var(--co
 /* ===== Ajustes específicos Turnos ===== */
 .auto-complete input{ width: 100%; }
 .turnos-form-head .input-group{ grid-template-columns: 1fr; }
-.form-grid--three{ grid-template-columns: 1fr; }
 @media (min-width: 900px){
   .turnos-form-head .input-group{ grid-template-columns: 1fr 180px; column-gap: var(--space-4); align-items:end; }
 }
 .section-divider{ border:none; height:1px; background: var(--color-border); margin: var(--space-5) 0; }
+
+
+
+/* ===== Caja & Facturacion ===== */
+.caja-page .card__body { display:flex; flex-direction:column; gap: var(--space-6); }
+
+.caja-page .form-grid--four { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.caja-page .form-grid--pos-items { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:end; }
+.caja-page .form-grid--three { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.caja-page .pos-grid { gap: var(--space-4); }
+.caja-page .pos-grid--patient .form-field:last-child { align-self:end; }
+.caja-page .pos-grid--discount .pos-discount-summary { height:100%; }
+
+.input--sm { max-width: 120px; }
+.pos-items-table .table input { width: 100%; }
+.pos-items-table .button { padding: 0 14px; }
+
+.pos-discount-summary {
+  display:flex; align-items:center; gap: var(--space-2);
+  min-height: 44px; padding: var(--space-3);
+  background: var(--color-surface-soft); border:1px solid var(--color-border); border-radius: var(--radius);
+  color: var(--color-muted); font-size: 0.92rem;
+}
+
+.pos-payments__list { display:flex; flex-direction:column; gap: var(--space-3); }
+.pos-payments__item {
+  display:grid; gap: var(--space-3); align-items:end;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto;
+  padding: var(--space-3); border:1px solid var(--color-border); border-radius: var(--radius);
+  background: var(--color-surface-soft);
+}
+.pos-payments__item .button { align-self:center; }
+.pos-payments__footer {
+  margin-top: var(--space-3); padding-top: var(--space-3);
+  border-top:1px solid var(--color-border);
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: var(--space-3);
+}
+.pos-payments__totals { font-weight:600; }
+
+.pos-actions { display:flex; justify-content:flex-end; margin-top: var(--space-4); }
+.pos-actions .button { min-width: 220px; }
+
+.button--lg { padding: 0.85rem 1.75rem; font-size: 1.02rem; }
+
+.form-feedback { min-height: 24px; margin-top: var(--space-3); font-size: 0.9rem; color: var(--color-muted); display:flex; align-items:center; gap: var(--space-2); flex-wrap:wrap; }
+.form-feedback .button { margin-left: 0; }
+.form-feedback:empty { display:none; }
+
+@media (max-width: 720px) {
+  .pos-payments__item { grid-template-columns: 1fr; }
+  .pos-payments__item .button { justify-self: flex-start; }
+  .pos-actions { justify-content: stretch; }
+  .pos-actions .button { width: 100%; }
+}
+
+/* ===== Pacientes ===== */
+.pacientes-page .card__body { display:flex; flex-direction:column; gap: var(--space-6); }
+.pacientes-page .pacientes-search .form-field { max-width: 360px; }
+.pacientes-page .pacientes-form-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
+.pacientes-form-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.pacientes-buttons { display:flex; gap: var(--space-2); flex-wrap:wrap; }
+.pacientes-table .table__empty { text-align:center; }
+.pacientes-page .table-shell { margin-top: var(--space-3); }
+
+@media (max-width: 720px) {
+  .pacientes-form-actions { flex-direction:column; align-items:stretch; }
+  .pacientes-buttons { width:100%; justify-content:stretch; }
+  .pacientes-buttons .button { width:100%; }
+}
+
+/* ===== Profesionales ===== */
+.profesionales-page .card__body { display:flex; flex-direction:column; gap: var(--space-6); }
+.profesionales-page .profesionales-search .form-field { max-width: 360px; }
+.profesionales-page .profesionales-form-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
+.profesionales-form-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.profesionales-buttons { display:flex; gap: var(--space-2); flex-wrap:wrap; }
+.profesionales-table .table__empty { text-align:center; }
+.profesionales-page .table-shell { margin-top: var(--space-3); }
+
+@media (max-width: 720px) {
+  .profesionales-form-actions { flex-direction:column; align-items:stretch; }
+  .profesionales-buttons { width:100%; justify-content:stretch; }
+  .profesionales-buttons .button { width:100%; }
+}
+
+/* ===== Inventario ===== */
+.inventario-page .card__body { display:flex; flex-direction:column; gap: var(--space-6); }
+.inventario-page .inv-quick-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
+.inventario-page .inv-filters { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
+.inventario-page .inv-compra-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
+.inventario-page .inv-compra-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.inventario-page .inv-compra-actions__right { display:flex; gap: var(--space-2); flex-wrap:wrap; }
+.inventario-page .inv-compra-actions__right .button { min-width: 160px; }
+.inventario-page .inv-card--lotes .form-actions { justify-content:flex-start; gap: var(--space-2); }
+.inventario-page .inv-mov-filters { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
+.inventario-page .inv-kardex-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
+.inventario-page .form-feedback { min-height: 24px; }
+
+@media (max-width: 720px) {
+  .inventario-page .inv-compra-actions { flex-direction:column; align-items:stretch; }
+  .inventario-page .inv-compra-actions__right { width:100%; justify-content:stretch; }
+  .inventario-page .inv-compra-actions__right .button { width:100%; }
+  .inventario-page .inv-card--lotes .form-actions { flex-direction:column; align-items:stretch; }
+}

@@ -149,7 +149,7 @@ window.InventarioModule = (function(){
         <div class="__modal-card">
           ${html}
           <div style="text-align:right;margin-top:12px">
-            <button id="__modal_close__" class="btn">Cerrar</button>
+            <button id="__modal_close__" type="button" class="button button--ghost">Cerrar</button>
           </div>
         </div>`;
       const card = overlay.querySelector(".__modal-card");
@@ -181,8 +181,8 @@ window.InventarioModule = (function(){
       .pl-row .ed{display:none;width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px}
       .pl-row.editing .ro{display:none}
       .pl-row.editing .ed{display:inline-block}
-      .btn-ghost{padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer}
-      .btn-ghost.primary{border-color:#2563eb}
+      .pl-row .button{padding:6px 10px;border-radius:8px;}
+      .pl-row .button.button--ghost{border:1px solid #d1d5db;background:#fff;cursor:pointer}
     `;
     document.head.appendChild(st);
   })();
@@ -226,7 +226,7 @@ window.InventarioModule = (function(){
         <td><input class="cp-cant" type="number" step="0.001"></td>
         <td><input class="cp-costo" type="number" step="0.01"></td>
         <td class="cp-subtotal">${money(0)}</td>
-        <td><button class="cp-eliminar">A</button></td>
+        <td><button class="button button--ghost cp-eliminar" type="button" >A</button></td>
       </tr>
     `;
   }
@@ -253,7 +253,7 @@ prod-chosen"></div>
         <td><input class="lt-cant" type="number" step="0.001"></td>
         <td><input class="lt-motivo" placeholder="motivo"></td>
         <td><input class="lt-ref" placeholder="ref"></td>
-        <td><button class="lt-eliminar">A</button></td>
+        <td><button class="button button--ghost lt-eliminar" type="button" >A</button></td>
       </tr>
     `;
   }
@@ -265,188 +265,202 @@ prod-chosen"></div>
     routeTitle.textContent = "Inventario";
 
     routeContent.innerHTML = `
-      <div class="ui-page inventario-page">
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--quick">
-            <header class="ui-card__header">
-              <p class="ui-card__eyebrow">Inventario</p>
-              <h2 class="ui-card__title">Crear producto rapido</h2>
-              <p class="ui-card__subtitle">Registra referencias basicas para cargar stock en segundos.</p>
+      <div class="page-shell inventario-page">
+        <section class="section-block">
+          <article class="card inv-card inv-card--quick">
+            <header class="card__header">
+              <p class="card__eyebrow">Inventario</p>
+              <h2 class="card__title">Crear producto rapido</h2>
+              <p class="card__subtitle">Registra referencias basicas para cargar stock en segundos.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-grid ui-grid--cols-5 inv-quick-grid">
-                <div class="form__field"><label for="pr-sku">SKU</label><input id="pr-sku"></div>
-                <div class="form__field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required></div>
-                <div class="form__field"><label for="pr-min">Stock minimo</label><input id="pr-min" type="number" step="0.001"></div>
-                <div class="form__field"><label for="pr-pv">Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
-                <div class="form__field form__field--button"><span class="form__label-placeholder">Guardar</span><button id="pr-guardar" class="btn btn-primary btn-pill">Guardar</button></div>
+            <div class="card__body">
+              <div class="form-grid inv-quick-grid">
+                <div class="form-field"><label for="pr-sku">SKU</label><input id="pr-sku"></div>
+                <div class="form-field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required></div>
+                <div class="form-field"><label for="pr-min">Stock minimo</label><input id="pr-min" type="number" step="0.001"></div>
+                <div class="form-field"><label for="pr-pv">Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
+                <div class="form-field form-field--cta"><button id="pr-guardar" type="button" class="button button--primary">Guardar</button></div>
               </div>
-              <div id="pr-msg" class="alert"></div>
+              <div id="pr-msg" class="form-feedback"></div>
             </div>
           </article>
         </section>
 
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--list">
-            <header class="ui-card__header">
-              <h2 class="ui-card__title">Listado de productos</h2>
-              <p class="ui-card__subtitle">Administra precios, stock y estado de cada referencia.</p>
+        <section class="section-block">
+          <article class="card inv-card inv-card--list">
+            <header class="card__header">
+              <h2 class="card__title">Listado de productos</h2>
+              <p class="card__subtitle">Administra precios, stock y estado de cada referencia.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-grid ui-grid--cols-4 inv-filters">
-                <div class="form__field"><label for="pl-q">Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
-                <div class="form__field"><label for="pl-estado">Estado</label>
+            <div class="card__body">
+              <div class="form-grid inv-filters">
+                <div class="form-field"><label for="pl-q">Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
+                <div class="form-field"><label for="pl-estado">Estado</label>
                   <select id="pl-estado">
                     <option value="">Todos</option>
                     <option value="true">Activos</option>
                     <option value="false">Inactivos</option>
                   </select>
                 </div>
-                <div class="form__field"><label for="pl-per">Por pagina</label>
+                <div class="form-field"><label for="pl-per">Por pagina</label>
                   <select id="pl-per"><option>10</option><option>25</option><option>50</option></select>
                 </div>
-                <div class="form__field form__field--button"><span class="form__label-placeholder">Aplicar</span><button id="pl-filtrar" class="btn btn-primary btn-pill">Aplicar</button></div>
+                <div class="form-field form-field--cta"><button id="pl-filtrar" type="button" class="button button--primary">Aplicar</button></div>
               </div>
-              <div class="ui-table-wrapper">
+              <div class="table-shell">
                 <table class="table">
                   <thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Minimo</th><th>Precio venta</th><th>Ult. costo</th><th>Activo</th><th>Acciones</th></tr></thead>
                   <tbody id="pl-tbody"></tbody>
                 </table>
               </div>
               <div class="table-pagination">
-                <button id="pl-prev" class="btn btn--ghost">Anterior</button>
-                <span id="pl-info" class="table-pagination__info"></span>
-                <button id="pl-next" class="btn btn--ghost">Siguiente</button>
+                <div class="table-pagination__controls">
+                  <span id="pl-info" class="table-pagination__info"></span>
+                  <div class="table-pagination__buttons">
+                    <button id="pl-prev" type="button" class="button button--ghost">Anterior</button>
+                    <button id="pl-next" type="button" class="button button--ghost">Siguiente</button>
+                  </div>
+                </div>
               </div>
-              <div id="pl-msg" class="alert"></div>
+              <div id="pl-msg" class="form-feedback"></div>
             </div>
           </article>
         </section>
 
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--purchase">
-            <header class="ui-card__header">
-              <h2 class="ui-card__title">Registrar compra</h2>
-              <p class="ui-card__subtitle">Carga facturas o boletas para actualizar stock y costos.</p>
+        <section class="section-block">
+          <article class="card inv-card inv-card--purchase">
+            <header class="card__header">
+              <h2 class="card__title">Registrar compra</h2>
+              <p class="card__subtitle">Carga facturas o boletas para actualizar stock y costos.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-grid ui-grid--cols-4 inv-compra-grid">
-                <div class="form__field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
-                <div class="form__field"><label for="cp-tipo">Tipo doc</label>
+            <div class="card__body">
+              <div class="form-grid inv-compra-grid">
+                <div class="form-field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
+                <div class="form-field"><label for="cp-tipo">Tipo doc</label>
                   <select id="cp-tipo"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
                 </div>
-                <div class="form__field"><label for="cp-numero">Numero</label><input id="cp-numero" placeholder="Serie-00000000"></div>
-                <div class="form__field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
+                <div class="form-field"><label for="cp-numero">Numero</label><input id="cp-numero" placeholder="Serie-00000000"></div>
+                <div class="form-field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
               </div>
-              <div class="ui-table-wrapper">
+              <div class="table-shell">
                 <table class="table" id="cp-tabla">
                   <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit</th><th>Subtotal</th><th></th></tr></thead>
                   <tbody id="cp-tbody"></tbody>
                   <tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td id="cp-total"><b>${money(0)}</b></td><td></td></tr></tfoot>
                 </table>
               </div>
-              <div class="ui-actions inv-compra-actions">
-                <button id="cp-add-row" class="btn btn-light btn-pill">Agregar item</button>
+              <div class="form-actions inv-compra-actions">
+                <button id="cp-add-row" type="button" class="button button--ghost">Agregar item</button>
                 <div class="inv-compra-actions__right">
-                  <button id="cp-cancelar-ed" class="btn btn-light btn-pill" style="display:none">Cancelar edicion</button>
-                  <button id="cp-guardar" class="btn btn-primary btn-pill">Guardar compra</button>
+                  <div id="cp-cancelar-wrap" style="display:none">
+                    <button id="cp-cancelar-ed" type="button" class="button button--ghost">Cancelar edicion</button>
+                  </div>
+                  <button id="cp-guardar" type="button" class="button button--primary">Guardar compra</button>
                 </div>
               </div>
-              <div id="cp-compra-msg" class="alert"></div>
+              <div id="cp-compra-msg" class="form-feedback"></div>
             </div>
           </article>
         </section>
 
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--lotes">
-            <header class="ui-card__header">
-              <h2 class="ui-card__title">Movimientos por lotes</h2>
-              <p class="ui-card__subtitle">Aplica ajustes masivos de stock con una sola confirmacion.</p>
+        <section class="section-block">
+          <article class="card inv-card inv-card--lotes">
+            <header class="card__header">
+              <h2 class="card__title">Movimientos por lotes</h2>
+              <p class="card__subtitle">Aplica ajustes masivos de stock con una sola confirmacion.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-table-wrapper">
+            <div class="card__body">
+              <div class="table-shell">
                 <table class="table">
                   <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
                   <tbody id="lt-tbody"></tbody>
                 </table>
               </div>
-              <div class="ui-actions">
-                <button id="lt-add-row" class="btn btn-light btn-pill">Agregar item</button>
-                <button id="lt-guardar" class="btn btn-primary btn-pill">Guardar todos</button>
+              <div class="form-actions">
+                <button id="lt-add-row" type="button" class="button button--ghost">Agregar item</button>
+                <button id="lt-guardar" type="button" class="button button--primary">Guardar todos</button>
               </div>
-              <div id="lt-msg" class="alert"></div>
+              <div id="lt-msg" class="form-feedback"></div>
             </div>
           </article>
         </section>
 
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--movimientos">
-            <header class="ui-card__header">
-              <h2 class="ui-card__title">Listado de movimientos</h2>
-              <p class="ui-card__subtitle">Consulta ingresos, egresos y ajustes con filtros rapidos.</p>
+        <section class="section-block">
+          <article class="card inv-card inv-card--movimientos">
+            <header class="card__header">
+              <h2 class="card__title">Listado de movimientos</h2>
+              <p class="card__subtitle">Consulta ingresos, egresos y ajustes con filtros rapidos.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-grid ui-grid--cols-4 inv-mov-filters">
-                <div class="form__field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local"></div>
-                <div class="form__field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local"></div>
-                <div class="form__field"><label for="fl-tipo">Tipo</label>
+            <div class="card__body">
+              <div class="form-grid inv-mov-filters">
+                <div class="form-field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local"></div>
+                <div class="form-field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local"></div>
+                <div class="form-field"><label for="fl-tipo">Tipo</label>
                   <select id="fl-tipo"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
                 </div>
-                <div class="form__field form__field--button"><span class="form__label-placeholder">Filtrar</span><button id="fl-filtrar" class="btn btn-primary btn-pill">Filtrar</button></div>
+                <div class="form-field form-field--cta"><button id="fl-filtrar" type="button" class="button button--primary">Filtrar</button></div>
               </div>
-              <div class="ui-table-wrapper">
+              <div class="table-shell">
                 <table class="table">
                   <thead><tr><th>Fecha</th><th>Dato</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
                   <tbody id="mv-tbody"></tbody>
                 </table>
               </div>
               <div class="table-pagination">
-                <button id="mv-prev" class="btn btn--ghost">Anterior</button>
-                <span id="mv-info" class="table-pagination__info"></span>
-                <button id="mv-next" class="btn btn--ghost">Siguiente</button>
+                <div class="table-pagination__controls">
+                  <span id="mv-info" class="table-pagination__info"></span>
+                  <div class="table-pagination__buttons">
+                    <button id="mv-prev" type="button" class="button button--ghost">Anterior</button>
+                    <button id="mv-next" type="button" class="button button--ghost">Siguiente</button>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
         </section>
 
-        <section class="ui-section">
-          <article class="ui-card inv-card inv-card--kardex">
-            <header class="ui-card__header">
-              <h2 class="ui-card__title">Kardex</h2>
-              <p class="ui-card__subtitle">Revisa el detalle de movimientos y saldos por producto.</p>
+        <section class="section-block">
+          <article class="card inv-card inv-card--kardex">
+            <header class="card__header">
+              <h2 class="card__title">Kardex</h2>
+              <p class="card__subtitle">Revisa el detalle de movimientos y saldos por producto.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-grid ui-grid--cols-4 inv-kardex-grid">
-                <div class="form__field">
+            <div class="card__body">
+              <div class="form-grid inv-kardex-grid">
+                <div class="form-field">
                   <label for="kx-prod">Producto</label>
                   <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
                   <div id="kx-sug" class="ac-list" style="display:none"></div>
                   <input type="hidden" id="kx-prod-id">
                 </div>
-                <div class="form__field">
+                <div class="form-field">
                   <label for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local">
                 </div>
-                <div class="form__field">
+                <div class="form-field">
                   <label for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local">
                 </div>
-                <div class="form__field">
+                <div class="form-field">
                   <label for="kx-perpage">Mostrar</label>
                   <select id="kx-perpage"><option value="10">Ultimos 10</option><option value="25">25</option><option value="50">50</option></select>
                 </div>
               </div>
-              <div class="ui-actions">
-                <button id="kx-ver" class="btn btn-primary btn-pill">Ver kardex</button>
+              <div class="form-actions">
+                <button id="kx-ver" type="button" class="button button--primary">Ver kardex</button>
               </div>
-              <div class="ui-table-wrapper">
+              <div class="table-shell">
                 <table class="table">
                   <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Ref</th></tr></thead>
                   <tbody id="kx-tbody"></tbody>
                 </table>
               </div>
               <div class="table-pagination">
-                <button id="kx-prev" class="btn btn--ghost">Anterior</button>
-                <span id="kx-info" class="table-pagination__info"></span>
-                <button id="kx-next" class="btn btn--ghost">Siguiente</button>
+                <div class="table-pagination__controls">
+                  <span id="kx-info" class="table-pagination__info"></span>
+                  <div class="table-pagination__buttons">
+                    <button id="kx-prev" type="button" class="button button--ghost">Anterior</button>
+                    <button id="kx-next" type="button" class="button button--ghost">Siguiente</button>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -525,10 +539,10 @@ prod-chosen"></div>
             </label>
           </td>
           <td>
-            <button class="btn-ghost pl-edit">Editar</button>
-            <button class="btn-ghost primary pl-save" style="display:none">Guardar</button>
-            <button class="btn-ghost pl-cancel" style="display:none">Cancelar</button>
-            <button class="btn-ghost pl-hist">Historial</button>
+            <button class="button button--ghost pl-edit" type="button" >Editar</button>
+            <button class="button button--primary pl-save" type="button" style="display:none">Guardar</button>
+            <button class="button button--ghost pl-cancel" type="button" style="display:none">Cancelar</button>
+            <button class="button button--ghost pl-hist" type="button" >Historial</button>
           </td>
         </tr>
       `;
@@ -836,8 +850,8 @@ prod-chosen"></div>
           <td>${(r.motivo || "").toUpperCase()}</td>
           <td>${r.referencia||""}</td>
           <td>
-            <button class="mv-revisar" data-id="${r.id}">Revisar</button>
-            ${(String(r.tipo||'').toLowerCase()==='ingreso') ? `<button class="mv-editar" data-id="${r.id}">Editar</button>` : ``}
+            <button class="button button--ghost mv-revisar" type="button" data-id="${r.id}">Revisar</button>
+            ${(String(r.tipo||'').toLowerCase()==='ingreso') ? `<button class="button button--primary mv-editar" type="button" data-id="${r.id}">Editar</button>` : ``}
           </td>
         </tr>
       `).join("");

@@ -76,85 +76,82 @@ window.CajaModule = (function () {
 
     routeContent.innerHTML = `
 
-      <div class="ui-page caja-page">
-        <section class="ui-section">
-          <article class="ui-card ui-card--form pos-card">
-            <header class="ui-card__header">
-              <p class="ui-card__eyebrow">Caja & Facturacion</p>
-              <h2 class="ui-card__title">Punto de venta</h2>
-              <p class="ui-card__subtitle">Registra consumos, aplica descuentos y cobra al instante.</p>
+      <div class="page-shell caja-page">
+        <section class="section-block">
+          <article class="card form-card pos-card">
+            <header class="card__header">
+              <p class="card__eyebrow">Caja & Facturacion</p>
+              <h2 class="card__title">Punto de venta</h2>
+              <p class="card__subtitle">Registra consumos, aplica descuentos y cobra al instante.</p>
             </header>
-            <div class="ui-card__body">
-              <div class="ui-subsection">
-                <h3 class="ui-subsection__title">Datos del paciente</h3>
-                <div class="ui-subsection__body">
-                  <div class="ui-grid ui-grid--cols-4 pos-patient-grid">
-                    <div class="form__field">
-                      <label>Paciente</label>
-                      <div class="ac-wrap">
-                        <input id="pos-pac-q" placeholder="Buscar por nombre/DNI" autocomplete="off">
+
+            <div class="card__body">
+              <div class="card-section">
+                <h3 class="card-section__title">Datos del paciente</h3>
+                <div class="card-section__body">
+                  <div class="form-grid form-grid--four pos-grid pos-grid--patient">
+                    <div class="form-field">
+                      <label class="form-field__label">Paciente</label>
+                      <div class="auto-complete">
+                        <input id="pos-pac-q" class="input" placeholder="Buscar por nombre/DNI" autocomplete="off">
                         <div id="pos-pac-suggest" class="ac-list" style="display:none"></div>
                       </div>
                       <input type="hidden" id="pos-paciente-id">
                     </div>
-                    <div class="form__field">
-                      <label>Documento</label>
-                      <input id="pos-pac-doc" placeholder="DNI" autocomplete="off">
+                    <div class="form-field">
+                      <label class="form-field__label">Documento</label>
+                      <input id="pos-pac-doc" class="input" placeholder="DNI" autocomplete="off">
                     </div>
-                    <div class="form__field">
-                      <label>Tipo comprobante</label>
-                      <select id="pos-tipo">
+                    <div class="form-field">
+                      <label class="form-field__label">Tipo comprobante</label>
+                      <select id="pos-tipo" class="input input--select">
                         <option value="boleta">Boleta</option>
                         <option value="factura">Factura</option>
                         <option value="recibo">Recibo</option>
                       </select>
                     </div>
-                    <div class="form__field form__field--button">
-                      <span class="form__label-placeholder">Ver deuda</span>
-                      <button id="pos-check-deuda" class="btn btn-light btn-pill">Ver deuda</button>
+                    <div class="form-field form-field--cta">
+                      <button id="pos-check-deuda" type="button" class="button button--ghost">Ver deuda</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <hr class="ui-divider">
-
-              <div class="ui-subsection">
-                <h3 class="ui-subsection__title">Agregar item</h3>
-                <div class="ui-subsection__body">
-                  <div class="ui-grid ui-grid--cols-5 pos-item-grid">
-                    <div class="form__field">
-                      <label>Tipo</label>
-                      <select id="pos-item-tipo">
+              <div class="card-section">
+                <h3 class="card-section__title">Agregar item</h3>
+                <div class="card-section__body">
+                  <div class="form-grid form-grid--pos-items pos-grid">
+                    <div class="form-field">
+                      <label class="form-field__label">Tipo</label>
+                      <select id="pos-item-tipo" class="input input--select">
                         <option value="producto">Producto</option>
                         <option value="servicio">Servicio</option>
                       </select>
                     </div>
-                    <div class="form__field">
-                      <label>Buscar</label>
-                      <div class="ac-wrap">
-                        <input id="pos-item-q" autocomplete="off" placeholder="Nombre o SKU">
+                    <div class="form-field">
+                      <label class="form-field__label">Buscar</label>
+                      <div class="auto-complete">
+                        <input id="pos-item-q" class="input" autocomplete="off" placeholder="Nombre o SKU">
                         <div id="pos-suggest" class="ac-list" style="display:none"></div>
                       </div>
                     </div>
-                    <div class="form__field">
-                      <label>Cantidad</label>
-                      <input id="pos-item-cant" type="number" step="0.01" min="0.01" value="1">
+                    <div class="form-field">
+                      <label class="form-field__label">Cantidad</label>
+                      <input id="pos-item-cant" class="input" type="number" step="0.01" min="0.01" value="1">
                     </div>
-                    <div class="form__field">
-                      <label>Precio unitario</label>
-                      <input id="pos-item-precio" type="number" step="0.01" min="0" placeholder="auto">
+                    <div class="form-field">
+                      <label class="form-field__label">Precio unitario</label>
+                      <input id="pos-item-precio" class="input" type="number" step="0.01" min="0" placeholder="auto">
                     </div>
-                    <div class="form__field form__field--button">
-                      <span class="form__label-placeholder">Agregar</span>
-                      <button id="pos-item-add" class="btn btn-primary btn-pill">Agregar</button>
+                    <div class="form-field form-field--cta">
+                      <button id="pos-item-add" type="button" class="button button--primary">Agregar</button>
                     </div>
                   </div>
 
-                  <div class="ui-table-wrapper">
+                  <div class="table-shell pos-items-table">
                     <table class="table" id="pos-tabla">
                       <thead>
-                        <tr><th>Tipo</th><th>Descripcion</th><th>Cantidad</th><th>Precio unitario</th><th class="right">Subtotal</th><th></th></tr>
+                        <tr><th>Tipo</th><th>Descripción</th><th>Cantidad</th><th>Precio unitario</th><th class="right">Subtotal</th><th></th></tr>
                       </thead>
                       <tbody></tbody>
                       <tfoot>
@@ -165,57 +162,56 @@ window.CajaModule = (function () {
                 </div>
               </div>
 
-              <div class="ui-subsection">
-                <h3 class="ui-subsection__title">Descuento global</h3>
-                <div class="ui-subsection__body">
-                  <div class="ui-grid ui-grid--cols-3 pos-discount-grid">
-                    <div class="form__field">
-                      <label>Tipo de descuento</label>
-                      <select id="pos-dsc-tipo">
+              <div class="card-section">
+                <h3 class="card-section__title">Descuento global</h3>
+                <div class="card-section__body">
+                  <div class="form-grid form-grid--three pos-grid pos-grid--discount">
+                    <div class="form-field">
+                      <label class="form-field__label">Tipo de descuento</label>
+                      <select id="pos-dsc-tipo" class="input input--select">
                         <option value="none">Sin descuento</option>
                         <option value="porcentaje">% Porcentaje</option>
                         <option value="monto">Monto</option>
                       </select>
                     </div>
-                    <div class="form__field">
-                      <label>Valor</label>
-                      <input id="pos-dsc-valor" type="number" step="0.01" min="0" value="0">
+                    <div class="form-field">
+                      <label class="form-field__label">Valor</label>
+                      <input id="pos-dsc-valor" class="input" type="number" step="0.01" min="0" value="0">
                     </div>
-                    <div class="form__field">
-                      <label>Resumen</label>
-                      <div id="pos-dsc-res" class="alert">Subtotal: S/ 0.00 - Desc: S/ 0.00 - Total: S/ 0.00</div>
+                    <div class="form-field">
+                      <label class="form-field__label">Resumen</label>
+                      <div id="pos-dsc-res" class="pos-discount-summary">Subtotal: S/ 0.00 - Desc: S/ 0.00 - Total: S/ 0.00</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="ui-subsection">
-                <h3 class="ui-subsection__title">Pagos</h3>
-                <div class="ui-subsection__body pos-payments">
+              <div class="card-section">
+                <h3 class="card-section__title">Pagos</h3>
+                <div class="card-section__body pos-payments">
                   <div id="pos-pagos" class="pos-payments__list"></div>
                   <div class="pos-payments__footer">
-                    <button id="pos-add-pago" class="btn btn-light btn-pill">Agregar pago</button>
+                    <button id="pos-add-pago" type="button" class="button button--ghost">Agregar pago</button>
                     <div class="pos-payments__totals"><b>Total pagado:</b> <span id="pos-pagado">S/ 0.00</span> &mdash; <b>Saldo:</b> <span id="pos-saldo">S/ 0.00</span></div>
                   </div>
                 </div>
               </div>
 
-              <div class="ui-subsection">
-                <h3 class="ui-subsection__title">Observaciones</h3>
-                <div class="ui-subsection__body">
-                  <input id="pos-obs" placeholder="Opcional">
-                  <div id="pos-res" class="alert"></div>
-                  <div class="ui-actions pos-actions">
-                    <button id="pos-emitir" class="btn btn-primary btn-pill">Pagar y emitir comprobante</button>
+              <div class="card-section">
+                <h3 class="card-section__title">Observaciones</h3>
+                <div class="card-section__body pos-observaciones">
+                  <input id="pos-obs" class="input" placeholder="Opcional">
+                  <div id="pos-res" class="form-feedback"></div>
+                  <div class="pos-actions">
+                    <button id="pos-emitir" type="button" class="button button--primary button--lg">Pagar y emitir comprobante</button>
                   </div>
                 </div>
               </div>
             </div>
           </article>
         </section>
+      </div>
     `;
-
-    // refs
     refs = {
       pacQ: document.getElementById("pos-pac-q"),
       pacSug: document.getElementById("pos-pac-suggest"),
@@ -346,7 +342,7 @@ window.CajaModule = (function () {
             <thead><tr><th>Comp.</th><th>Estado</th><th class="right">Total</th><th class="right">Pagado</th><th class="right">Saldo</th></tr></thead>
             <tbody>${items.join("") || `<tr><td colspan="5">Sin deudas</td></tr>`}</tbody>
           </table>`;
-        const el = document.createElement("div"); el.innerHTML = html; const modalEl = document.createElement("div"); modalEl.className="cj-modal"; modalEl.innerHTML=`<div class="cj-modal__box"><div class="cj-modal__body">${html}</div><div class="cj-modal__footer"><button id="__modal_close__" class="btn btn-light">Cerrar</button></div></div>`; document.body.appendChild(modalEl); modalEl.addEventListener("click",(e)=>{ if(e.target.id==="__modal_close__"||e.target===modalEl) modalEl.remove(); });
+        const el = document.createElement("div"); el.innerHTML = html; const modalEl = document.createElement("div"); modalEl.className="cj-modal"; modalEl.innerHTML=`<div class="cj-modal__box"><div class="cj-modal__body">${html}</div><div class="cj-modal__footer"><button id="__modal_close__" type="button" class="button button--ghost">Cerrar</button></div></div>`; document.body.appendChild(modalEl); modalEl.addEventListener("click",(e)=>{ if(e.target.id==="__modal_close__"||e.target===modalEl) modalEl.remove(); });
       }catch(e){
         const m = document.createElement("div"); m.className="stat"; m.textContent = `No se pudo obtener la deuda: ${e.message}`; document.body.appendChild(m); setTimeout(()=>m.remove(),2500);
       }
@@ -412,15 +408,15 @@ window.CajaModule = (function () {
 
   function drawItems(){
     const { tbody } = refs;
-    if (!items.length){ tbody.innerHTML = `<tr><td colspan="6" class="muted">Sin Atems</td></tr>`; return recalc(); }
+    if (!items.length){ tbody.innerHTML = `<tr><td colspan="6" class="muted">Sin items</td></tr>`; return recalc(); }
     tbody.innerHTML = items.map((it,i)=>`
       <tr>
-        <td>${it.tipo}</td>
+        <td class="muted">${it.tipo}</td>
         <td>${it.nombre}</td>
-        <td><input class="it-cant" data-i="${i}" type="number" step="0.01" min="0.01" value="${it.cantidad}"></td>
-        <td><input class="it-precio" data-i="${i}" type="number" step="0.01" min="0" value="${it.precio}"></td>
+        <td><input class="input input--sm it-cant" data-i="${i}" type="number" step="0.01" min="0.01" value="${it.cantidad}"></td>
+        <td><input class="input input--sm it-precio" data-i="${i}" type="number" step="0.01" min="0" value="${it.precio}"></td>
         <td class="right">${money(it.cantidad * it.precio)}</td>
-        <td class="right"><button class="btn btn-danger it-del" data-i="${i}">X</button></td>
+        <td class="right"><button type="button" class="button button--danger it-del" data-i="${i}">Quitar</button></td>
       </tr>`).join("");
 
     tbody.querySelectorAll(".it-cant").forEach(inp=> inp.addEventListener("input",(e)=>{ const i=Number(e.target.dataset.i); items[i].cantidad = Number(e.target.value||0); recalcRow(i); }));
@@ -462,20 +458,20 @@ window.CajaModule = (function () {
     const { pagosBox } = refs;
     pagosBox.innerHTML = pagos.map((p,i)=>`
       <div class="pos-payments__item" data-i="${i}">
-        <div class="form__field">
-          <label>Metodo</label>
-          <select class="pos-metodo" data-i="${i}">
+        <div class="form-field">
+          <label class="form-field__label">Metodo</label>
+          <select class="input input--select pos-metodo" data-i="${i}">
             <option value="efectivo"${p.metodo==="efectivo"?" selected":""}>Efectivo</option>
             <option value="tarjeta"${p.metodo==="tarjeta"?" selected":""}>Tarjeta</option>
             <option value="transferencia"${p.metodo==="transferencia"?" selected":""}>Transferencia</option>
             <option value="otro"${p.metodo==="otro"?" selected":""}>Otro</option>
           </select>
         </div>
-        <div class="form__field">
-          <label>Monto</label>
-          <input class="pos-monto" data-i="${i}" type="number" step="0.01" min="0" value="${p.monto}">
+        <div class="form-field">
+          <label class="form-field__label">Monto</label>
+          <input class="input pos-monto" data-i="${i}" type="number" step="0.01" min="0" value="${p.monto}">
         </div>
-        <button class="btn btn-light pos-del" data-i="${i}">Quitar</button>
+        <button type="button" class="button button--danger pos-del" data-i="${i}">Quitar</button>
       </div>`).join("");
   }
 
@@ -571,7 +567,7 @@ window.CajaModule = (function () {
         const idem = makeIdem();
         const r = await API.post("/api/caja/pos", payload, { headers: { "Idempotency-Key": idem } });
 
-        refs.res.innerHTML = `a... Comprobante <b>${r?.comprobante?.numero || r?.comprobante?.id}</b> emitido. Total: <b>${money(r?.comprobante?.total || 0)}</b>. ${r?.pdf_url ? `<button id="pos-dlpdf" class="btn" style="margin-left:8px">Descargar PDF</button>` : ""}`;
+        refs.res.innerHTML = `a... Comprobante <b>${r?.comprobante?.numero || r?.comprobante?.id}</b> emitido. Total: <b>${money(r?.comprobante?.total || 0)}</b>. ${r?.pdf_url ? `<button id="pos-dlpdf" type="button" class="button button--ghost" style="margin-left:8px">Descargar PDF</button>` : ""}`;
 
         if (r?.pdf_url){
           const btn = document.getElementById("pos-dlpdf");

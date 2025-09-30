@@ -1,7 +1,11 @@
 window.PacientesModule = (function(){
-  async function list(q=""){
-    const res = await API.request("/api/pacientes"+(q?`?q=${encodeURIComponent(q)}`:""));
-    return res.data;
+  async function list({ q = "", page = 1, perPage = 10 } = {}){
+    const params = new URLSearchParams();
+    if (q) params.append("q", q);
+    if (page) params.append("page", String(page));
+    if (perPage) params.append("per_page", String(perPage));
+    const res = await API.request("/api/pacientes" + (params.toString() ? `?${params}` : ""));
+    return res;
   }
   async function create(data){
     return API.request("/api/pacientes", {method:"POST", body: JSON.stringify(data)});
@@ -17,6 +21,12 @@ window.PacientesModule = (function(){
   }
 
   let editId = null;
+
+  const escHtml = (str) => String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const formatCell = (value) => {
+    const str = String(value ?? "").trim();
+    return str ? escHtml(str) : '<span class="muted">-</span>';
+  };
 
   function readForm(){
     return {
@@ -35,49 +45,105 @@ window.PacientesModule = (function(){
     document.getElementById("pac-email").value = p.email || "";
     document.getElementById("pac-telefono").value = p.telefono || "";
     document.getElementById("pac-direccion").value = p.direccion || "";
-    document.getElementById("pac-fnac").value = (p.fecha_nacimiento||"").slice(0,10);
+    document.getElementById("pac-fnac").value = (p.fecha_nacimiento || "").slice(0,10);
     document.getElementById("pac-emerg").value = p.contacto_emergencia || "";
   }
   function resetForm(){
     fillForm({}); editId = null;
-    document.getElementById("pac-guardar").textContent = "Guardar";
-    document.getElementById("pac-cancelar").style.display = "none";
+    const guardarBtn = document.getElementById("pac-guardar");
+    const cancelarBtn = document.getElementById("pac-cancelar");
+    const titleEl = document.getElementById("pac-form-title");
+    if (guardarBtn) guardarBtn.textContent = "Guardar";
+    if (cancelarBtn) cancelarBtn.style.display = "none";
+    if (titleEl) titleEl.textContent = "Registrar paciente";
   }
 
   function render(){
     routeTitle.textContent = "Pacientes";
     routeContent.innerHTML = `
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Buscar</label>
-            <input id="pac-buscar" placeholder="Nombre o documento">
-          </div>
-          <div class="col"></div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <h3 id="pac-form-title">Paciente</h3>
-        <div class="row">
-          <div class="col"><label>Nombre</label><input id="pac-nombre"></div>
-          <div class="col"><label>Documento</label><input id="pac-documento"></div>
-          <div class="col"><label>Email</label><input id="pac-email" type="email"></div>
-          <div class="col"><label>Teléfono</label><input id="pac-telefono"></div>
-        </div>
-        <div class="row">
-          <div class="col"><label>Dirección</label><input id="pac-direccion"></div>
-          <div class="col"><label>Fecha nacimiento</label><input id="pac-fnac" type="date"></div>
-          <div class="col"><label>Contacto emergencia</label><input id="pac-emerg"></div>
-        </div>
-        <button id="pac-guardar">Guardar</button>
-        <button id="pac-cancelar" class="secondary" style="display:none">Cancelar edición</button>
-        <div id="pac-msg" class="muted"></div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <table class="table">
-          <thead><tr><th>Nombre</th><th>Doc</th><th>Email</th><th>Tel</th><th>Edad</th><th>Acciones</th></tr></thead>
-          <tbody id="pac-tbody"></tbody>
-        </table>
+      <div class="page-shell pacientes-page">
+        <section class="section-block">
+          <article class="card form-card pacientes-card">
+            <header class="card__header">
+              <p class="card__eyebrow">Gestión</p>
+              <h2 class="card__title">Pacientes</h2>
+              <p class="card__subtitle">Registra nuevos pacientes, actualiza sus datos y consúltalos rápidamente.</p>
+            </header>
+
+            <div class="card__body">
+              <div class="card-section pacientes-search">
+                <div class="card-section__body">
+                  <div class="form-field">
+                    <label class="form-field__label" for="pac-buscar">Buscar</label>
+                    <input id="pac-buscar" class="input" placeholder="Nombre o documento" autocomplete="off">
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-section">
+                <h3 class="card-section__title" id="pac-form-title">Registrar paciente</h3>
+                <div class="card-section__body">
+                  <div class="form-grid pacientes-form-grid">
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-nombre">Nombre</label>
+                      <input id="pac-nombre" class="input" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-documento">Documento</label>
+                      <input id="pac-documento" class="input" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-email">Email</label>
+                      <input id="pac-email" class="input" type="email" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-telefono">Teléfono</label>
+                      <input id="pac-telefono" class="input" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-direccion">Dirección</label>
+                      <input id="pac-direccion" class="input" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-fnac">Fecha nacimiento</label>
+                      <input id="pac-fnac" class="input" type="date">
+                    </div>
+                    <div class="form-field">
+                      <label class="form-field__label" for="pac-emerg">Contacto emergencia</label>
+                      <input id="pac-emerg" class="input" autocomplete="off">
+                    </div>
+                  </div>
+                  <div class="pacientes-form-actions">
+                    <div id="pac-msg" class="form-feedback"></div>
+                    <div class="pacientes-buttons">
+                      <button id="pac-cancelar" type="button" class="button button--ghost">Cancelar</button>
+                      <button id="pac-guardar" type="button" class="button button--primary">Guardar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card list-card pacientes-list-card">
+            <header class="card__header">
+              <p class="card__eyebrow">Listado</p>
+              <h2 class="card__title">Pacientes registrados</h2>
+              <p class="card__subtitle">Consulta el resumen de tus pacientes y gestiona sus registros.</p>
+            </header>
+            <div class="card__body">
+              <div class="table-shell pacientes-table">
+                <table class="table table--full" id="pac-tabla">
+                  <thead>
+                    <tr><th>Nombre</th><th>Documento</th><th>Email</th><th>Teléfono</th><th>Edad</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody id="pac-tbody"></tbody>
+                </table>
+              </div>
+              <div id="pac-pagination" class="table-pagination"></div>
+            </div>
+          </article>
+        </section>
       </div>
     `;
 
@@ -86,70 +152,202 @@ window.PacientesModule = (function(){
     const msg    = document.getElementById("pac-msg");
     const btnGuardar  = document.getElementById("pac-guardar");
     const btnCancelar = document.getElementById("pac-cancelar");
+    const paginationEl = document.getElementById("pac-pagination");
+    const formTitle = document.getElementById("pac-form-title");
 
-    async function refresh(){
-      const rows = await list(buscar.value);
-      tbody.innerHTML = rows.map(r=>`
+    const state = { currentPage: 1, perPage: 10, totalPages: 1, totalItems: 0, rows: [] };
+
+    const clearMessage = () => {
+      msg.textContent = "";
+      msg.classList.remove("form-feedback--success", "form-feedback--error");
+    };
+    const showMessage = (text = "", type = "info") => {
+      msg.textContent = text;
+      msg.classList.remove("form-feedback--success", "form-feedback--error");
+      if (!text) return;
+      if (type === "success") msg.classList.add("form-feedback--success");
+      if (type === "error") msg.classList.add("form-feedback--error");
+    };
+    const debounce = (fn, delay = 280) => {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+      };
+    };
+
+    function renderPagination(){
+      const total = state.totalItems;
+      if (!total){
+        paginationEl.innerHTML = `<div class="table-pagination__controls"><span class="table-pagination__info">Sin pacientes registrados</span></div>`;
+        return;
+      }
+      const start = (state.currentPage - 1) * state.perPage + 1;
+      const end = Math.min(state.currentPage * state.perPage, total);
+      const info = `<span class="table-pagination__info">Mostrando ${start}-${end} de ${total}</span>`;
+      if (state.totalPages <= 1){
+        paginationEl.innerHTML = `<div class="table-pagination__controls">${info}</div>`;
+        return;
+      }
+      const win = 5;
+      let first = Math.max(1, state.currentPage - Math.floor(win / 2));
+      let last = Math.min(state.totalPages, first + win - 1);
+      if (last - first + 1 < win) first = Math.max(1, last - win + 1);
+      const numBtns = [];
+      for (let p = first; p <= last; p++){
+        numBtns.push(`<button type="button" class="button ${p === state.currentPage ? "is-current" : ""}" data-page="${p}">${p}</button>`);
+      }
+      paginationEl.innerHTML = `
+        <div class="table-pagination__controls">
+          ${info}
+          <div class="table-pagination__buttons">
+            <button type="button" class="button" data-page="first" ${state.currentPage === 1 ? "disabled" : ""}>&laquo;</button>
+            <button type="button" class="button" data-page="prev" ${state.currentPage === 1 ? "disabled" : ""}>&lsaquo;</button>
+            ${numBtns.join("")}
+            <button type="button" class="button" data-page="next" ${state.currentPage === state.totalPages ? "disabled" : ""}>&rsaquo;</button>
+            <button type="button" class="button" data-page="last" ${state.currentPage === state.totalPages ? "disabled" : ""}>&raquo;</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTable(){
+      if (!state.rows.length){
+        tbody.innerHTML = `<tr><td colspan="6" class="table__empty muted">Sin pacientes</td></tr>`;
+        renderPagination();
+        return;
+      }
+      tbody.innerHTML = state.rows.map((r) => `
         <tr>
-          <td>${r.nombre||""}</td>
-          <td>${r.documento||""}</td>
-          <td>${r.email||""}</td>
-          <td>${r.telefono||""}</td>
-          <td>${r.edad??""}</td>
-          <td class="actions">
-            <button data-editar="${r.id}">Editar</button>
-            <button data-eliminar="${r.id}">Borrar</button>
+          <td>${formatCell(r.nombre)}</td>
+          <td>${formatCell(r.documento)}</td>
+          <td>${formatCell(r.email)}</td>
+          <td>${formatCell(r.telefono)}</td>
+          <td>${formatCell(r.edad)}</td>
+          <td class="table__actions">
+            <button type="button" class="button button--ghost" data-editar="${r.id}">Editar</button>
+            <button type="button" class="button button--danger" data-eliminar="${r.id}">Borrar</button>
           </td>
         </tr>
       `).join("");
+      renderPagination();
     }
 
-    buscar.addEventListener("input", ()=> refresh());
-
-    btnGuardar.addEventListener("click", async ()=>{
-      const data = readForm();
-      msg.textContent = ""; btnGuardar.disabled = true;
-      try{
-        if (!data.nombre || !data.documento){
-          msg.textContent = "Nombre y Documento son obligatorios.";
-          return;
+    async function loadPacientes(page = state.currentPage){
+      const query = buscar.value.trim();
+      tbody.innerHTML = `<tr><td colspan="6" class="table__empty muted">Cargando...</td></tr>`;
+      try {
+        const resp = await list({ q: query, page, perPage: state.perPage });
+        const data = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+        const perPageNumber = Number(resp?.per_page);
+        if (Number.isFinite(perPageNumber) && perPageNumber > 0){
+          state.perPage = perPageNumber;
         }
+        const totalNumber = Number(resp?.total);
+        state.totalItems = Number.isFinite(totalNumber) ? totalNumber : data.length;
+        const pagesNumber = Number(resp?.pages);
+        state.totalPages = Number.isFinite(pagesNumber) && pagesNumber > 0 ? pagesNumber : Math.max(1, Math.ceil((state.totalItems || 0) / state.perPage));
+        const respPage = Number(resp?.page);
+        state.currentPage = Number.isFinite(respPage) && respPage > 0 ? respPage : page;
+        if (state.totalPages && state.currentPage > state.totalPages){
+          return loadPacientes(state.totalPages);
+        }
+        state.rows = data;
+        renderTable();
+      } catch (error){
+        tbody.innerHTML = `<tr><td colspan="6" class="table__empty">Error: ${escHtml(error.message || error)}</td></tr>`;
+        paginationEl.innerHTML = "";
+      }
+    }
+
+    buscar.addEventListener("input", debounce(() => loadPacientes(1)));
+    buscar.addEventListener("keydown", (e) => {
+      if (e.key === "Enter"){
+        e.preventDefault();
+        loadPacientes(1);
+      }
+    });
+
+    btnGuardar.addEventListener("click", async () => {
+      const data = readForm();
+      clearMessage();
+      if (!data.nombre || !data.documento){
+        showMessage("Nombre y Documento son obligatorios.", "error");
+        return;
+      }
+      btnGuardar.disabled = true;
+      try {
         if (editId){
           await update(editId, data);
-          msg.textContent = "Paciente actualizado.";
+          showMessage("Paciente actualizado.", "success");
+          resetForm();
+          await loadPacientes(state.currentPage);
         } else {
           await create(data);
-          msg.textContent = "Paciente guardado.";
+          resetForm();
+          showMessage("Paciente guardado.", "success");
+          await loadPacientes(1);
         }
-        resetForm(); await refresh();
-      }catch(e){
-        msg.textContent = e.message || "No se pudo guardar";
-      }finally{
+        setTimeout(clearMessage, 2500);
+      } catch (e){
+        showMessage(e.message || "No se pudo guardar", "error");
+      } finally {
         btnGuardar.disabled = false;
       }
     });
 
-    btnCancelar.addEventListener("click", ()=> resetForm());
+    btnCancelar.addEventListener("click", () => {
+      resetForm();
+      clearMessage();
+    });
 
-    tbody.addEventListener("click", async (e)=>{
-      const t = e.target;
-      if (t.dataset.eliminar){
-        if (confirm("¿Borrar paciente?")){
-          try { await remove(t.dataset.eliminar); await refresh(); }
-          catch(e){ alert(e.message); }
+    tbody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-editar], button[data-eliminar]");
+      if (!btn) return;
+      const id = btn.dataset.editar || btn.dataset.eliminar;
+      if (!id) return;
+      if (btn.dataset.eliminar){
+        if (!confirm("¿Borrar paciente?")) return;
+        try {
+          await remove(id);
+          showMessage("Paciente eliminado.", "success");
+          const targetPage = state.rows.length > 1 ? state.currentPage : Math.max(1, state.currentPage - 1);
+          await loadPacientes(targetPage);
+          setTimeout(clearMessage, 2500);
+        } catch (error){
+          showMessage(error.message || "No se pudo eliminar", "error");
         }
+        return;
       }
-      if (t.dataset.editar){
-        try{
-          const p = await detail(t.dataset.editar);
-          editId = p.id; fillForm(p);
-          document.getElementById("pac-guardar").textContent = "Actualizar";
-          btnCancelar.style.display = "";
-        }catch(e){ alert(e.message); }
+      try {
+        const paciente = await detail(id);
+        editId = paciente.id;
+        fillForm(paciente);
+        btnGuardar.textContent = "Actualizar";
+        btnCancelar.style.display = "";
+        formTitle.textContent = "Editar paciente";
+        clearMessage();
+      } catch (error){
+        showMessage(error.message || "No se pudo cargar el paciente", "error");
       }
     });
 
-    refresh();
+    paginationEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-page]");
+      if (!btn || btn.disabled) return;
+      const action = btn.getAttribute("data-page");
+      let target = state.currentPage;
+      if (action === "first") target = 1;
+      else if (action === "prev") target = Math.max(1, state.currentPage - 1);
+      else if (action === "next") target = Math.min(state.totalPages, state.currentPage + 1);
+      else if (action === "last") target = state.totalPages;
+      else target = Number(action) || 1;
+      if (target === state.currentPage) return;
+      loadPacientes(target);
+    });
+
+    resetForm();
+    loadPacientes();
   }
 
   return { render };

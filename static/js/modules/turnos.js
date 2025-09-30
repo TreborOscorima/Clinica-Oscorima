@@ -5,14 +5,12 @@ window.TurnosModule = (function () {
   // =========================
   // API helpers
   // =========================
-  async function apiList(estado = "") {
-    // Pedimos más registros para que la paginación client-side tenga varias páginas
+  async function apiList({ estado = "", page = 1, perPage = 10 } = {}) {
     const params = new URLSearchParams();
     if (estado) params.append("estado", estado);
-    params.append("limit", "500"); // si el backend lo soporta, nos da hasta 500
-    const res = await API.request("/api/turnos" + (params.toString() ? `?${params}` : ""));
-    // En nuestro wrapper res.data suele ser array
-    return res.data || [];
+    params.append("page", String(page));
+    params.append("per_page", String(perPage));
+    return API.request("/api/turnos" + (params.toString() ? `?${params}` : ""));
   }
   async function apiCreate(data) {
     return API.request("/api/turnos", { method: "POST", body: JSON.stringify(data) });
@@ -51,31 +49,42 @@ window.TurnosModule = (function () {
   }
   const money = (n) => Number(n || 0).toLocaleString("es-PE", { style: "currency", currency: "PEN" });
 
+  const escHtml = (str) =>
+    String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escAttr = (str) => escHtml(str).replace(/"/g, "&quot;");
+
   function sugTpl(list, tipo) {
     if (!list || !list.length) return `<div class="ac-list-empty">Sin resultados</div>`;
     return list
       .slice(0, 8)
       .map((item) => {
         if (tipo === "pac") {
-          const label = `${item.nombre || (item.nombres ? item.nombres + " " + (item.apellidos || "") : "")} (${
-            item.documento || "s/DNI"
-          })`;
-          return `<div class="sug" data-id="${item.id}" data-label="${label}">${label}</div>`;
+          const nombreRaw =
+            (item.nombre && String(item.nombre).trim()) ||
+            [item.nombres, item.apellidos].filter(Boolean).join(" ").trim();
+          const nombre = nombreRaw || "Sin nombre";
+          const documento = String(item.documento ?? item.dni ?? "").trim() || "s/DNI";
+          const label = `${nombre} (${documento})`;
+          return `<div class="sug" data-id="${escAttr(item.id ?? "")}" data-label="${escAttr(label)}" data-nombre="${escAttr(nombre)}" data-dni="${escAttr(documento)}">${escHtml(label)}</div>`;
         } else if (tipo === "pro") {
-          const label = `${(item.nombres || "") + " " + (item.apellidos || "")} (${item.dni || "s/DNI"})`;
-          return `<div class="sug" data-id="${item.id}" data-label="${label}">${label}</div>`;
+          const nombreRaw =
+            `${item.nombres || ""} ${item.apellidos || ""}`.trim() ||
+            (item.nombre ? String(item.nombre).trim() : "");
+          const nombre = nombreRaw || "Sin nombre";
+          const documento = String(item.dni ?? item.documento ?? "").trim() || "s/DNI";
+          const label = `${nombre} (${documento})`;
+          return `<div class="sug" data-id="${escAttr(item.id ?? "")}" data-label="${escAttr(label)}" data-nombre="${escAttr(nombre)}" data-dni="${escAttr(documento)}">${escHtml(label)}</div>`;
         } else {
-          // servicio
-          const label = `${item.nombre} - ${money(item.precio || 0)}${
-            item.duracion_min ? ` (${item.duracion_min} min)` : ``
-          }`;
-          return `<div class="sug" data-id="${item.id}" data-nombre="${item.nombre}" data-precio="${
-            item.precio || 0
-          }" data-duracion="${item.duracion_min || ""}" data-label="${label}">${label}</div>`;
+          const nombre = String(item.nombre || "").trim();
+          const precio = Number(item.precio || 0);
+          const duracion = item.duracion_min ? ` (${item.duracion_min} min)` : ``;
+          const label = `${nombre} - ${money(precio)}${duracion}`;
+          return `<div class="sug" data-id="${escAttr(item.id ?? "")}" data-nombre="${escAttr(nombre)}" data-precio="${escAttr(item.precio ?? 0)}" data-duracion="${escAttr(item.duracion_min ?? "")}" data-label="${escAttr(label)}">${escHtml(label)}</div>`;
         }
       })
       .join("");
   }
+
 
   function renderItemsTable(items, targetBody, totalEl) {
     if (!items.length) {
@@ -182,10 +191,9 @@ window.TurnosModule = (function () {
               <div class="card-section">
                 <h3 class="card-section__title">Servicios del turno</h3>
                 <div class="card-section__body">
-                  <!-- 2) GRID ordenado y responsive -->
-                  <div class="form-grid form-grid--services">
-                    <div class="form-field">
-                      <label class="form-field__label">Servicio</label>
+                  <div class="input-group input-group--services">
+                    <div class="input-group__column input-group__column--grow">
+                      <span class="input-group__label">Servicio</span>
                       <div class="auto-complete">
                         <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off" />
                         <div id="t-srv-sug" class="ac-list" style="display:none"></div>
@@ -193,23 +201,22 @@ window.TurnosModule = (function () {
                       <input id="t-servicio-id" type="hidden" />
                       <p id="t-srv-chosen" class="form-field__note"></p>
                     </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-item-precio">Precio</label>
+                    <div class="input-group__column input-group__column--compact">
+                      <span class="input-group__label">Precio</span>
                       <input id="t-item-precio" class="input" type="number" step="0.01" placeholder="Precio" />
                     </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-item-cant">Cantidad</label>
+                    <div class="input-group__column input-group__column--compact">
+                      <span class="input-group__label">Cantidad</span>
                       <input id="t-item-cant" class="input" type="number" step="0.01" value="1" min="1" />
                     </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-item-desc">Descuento</label>
+                    <div class="input-group__column input-group__column--compact">
+                      <span class="input-group__label">Descuento</span>
                       <input id="t-item-desc" class="input" type="number" step="0.01" value="0" min="0" />
                     </div>
-                    <div class="form-field form-field--cta">
+                    <div class="input-group__column input-group__cta">
                       <button id="t-item-add" type="button" class="button button--primary">Agregar servicio</button>
                     </div>
                   </div>
-
                   <div class="table-shell">
                     <table class="table table--compact">
                       <thead>
@@ -325,11 +332,15 @@ window.TurnosModule = (function () {
 
     const pacBuscar = document.getElementById("t-pac-buscar");
     const pacSug = document.getElementById("t-pac-sug");
+    const pacDni = document.getElementById("t-pac-dni");
+    const pacDniSug = document.getElementById("t-pac-dni-sug");
     const pacId = document.getElementById("t-paciente-id");
     const pacChosen = document.getElementById("t-pac-chosen");
 
     const proBuscar = document.getElementById("t-pro-buscar");
     const proSug = document.getElementById("t-pro-sug");
+    const proDni = document.getElementById("t-pro-dni");
+    const proDniSug = document.getElementById("t-pro-dni-sug");
     const proId = document.getElementById("t-prof-id");
     const proChosen = document.getElementById("t-pro-chosen");
 
@@ -347,21 +358,14 @@ window.TurnosModule = (function () {
     const itemsBody = document.getElementById("t-items");
     const totalEl = document.getElementById("t-total");
 
-    let items = []; // {servicio_id, nombre, precio, cantidad, descuento}
+    let items = [];
 
-    // ===== Listado + paginación (en memoria) =====
-    let allRows = [];
+    // ===== Listado + paginación (servidor) =====
+    let rows = [];
     let currentPage = 1;
     let pageSize = 10;
-
-    function paginate(data, page, size) {
-      const total = data.length;
-      const totalPages = Math.max(1, Math.ceil(total / size));
-      const p = Math.min(Math.max(1, page), totalPages);
-      const start = (p - 1) * size;
-      const end = Math.min(start + size, total);
-      return { slice: data.slice(start, end), page: p, total, totalPages, start: start + 1, end };
-    }
+    let totalPages = 1;
+    let totalItems = 0;
 
     function rowTpl(t) {
       const serviciosStr =
@@ -386,114 +390,202 @@ window.TurnosModule = (function () {
       </tr>`;
     }
 
-    function renderTablePage() {
-      const { slice, page, total, totalPages, start, end } = paginate(allRows, currentPage, pageSize);
-      if (!total) {
+    function renderTable() {
+      if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Sin turnos</td></tr>`;
-        paginationEl.innerHTML = "";
+        renderPagination();
         return;
       }
-      tbody.innerHTML = slice.map(rowTpl).join("");
+      tbody.innerHTML = rows.map(rowTpl).join("");
+      renderPagination();
+    }
 
-      // ventana de 5 páginas
+    function renderPagination() {
+      if (!totalItems) {
+        paginationEl.innerHTML = `<div class="table-pagination__controls"><span class="table-pagination__info">Mostrando 0-0 de 0</span></div>`;
+        return;
+      }
+      const start = (currentPage - 1) * pageSize + 1;
+      const end = Math.min(currentPage * pageSize, totalItems);
+
       const win = 5;
-      let first = Math.max(1, page - Math.floor(win / 2));
+      let first = Math.max(1, currentPage - Math.floor(win / 2));
       let last = Math.min(totalPages, first + win - 1);
       if (last - first + 1 < win) first = Math.max(1, last - win + 1);
 
       const numBtns = [];
       for (let p = first; p <= last; p++) {
         numBtns.push(
-          `<button class="button ${p === page ? "is-current" : ""}" data-page="${p}" aria-label="Página ${p}">${p}</button>`
+          `<button type="button" class="button ${p === currentPage ? "is-current" : ""}" data-page="${p}" aria-label="Página ${p}">${p}</button>`
         );
       }
 
       paginationEl.innerHTML = `
         <div class="table-pagination__controls">
-          <span class="table-pagination__info">Mostrando ${start}-${end} de ${total}</span>
+          <span class="table-pagination__info">Mostrando ${start}-${end} de ${totalItems}</span>
           <div class="table-pagination__buttons">
-            <button class="button" data-page="first" ${page === 1 ? "disabled" : ""}>«</button>
-            <button class="button" data-page="prev" ${page === 1 ? "disabled" : ""}>‹</button>
+            <button type="button" class="button" data-page="first" ${currentPage === 1 ? "disabled" : ""}>&laquo;</button>
+            <button type="button" class="button" data-page="prev" ${currentPage === 1 ? "disabled" : ""}>&lsaquo;</button>
             ${numBtns.join("")}
-            <button class="button" data-page="next" ${page === totalPages ? "disabled" : ""}>›</button>
-            <button class="button" data-page="last" ${page === totalPages ? "disabled" : ""}>»</button>
+            <button type="button" class="button" data-page="next" ${currentPage === totalPages ? "disabled" : ""}>&rsaquo;</button>
+            <button type="button" class="button" data-page="last" ${currentPage === totalPages ? "disabled" : ""}>&raquo;</button>
           </div>
         </div>
       `;
     }
 
-    // Clicks de paginación (delegado)
     paginationEl.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-page]");
-      if (!btn) return;
+      if (!btn || btn.disabled) return;
       const action = btn.getAttribute("data-page");
-      const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
-      if (action === "first") currentPage = 1;
-      else if (action === "prev") currentPage = Math.max(1, currentPage - 1);
-      else if (action === "next") currentPage = Math.min(totalPages, currentPage + 1);
-      else if (action === "last") currentPage = totalPages;
-      else currentPage = Number(action) || 1;
-      renderTablePage();
+      let target = currentPage;
+      if (action === "first") target = 1;
+      else if (action === "prev") target = Math.max(1, currentPage - 1);
+      else if (action === "next") target = Math.min(totalPages, currentPage + 1);
+      else if (action === "last") target = totalPages;
+      else target = Number(action) || 1;
+      if (target === currentPage) return;
+      cargarListado(target);
     });
 
     // =========================
     // Autocompletes
     // =========================
-    let pacTimer = null, proTimer = null, srvTimer = null;
-    const openList = (el) => (el.style.display = "block");
-    const closeList = (el) => { el.style.display = "none"; el.innerHTML = ""; };
+    const openList = (el) => { if (!el) return; el.style.display = "block"; };
+    const closeList = (el) => { if (!el) return; el.style.display = "none"; el.innerHTML = ""; };
+    function setupAutocomplete({ input, list, fetcher, type, minChars = 1, onSelect, onInput }) {
+      if (!input || !list || typeof onSelect !== "function") return;
+      let timer = null;
+      input.addEventListener("input", () => {
+        if (onInput) onInput();
+        const q = input.value.trim();
+        clearTimeout(timer);
+        if (q.length < minChars) {
+          closeList(list);
+          return;
+        }
+        timer = setTimeout(async () => {
+          try {
+            const html = sugTpl(await fetcher(q), type);
+            list.innerHTML = html;
+            openList(list);
+          } catch (err) {
+            closeList(list);
+          }
+        }, 220);
+      });
+      input.addEventListener("focus", () => {
+        if (list.innerHTML) openList(list);
+      });
+      input.addEventListener("blur", () => setTimeout(() => closeList(list), 120));
+      list.addEventListener("mousedown", (e) => {
+        const option = e.target.closest(".sug");
+        if (!option) return;
+        onSelect(option.dataset);
+        closeList(list);
+      });
+    }
 
-    // Paciente
-    pacBuscar.addEventListener("input", () => {
-      clearTimeout(pacTimer);
-      const q = pacBuscar.value.trim();
-      if (!q) { closeList(pacSug); return; }
-      pacTimer = setTimeout(async () => {
-        try { pacSug.innerHTML = sugTpl(await buscarPacientes(q), "pac"); openList(pacSug); }
-        catch { closeList(pacSug); }
-      }, 220);
+    const stripParenthesis = (val) => String(val || "").replace(/\s+\([^)]*\)\s*$/, "").trim();
+    const toTrim = (val) => String(val || "").trim();
+
+    const resetPacienteSelection = () => {
+      pacId.value = "";
+      pacChosen.textContent = "";
+    };
+    const applyPacienteSelection = (data) => {
+      pacId.value = data.id || "";
+      const nombre = stripParenthesis(data.nombre || data.label);
+      pacBuscar.value = nombre;
+      if (pacDni) pacDni.value = toTrim(data.dni);
+      pacChosen.textContent = data.label || nombre;
+    };
+    setupAutocomplete({
+      input: pacBuscar,
+      list: pacSug,
+      fetcher: buscarPacientes,
+      type: "pac",
+      onInput: () => {
+        resetPacienteSelection();
+        if (pacDni && document.activeElement === pacBuscar) pacDni.value = "";
+      },
+      onSelect: applyPacienteSelection,
     });
-    pacBuscar.addEventListener("focus", () => { if (pacSug.innerHTML) openList(pacSug); });
-    pacBuscar.addEventListener("blur", () => setTimeout(() => closeList(pacSug), 120));
-    pacSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug"); if (!d) return;
-      pacId.value = d.dataset.id; pacChosen.textContent = d.dataset.label || ""; pacBuscar.value = d.dataset.label || "";
+    setupAutocomplete({
+      input: pacDni,
+      list: pacDniSug,
+      fetcher: buscarPacientes,
+      type: "pac",
+      onInput: () => {
+        resetPacienteSelection();
+        if (pacBuscar && document.activeElement === pacDni) pacBuscar.value = "";
+      },
+      onSelect: applyPacienteSelection,
     });
 
-    // Profesional
-    proBuscar.addEventListener("input", () => {
-      clearTimeout(proTimer);
-      const q = proBuscar.value.trim();
-      if (!q) { closeList(proSug); return; }
-      proTimer = setTimeout(async () => {
-        try { proSug.innerHTML = sugTpl(await buscarProfes(q), "pro"); openList(proSug); }
-        catch { closeList(proSug); }
-      }, 220);
+    const resetProfesionalSelection = () => {
+      proId.value = "";
+      proChosen.textContent = "";
+    };
+    const applyProfesionalSelection = (data) => {
+      proId.value = data.id || "";
+      const nombre = stripParenthesis(data.nombre || data.label);
+      proBuscar.value = nombre;
+      if (proDni) proDni.value = toTrim(data.dni);
+      proChosen.textContent = data.label || nombre;
+    };
+    setupAutocomplete({
+      input: proBuscar,
+      list: proSug,
+      fetcher: buscarProfes,
+      type: "pro",
+      onInput: () => {
+        resetProfesionalSelection();
+        if (proDni && document.activeElement === proBuscar) proDni.value = "";
+      },
+      onSelect: applyProfesionalSelection,
     });
-    proBuscar.addEventListener("focus", () => { if (proSug.innerHTML) openList(proSug); });
-    proBuscar.addEventListener("blur", () => setTimeout(() => closeList(proSug), 120));
-    proSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug"); if (!d) return;
-      proId.value = d.dataset.id; proChosen.textContent = d.dataset.label || ""; proBuscar.value = d.dataset.label || "";
+    setupAutocomplete({
+      input: proDni,
+      list: proDniSug,
+      fetcher: buscarProfes,
+      type: "pro",
+      onInput: () => {
+        resetProfesionalSelection();
+        if (proBuscar && document.activeElement === proDni) proBuscar.value = "";
+      },
+      onSelect: applyProfesionalSelection,
     });
 
-    // Servicios
-    srvBuscar.addEventListener("input", () => {
-      clearTimeout(srvTimer);
-      const q = srvBuscar.value.trim();
-      if (!q) { closeList(srvSug); return; }
-      srvTimer = setTimeout(async () => {
-        try { srvSug.innerHTML = sugTpl(await buscarServicios(q), "srv"); openList(srvSug); }
-        catch { closeList(srvSug); }
-      }, 220);
-    });
-    srvBuscar.addEventListener("focus", () => { if (srvSug.innerHTML) openList(srvSug); });
-    srvBuscar.addEventListener("blur", () => setTimeout(() => closeList(srvSug), 120));
-    srvSug.addEventListener("mousedown", (e) => {
-      const d = e.target.closest(".sug"); if (!d) return;
-      srvId.value = d.dataset.id; srvChosen.textContent = d.dataset.label || ""; srvBuscar.value = d.dataset.label || "";
-      const p = Number(d.dataset.precio || 0);
-      if (p > 0 && !iPrecio.value) iPrecio.value = p;
+    const resetServicioSelection = () => {
+      srvId.value = "";
+      srvChosen.textContent = "";
+      iPrecio.value = "";
+    };
+    setupAutocomplete({
+      input: srvBuscar,
+      list: srvSug,
+      fetcher: buscarServicios,
+      type: "srv",
+      onInput: resetServicioSelection,
+      onSelect: (data) => {
+        srvId.value = data.id || "";
+        const nombre = toTrim(data.nombre || data.label);
+        srvBuscar.value = nombre;
+        srvChosen.textContent = data.label || nombre;
+        if (Object.prototype.hasOwnProperty.call(data, "precio")) {
+          const precioNum = Number(data.precio);
+          if (!Number.isNaN(precioNum)) {
+            let formatted = precioNum.toFixed(2);
+            formatted = formatted.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+            iPrecio.value = formatted;
+          } else if (data.precio) {
+            iPrecio.value = data.precio;
+          }
+        }
+        if (!iCant.value || Number(iCant.value) <= 0) iCant.value = "1";
+        iCant.focus();
+      },
     });
 
     // Agregar item
@@ -503,12 +595,23 @@ window.TurnosModule = (function () {
       const precio = Number(iPrecio.value || 0);
       const cantidad = Number(iCant.value || 1);
       const descuento = Number(iDesc.value || 0);
-      if (!sid) { msg.textContent = "Elegí un servicio del listado"; setTimeout(() => (msg.textContent = ""), 1800); return; }
-      if (cantidad <= 0) { msg.textContent = "Cantidad inválida"; setTimeout(() => (msg.textContent = ""), 1800); return; }
+      if (!sid) {
+        msg.textContent = "Elegí un servicio del listado";
+        setTimeout(() => (msg.textContent = ""), 1800);
+        return;
+      }
+      if (cantidad <= 0) {
+        msg.textContent = "Cantidad inválida";
+        setTimeout(() => (msg.textContent = ""), 1800);
+        return;
+      }
       items.push({ servicio_id: sid, nombre, precio, cantidad, descuento });
-      // limpiar
-      srvId.value = ""; srvBuscar.value = ""; srvChosen.textContent = "";
-      iPrecio.value = ""; iCant.value = "1"; iDesc.value = "0";
+      srvId.value = "";
+      srvBuscar.value = "";
+      srvChosen.textContent = "";
+      iPrecio.value = "";
+      iCant.value = "1";
+      iDesc.value = "0";
       renderItemsTable(items, itemsBody, totalEl);
       bindDelButtons();
     });
@@ -544,11 +647,11 @@ window.TurnosModule = (function () {
         const r = await apiCreate(payload);
         msg.textContent = `Turno #${r.id} creado.`;
         // limpiar formulario
-        pacId.value = ""; pacBuscar.value = ""; pacChosen.textContent = "";
-        proId.value = ""; proBuscar.value = ""; proChosen.textContent = "";
+        pacId.value = ""; pacBuscar.value = ""; pacChosen.textContent = ""; if (pacDni) pacDni.value = "";
+        proId.value = ""; proBuscar.value = ""; proChosen.textContent = ""; if (proDni) proDni.value = "";
         items = []; renderItemsTable(items, itemsBody, totalEl);
         // refrescar listado
-        await cargarListado(true);
+        await cargarListado(1);
         setTimeout(() => (msg.textContent = ""), 2000);
       } catch (e) {
         msg.textContent = `Error: ${e.message || e}`;
@@ -557,7 +660,7 @@ window.TurnosModule = (function () {
     });
 
     // Filtro por estado
-    selEstado.addEventListener("change", () => cargarListado(true));
+    selEstado.addEventListener("change", () => cargarListado(1));
 
     // Primera carga
     cargarListado();
@@ -639,18 +742,57 @@ window.TurnosModule = (function () {
     // =========================
     // Listado + fetch
     // =========================
-    async function cargarListado(resetPage = false) {
+    async function cargarListado(page = currentPage) {
       tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Cargando...</td></tr>`;
       try {
         const estado = selEstado.value || "";
-        const data = await apiList(estado);
-        // Orden descendente por id si viene mezclado
-        allRows = Array.isArray(data) ? [...data].sort((a,b) => (b.id||0) - (a.id||0)) : [];
-        if (resetPage) currentPage = 1;
-        renderTablePage();
+        const resp = await apiList({ estado, page, perPage: pageSize });
+        const {
+          data = [],
+          page: respPage,
+          per_page: respPerPage,
+          pages: respPages,
+          total: respTotal,
+        } = resp || {};
+        const rawRows = Array.isArray(data) ? data : Array.isArray(resp) ? resp : [];
+        rows = Array.isArray(rawRows) ? rawRows : [];
+
+        const perPageNumber = Number(respPerPage);
+        if (Number.isFinite(perPageNumber) && perPageNumber > 0) {
+          pageSize = perPageNumber;
+        } else if (!pageSize || pageSize <= 0) {
+          pageSize = 10;
+        }
+
+        const totalNumber = Number(respTotal);
+        if (Number.isFinite(totalNumber) && totalNumber >= 0) {
+          totalItems = totalNumber;
+        } else {
+          totalItems = rows.length;
+        }
+
+        const pagesNumber = Number(respPages);
+        if (Number.isFinite(pagesNumber) && pagesNumber > 0) {
+          totalPages = pagesNumber;
+        } else {
+          totalPages = Math.max(1, Math.ceil((totalItems || 0) / pageSize));
+        }
+
+        const pageNumber = Number(respPage);
+        if (Number.isFinite(pageNumber) && pageNumber > 0) {
+          currentPage = pageNumber;
+        } else {
+          currentPage = page;
+        }
+        currentPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+
+        renderTable();
       } catch (e) {
+        rows = [];
+        totalItems = 0;
+        totalPages = 1;
         tbody.innerHTML = `<tr><td colspan="7" class="table__empty">Error cargando turnos: ${e.message || e}</td></tr>`;
-        paginationEl.innerHTML = "";
+        renderPagination();
       }
     }
 
