@@ -164,6 +164,7 @@ button, .button, .btn {
   text-transform: uppercase; letter-spacing:.08em;
 }
 .form-field__note { font-size:.9rem; color: var(--color-muted); }
+.form-field--full { grid-column: 1 / -1; }
 .form-field--cta { align-self:end; }
 .form-actions { display:flex; flex-wrap:wrap; align-items:center; gap: var(--space-3); }
 .form-feedback--success { color: var(--color-success); }
@@ -434,7 +435,6 @@ input:focus, select:focus, textarea:focus { outline:none; border-color: var(--co
 .inventario-page .inv-compra-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap: var(--space-3); margin-top: var(--space-4); }
 .inventario-page .inv-compra-actions__right { display:flex; gap: var(--space-2); flex-wrap:wrap; }
 .inventario-page .inv-compra-actions__right .button { min-width: 160px; }
-.inventario-page .inv-card--lotes .form-actions { justify-content:flex-start; gap: var(--space-2); }
 .inventario-page .inv-mov-filters { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
 .inventario-page .inv-kardex-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
 .inventario-page .form-feedback { min-height: 24px; }
@@ -443,5 +443,20 @@ input:focus, select:focus, textarea:focus { outline:none; border-color: var(--co
   .inventario-page .inv-compra-actions { flex-direction:column; align-items:stretch; }
   .inventario-page .inv-compra-actions__right { width:100%; justify-content:stretch; }
   .inventario-page .inv-compra-actions__right .button { width:100%; }
-  .inventario-page .inv-card--lotes .form-actions { flex-direction:column; align-items:stretch; }
+}
+
+/* ===== Servicios ===== */
+.servicios-page .card__body { display:flex; flex-direction:column; gap: var(--space-6); }
+.servicios-page .servicios-search .form-field { max-width: 360px; }
+.servicios-page .servicios-form-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
+.servicios-page .servicios-form-grid .form-field--full { grid-column: 1 / -1; }
+.servicios-form-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.servicios-buttons { display:flex; gap: var(--space-2); flex-wrap:wrap; }
+.servicios-table .table__empty { text-align:center; }
+.servicios-page .table-shell { margin-top: var(--space-3); }
+
+@media (max-width: 720px) {
+  .servicios-form-actions { flex-direction:column; align-items:stretch; }
+  .servicios-buttons { width:100%; justify-content:stretch; }
+  .servicios-buttons .button { width:100%; }
 }

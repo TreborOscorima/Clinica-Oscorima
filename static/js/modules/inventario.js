@@ -230,33 +230,6 @@ window.InventarioModule = (function(){
       </tr>
     `;
   }
-  function filaLoteTpl(idx){
-    return `
-      <tr data-row="${idx}">
-        <td>
-          <div class="ac-wrap">
-            <input class="lt-prod-buscar" placeholder="Buscar producto" autocomplete="off">
-            <div class="ac-list lt-sug" style="display:none"></div>
-          </div>
-          <input type="hidden" class="lt-prod-id">
-          <div class="muted lt-prod-chosen"></div>
-        </td>
-prod-chosen"></div>
-        </td>
-        <td>
-          <select class="lt-tipo">
-            <option value="ingreso">Ingreso</option>
-            <option value="egreso">Egreso</option>
-            <option value="ajuste">Ajuste</option>
-          </select>
-        </td>
-        <td><input class="lt-cant" type="number" step="0.001"></td>
-        <td><input class="lt-motivo" placeholder="motivo"></td>
-        <td><input class="lt-ref" placeholder="ref"></td>
-        <td><button class="button button--ghost lt-eliminar" type="button" >A</button></td>
-      </tr>
-    `;
-  }
 
   // =======================
   // Render principal
@@ -363,27 +336,6 @@ prod-chosen"></div>
           </article>
         </section>
 
-        <section class="section-block">
-          <article class="card inv-card inv-card--lotes">
-            <header class="card__header">
-              <h2 class="card__title">Movimientos por lotes</h2>
-              <p class="card__subtitle">Aplica ajustes masivos de stock con una sola confirmacion.</p>
-            </header>
-            <div class="card__body">
-              <div class="table-shell">
-                <table class="table">
-                  <thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
-                  <tbody id="lt-tbody"></tbody>
-                </table>
-              </div>
-              <div class="form-actions">
-                <button id="lt-add-row" type="button" class="button button--ghost">Agregar item</button>
-                <button id="lt-guardar" type="button" class="button button--primary">Guardar todos</button>
-              </div>
-              <div id="lt-msg" class="form-feedback"></div>
-            </div>
-          </article>
-        </section>
 
         <section class="section-block">
           <article class="card inv-card inv-card--movimientos">
@@ -979,43 +931,6 @@ prod-chosen"></div>
     });
 
     mvLoad();
-
-    // ===== Movimientos por lotes =====
-    const ltTbody = document.getElementById("lt-tbody");
-    const ltMsg = document.getElementById("lt-msg");
-    function makeLoteRow(){
-      const idx=Date.now()+Math.floor(Math.random()*1000);
-      ltTbody.insertAdjacentHTML("beforeend", filaLoteTpl(idx));
-      const tr=ltTbody.querySelector(`tr[data-row="${idx}"]`);
-      const inp=tr.querySelector(".lt-prod-buscar"), sug=tr.querySelector(".lt-sug");
-      const hid=tr.querySelector(".lt-prod-id"), chosen=tr.querySelector(".lt-prod-chosen");
-      makeSuggestionNavigator({
-        inputEl: inp, listEl: sug, fetcher: buscarProductos,
-        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} a ${p.nombre||""}</div>`).join(""),
-        onChoose: p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} a ${p.nombre||""}`; }
-      });
-    }
-    document.getElementById("lt-add-row").addEventListener("click", ()=> makeLoteRow());
-    ltTbody.addEventListener("click",(e)=>{ const b=e.target.closest(".lt-eliminar"); if(b){ b.closest("tr").remove(); }});
-    makeLoteRow();
-    document.getElementById("lt-guardar").addEventListener("click", async ()=>{
-      ltMsg.textContent="";
-      const items=[];
-      ltTbody.querySelectorAll("tr").forEach(tr=>{
-        const pid=Number(tr.querySelector(".lt-prod-id").value||"0");
-        const tipo=tr.querySelector(".lt-tipo").value;
-        const cant=Number(tr.querySelector(".lt-cant").value||"0");
-        const mot=tr.querySelector(".lt-motivo").value||"";
-        const ref=tr.querySelector(".lt-ref").value||"";
-        if(pid && cant>0) items.push({ producto_id: pid, tipo, cantidad: cant, motivo: mot, referencia: ref });
-      });
-      if(!items.length){ ltMsg.textContent="AgregA al menos un Atem vAlido."; return; }
-      try{
-        await crearMovLote(items);
-        ltMsg.textContent="Movimientos registrados.";
-        ltTbody.innerHTML=""; makeLoteRow(); mvLoad();
-      }catch(e){ ltMsg.textContent=e.message||"No se pudieron registrar los movimientos."; }
-    });
 
     // ===== Kardex =====
     const kxInp = document.getElementById("kx-prod");
