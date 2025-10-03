@@ -28,6 +28,111 @@ window.PacientesModule = (function(){
     return str ? escHtml(str) : '<span class="muted">-</span>';
   };
 
+
+  let historialModal;
+
+  function ensureHistorialModal(){
+    if (historialModal) return historialModal;
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-hidden", "true");
+
+    const modal = document.createElement("div");
+    modal.className = "modal";
+    modal.innerHTML = `
+      <div class="modal__header">
+        <h3 class="modal__title">Historial clinico</h3>
+      </div>
+      <div class="modal__body"></div>
+      <div class="modal__footer">
+        <button type="button" class="button button--ghost modal-close">Cerrar</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const titleEl = modal.querySelector(".modal__title");
+    const bodyEl = modal.querySelector(".modal__body");
+
+    const close = () => {
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("aria-hidden", "true");
+    };
+    const open = () => {
+      overlay.classList.add("is-visible");
+      overlay.setAttribute("aria-hidden", "false");
+    };
+    const setContent = (html) => {
+      bodyEl.innerHTML = html;
+    };
+
+    modal.querySelectorAll(".modal-close").forEach((btn) => btn.addEventListener("click", close));
+    overlay.addEventListener("click", (evt) => {
+      if (evt.target === overlay) close();
+    });
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape" && overlay.classList.contains("is-visible")) close();
+    });
+
+    historialModal = { overlay, modal, titleEl, bodyEl, open, close, setContent };
+    return historialModal;
+  }
+
+  function formatFechaLabel(fecha){
+    if (!fecha) return "--/--/----";
+    const str = String(fecha);
+    const parts = str.split("-");
+    if (parts.length === 3){
+      const [y, m, d] = parts;
+      if (y.length === 4){
+        return `${(d || "").padStart(2, "0")}/${(m || "").padStart(2, "0")}/${y}`;
+      }
+    }
+    return str;
+  }
+
+  function formatHoraLabel(hora){
+    if (!hora) return "--:--";
+    const str = String(hora);
+    return str.length > 5 ? str.slice(0, 5) : str;
+  }
+
+  function buildTimeline(items){
+    if (!Array.isArray(items) || !items.length){
+      return '<div class="timeline timeline--empty"><div class="timeline-empty muted">Sin atenciones registradas.</div></div>';
+    }
+    const blocks = items.map((item) => {
+      const fecha = escHtml(formatFechaLabel(item?.fecha));
+      const hora = escHtml(formatHoraLabel(item?.hora));
+      const servicio = escHtml(item?.servicio || "Servicio sin nombre");
+      const profesionalHtml = item?.profesional
+        ? `<p class="timeline-content__subtitle">${escHtml(item.profesional)}</p>`
+        : '<p class="timeline-content__subtitle muted">Sin profesional asignado</p>';
+      let detalleHtml;
+      if (item?.detalle){
+        const sanitized = escHtml(String(item.detalle)).replace(/\r?\n/g, "<br>");
+        detalleHtml = `<p class="timeline-content__detail">${sanitized}</p>`;
+      } else {
+        detalleHtml = '<p class="timeline-content__detail muted">Sin detalle</p>';
+      }
+      return `<div class="timeline-item">
+        <div class="timeline-date">
+          <span class="timeline-date__day">${fecha}</span>
+          <span class="timeline-date__time">${hora}</span>
+        </div>
+        <div class="timeline-content">
+          <h4 class="timeline-content__title">${servicio}</h4>
+          ${profesionalHtml}
+          ${detalleHtml}
+        </div>
+      </div>`;
+    });
+    return `<div class="timeline">${blocks.join("")}</div>`;
+  }
+
+
   function readForm(){
     return {
       nombre: document.getElementById("pac-nombre").value.trim(),
@@ -225,6 +330,7 @@ window.PacientesModule = (function(){
           <td>${formatCell(r.telefono)}</td>
           <td>${formatCell(r.edad)}</td>
           <td class="table__actions">
+            <button type="button" class="button button--ghost" data-historial="${r.id}">Historial</button>
             <button type="button" class="button button--ghost" data-editar="${r.id}">Editar</button>
             <button type="button" class="button button--danger" data-eliminar="${r.id}">Borrar</button>
           </td>
@@ -302,12 +408,37 @@ window.PacientesModule = (function(){
     });
 
     tbody.addEventListener("click", async (e) => {
+      const historialBtn = e.target.closest("button[data-historial]");
+      if (historialBtn){
+        const id = historialBtn.dataset.historial;
+        if (!id) return;
+        const rowData = state.rows.find((row) => String(row.id) === String(id));
+        const modal = ensureHistorialModal();
+        const nombrePaciente = rowData && rowData.nombre ? String(rowData.nombre).trim() : "";
+        const baseTitle = nombrePaciente ? `Historial de ${nombrePaciente}` : "Historial clinico";
+        modal.titleEl.textContent = baseTitle;
+        modal.setContent('<div class="timeline timeline--loading"><div class="timeline-empty muted">Cargando historial...</div></div>');
+        modal.open();
+        try {
+          const resp = await API.request(`/api/pacientes/${id}/historial`);
+          const registros = Array.isArray(resp?.historial) ? resp.historial : [];
+          const total = Number(resp?.total);
+          const totalValid = Number.isFinite(total) ? total : registros.length;
+          modal.titleEl.textContent = totalValid ? `${baseTitle} (${totalValid})` : baseTitle;
+          modal.setContent(buildTimeline(registros));
+        } catch (error){
+          const message = escHtml(error?.message || error || "Error desconocido");
+          modal.setContent(`<div class="timeline timeline--empty"><div class="timeline-empty error">Error al cargar historial: ${message}</div></div>`);
+        }
+        return;
+      }
+
       const btn = e.target.closest("button[data-editar], button[data-eliminar]");
       if (!btn) return;
       const id = btn.dataset.editar || btn.dataset.eliminar;
       if (!id) return;
       if (btn.dataset.eliminar){
-        if (!confirm("¿Borrar paciente?")) return;
+        if (!confirm("Borrar paciente?")) return;
         try {
           await remove(id);
           showMessage("Paciente eliminado.", "success");
@@ -331,7 +462,6 @@ window.PacientesModule = (function(){
         showMessage(error.message || "No se pudo cargar el paciente", "error");
       }
     });
-
     paginationEl.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-page]");
       if (!btn || btn.disabled) return;

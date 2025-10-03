@@ -2,16 +2,23 @@
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_, cast, String
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from extensions import db
 from models.paciente import Paciente
+from models.turno import Turno, EstadoTurno
+from models.turno_servicio import TurnoServicio
+from models.servicio import Servicio
+from models.profesional import Profesional
 from schemas.paciente import PacienteSchema
+from schemas.historial import HistorialResponseSchema
 from utils.decorators import role_required
 from utils.audit import log_action
 
 bp = Blueprint("pacientes", __name__, url_prefix="/api/pacientes")
 schema = PacienteSchema()
 schema_many = PacienteSchema(many=True)
+historial_schema = HistorialResponseSchema()
 
 def _parse_bool(val: str | None):
     if val is None:
@@ -101,6 +108,82 @@ def crear():
 def detalle(pid):
     p = Paciente.query.get_or_404(pid)
     return schema.dump(p)
+
+@bp.get("/<int:pid>/historial")
+@jwt_required()
+def historial(pid):
+    paciente = Paciente.query.get_or_404(pid)
+
+    estados_historial = [EstadoTurno.ATENDIDO.value]
+    estado_cobrado = getattr(EstadoTurno, "COBRADO", None)
+    if estado_cobrado:
+        estados_historial.append(estado_cobrado.value)
+    else:
+        estados_historial.append("cobrado")
+    estados_historial = list(dict.fromkeys(estados_historial))
+
+    turnos = (
+        Turno.query.options(
+            joinedload(Turno.profesional),
+            joinedload(Turno.items).joinedload(TurnoServicio.servicio),
+            joinedload(Turno.servicio),
+        )
+        .filter(
+            Turno.paciente_id == paciente.id,
+            Turno.estado.in_(estados_historial),
+        )
+        .order_by(Turno.fecha_hora.desc())
+        .all()
+    )
+
+    registros: list[dict[str, str | int | None]] = []
+    for turno in turnos:
+        profesional: Profesional | None = turno.profesional
+        profesional_nombre = (
+            f"{(profesional.nombres or '').strip()} {(profesional.apellidos or '').strip()}".strip()
+            if profesional else None
+        )
+        fecha_hora = turno.fecha_hora
+        fecha = fecha_hora.strftime("%Y-%m-%d") if fecha_hora else ""
+        hora = fecha_hora.strftime("%H:%M") if fecha_hora else ""
+
+        if turno.items:
+            for item in turno.items:
+                servicio: Servicio | None = item.servicio
+                servicio_nombre = getattr(servicio, "nombre", None) or ""
+                detalle = item.nota or getattr(servicio, "descripcion", None)
+                registros.append(
+                    {
+                        "turno_id": turno.id,
+                        "fecha": fecha,
+                        "hora": hora,
+                        "servicio": servicio_nombre,
+                        "profesional": profesional_nombre,
+                        "detalle": detalle,
+                    }
+                )
+        else:
+            servicio: Servicio | None = turno.servicio
+            servicio_nombre = getattr(servicio, "nombre", None) or ""
+            detalle = getattr(servicio, "descripcion", None)
+            registros.append(
+                {
+                    "turno_id": turno.id,
+                    "fecha": fecha,
+                    "hora": hora,
+                    "servicio": servicio_nombre,
+                    "profesional": profesional_nombre,
+                    "detalle": detalle,
+                }
+            )
+
+    data = {
+        "paciente_id": paciente.id,
+        "paciente_nombre": paciente.nombre,
+        "historial": registros,
+        "total": len(registros),
+    }
+    return historial_schema.dump(data)
 
 @bp.put("/<int:pid>")
 @jwt_required()
