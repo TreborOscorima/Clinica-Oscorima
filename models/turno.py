@@ -20,6 +20,7 @@ class Turno(db.Model):
     servicio_id = db.Column(db.Integer, ForeignKey("servicios.id"))
 
     fecha_hora = db.Column(db.DateTime, nullable=False)
+    created_by_id = db.Column(db.Integer, ForeignKey("users.id"))
     estado = db.Column(SAEnum(EstadoTurno), default=EstadoTurno.PENDIENTE)
     motivo_cancelacion = db.Column(db.String(240))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -28,7 +29,8 @@ class Turno(db.Model):
     # Relaciones “amigables”
     paciente = relationship("Paciente", lazy="joined")
     profesional = relationship("Profesional", lazy="joined")
-    servicio = relationship("Servicio", lazy="joined")  # ← por compat con listados existentes
+    servicio = relationship("Servicio", lazy="joined")
+    created_by = relationship("User", lazy="joined")  # ← por compat con listados existentes
 
     # NUEVO: items del turno (múltiples servicios)
     items = relationship("TurnoServicio", cascade="all, delete-orphan", backref="turno", lazy="joined")

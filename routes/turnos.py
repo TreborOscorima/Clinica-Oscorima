@@ -1,22 +1,225 @@
 from datetime import datetime
 from decimal import Decimal
+import os
+from typing import Any, Dict, List, Tuple
 
-from flask import Blueprint, request
+from flask import Blueprint, request, send_file
 from flask_jwt_extended import get_jwt, jwt_required
+from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
 
 from extensions import db
 from models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
 from models.servicio import Servicio
 from models.turno import EstadoTurno, Turno
+from models.turno_servicio import TurnoServicio
 from schemas.turno import TurnoSchema
 from utils.audit import log_action
 from utils.decorators import role_required
 from utils.inventario_ops import consumir_insumos_por_servicio
+from utils.exporter import export_to_excel, export_to_pdf
 
 bp = Blueprint("turnos", __name__, url_prefix="/api/turnos")
 schema = TurnoSchema()
 schema_many = TurnoSchema(many=True)
 
+
+
+def _parse_dt_param(value: str | None):
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(value)
+    except Exception:
+        return None
+
+
+def _collect_turnos_report(desde: str | None, hasta: str | None, estado: str | None, profesional_id: str | None, servicio_id: str | None):
+    desde_dt = _parse_dt_param(desde)
+    hasta_dt = _parse_dt_param(hasta)
+    estado = (estado or "").strip().lower()
+    prof_id = int(profesional_id) if profesional_id and str(profesional_id).isdigit() else None
+    serv_id = int(servicio_id) if servicio_id and str(servicio_id).isdigit() else None
+
+    query = (Turno.query.options(
+        joinedload(Turno.paciente),
+        joinedload(Turno.profesional),
+        joinedload(Turno.items).joinedload(TurnoServicio.servicio),
+        joinedload(Turno.servicio),
+        joinedload(Turno.created_by)
+    ))
+
+    if desde_dt:
+        query = query.filter(Turno.fecha_hora >= desde_dt)
+    if hasta_dt:
+        query = query.filter(Turno.fecha_hora <= hasta_dt)
+    if estado:
+        try:
+            estado_enum = EstadoTurno(estado)
+            query = query.filter(Turno.estado == estado_enum)
+        except Exception:
+            pass
+    if prof_id:
+        query = query.filter(Turno.profesional_id == prof_id)
+    if serv_id:
+        query = query.filter(or_(Turno.servicio_id == serv_id, Turno.items.any(TurnoServicio.servicio_id == serv_id)))
+
+    turnos = query.order_by(Turno.fecha_hora.asc()).all()
+
+    rows: List[Dict[str, Any]] = []
+    total_facturado_estimado = 0.0
+    total_atendidos = 0
+    total_cancelados = 0
+
+    for turno in turnos:
+        paciente = turno.paciente
+        profesional = turno.profesional
+        estado_txt = (turno.estado.value if turno.estado else "pendiente").upper()
+        if estado_txt == "ATENDIDO":
+            total_atendidos += 1
+        if estado_txt == "CANCELADO":
+            total_cancelados += 1
+
+        servicios: List[Tuple[str, float, float]] = []
+        if turno.items:
+            for item in turno.items:
+                servicio = item.servicio
+                nombre = getattr(servicio, "nombre", "Sin servicio")
+                precio = float((item.precio or 0) or getattr(servicio, "precio", 0) or 0)
+                duracion = float(getattr(servicio, "duracion_min", 0) or 0)
+                servicios.append((nombre, precio, duracion))
+        else:
+            servicio = turno.servicio
+            nombre = getattr(servicio, "nombre", "Sin servicio")
+            precio = float(getattr(servicio, "precio", 0) or 0)
+            duracion = float(getattr(servicio, "duracion_min", 0) or 0)
+            servicios.append((nombre, precio, duracion))
+
+        monto_estimado = sum(s[1] for s in servicios)
+        total_facturado_estimado += monto_estimado
+        duracion_total = sum(s[2] for s in servicios)
+
+        fecha = turno.fecha_hora or datetime.utcnow()
+        paciente_nombre = getattr(paciente, "nombre", "Sin nombre")
+        paciente_doc = getattr(paciente, "documento", "") or "-"
+        profesional_nombre = ""
+        if profesional:
+            profesional_nombre = f"{getattr(profesional, 'nombres', '')} {getattr(profesional, 'apellidos', '')}".strip()
+        profesional_nombre = profesional_nombre or "Sin profesional"
+        usuario_nombre = getattr(turno.created_by, "nombre", None) or "No disponible"
+        observacion = turno.motivo_cancelacion or "No disponible"
+
+        rows.append({
+            "ID Turno": turno.id,
+            "Fecha": fecha.strftime("%d/%m/%Y"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Paciente": paciente_nombre,
+            "DNI": paciente_doc,
+            "Profesional": profesional_nombre,
+            "Servicio": " / ".join({s[0] for s in servicios}) or "Sin servicio",
+            "Estado": estado_txt,
+            "Duracion": f"{int(duracion_total)} min" if duracion_total else "-",
+            "Monto estimado": round(monto_estimado, 2),
+            "Observaciones": observacion,
+            "Usuario registro": usuario_nombre,
+        })
+
+    summary: List[Tuple[str, Any]] = [
+        ("Total turnos atendidos", total_atendidos),
+        ("Total turnos cancelados", total_cancelados),
+        ("Total monto estimado", f"PEN {total_facturado_estimado:0.2f}"),
+    ]
+
+    if not rows:
+        rows = [{
+            "ID Turno": "-",
+            "Fecha": "-",
+            "Hora": "-",
+            "Paciente": "Sin resultados",
+            "DNI": "-",
+            "Profesional": "-",
+            "Servicio": "-",
+            "Estado": "-",
+            "Duracion": "-",
+            "Monto estimado": 0.0,
+            "Observaciones": "Sin resultados en este periodo",
+            "Usuario registro": "-",
+        }]
+        summary = [
+            ("Total turnos atendidos", 0),
+            ("Total turnos cancelados", 0),
+            ("Total monto estimado", "PEN 0.00"),
+        ]
+
+    return rows, summary
+
+
+def _build_turno_export_metadata(total: int, summary: List[Tuple[str, Any]], generated_by: str, filtros: Dict[str, Any]):
+    desde = filtros.get("desde") or "-"
+    hasta = filtros.get("hasta") or "-"
+    date_range = f"{desde} - {hasta}" if (desde != "-" or hasta != "-") else "Sin rango"
+    return {
+        "title": "Turnos - Agenda",
+        "generated_by": generated_by,
+        "generated_at": datetime.utcnow().strftime("%d/%m/%Y %H:%M"),
+        "total_records": total,
+        "date_range": date_range,
+        "filters": filtros,
+        "summary": summary,
+    }
+
+
+@bp.get("/export/excel")
+@jwt_required()
+def exportar_turnos_excel():
+    params = request.args or {}
+    rows, summary = _collect_turnos_report(
+        params.get("desde"),
+        params.get("hasta"),
+        params.get("estado"),
+        params.get("profesional_id"),
+        params.get("servicio_id"),
+    )
+    claims = get_jwt() or {}
+    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
+    meta = _build_turno_export_metadata(len(rows), summary, user_label, {
+        "desde": params.get("desde") or "",
+        "hasta": params.get("hasta") or "",
+        "estado": params.get("estado") or "",
+        "profesional_id": params.get("profesional_id") or "",
+        "servicio_id": params.get("servicio_id") or "",
+    })
+    file_path = export_to_excel("turnos", rows, meta)
+    return send_file(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=os.path.basename(file_path))
+
+
+@bp.get("/export/pdf")
+@jwt_required()
+def exportar_turnos_pdf():
+    params = request.args or {}
+    rows, summary = _collect_turnos_report(
+        params.get("desde"),
+        params.get("hasta"),
+        params.get("estado"),
+        params.get("profesional_id"),
+        params.get("servicio_id"),
+    )
+    claims = get_jwt() or {}
+    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
+    meta = _build_turno_export_metadata(len(rows), summary, user_label, {
+        "desde": params.get("desde") or "",
+        "hasta": params.get("hasta") or "",
+        "estado": params.get("estado") or "",
+        "profesional_id": params.get("profesional_id") or "",
+        "servicio_id": params.get("servicio_id") or "",
+    })
+    file_path = export_to_pdf("turnos", rows, meta)
+    return send_file(file_path, mimetype="application/pdf", as_attachment=True, download_name=os.path.basename(file_path))
 
 @bp.get("/<int:tid>")
 @jwt_required()

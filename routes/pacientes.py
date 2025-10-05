@@ -1,17 +1,21 @@
 # routes/pacientes.py
-from flask import Blueprint, request
+import os
+from flask import Blueprint, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_, cast, String
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from extensions import db
+from typing import Any, Dict, List, Tuple
 from models.paciente import Paciente
 from models.turno import Turno, EstadoTurno
 from models.turno_servicio import TurnoServicio
 from models.servicio import Servicio
+from models.caja import CajaMovimiento
 from models.profesional import Profesional
 from schemas.paciente import PacienteSchema
 from schemas.historial import HistorialResponseSchema
+from utils.exporter import export_to_excel, export_to_pdf
 from utils.decorators import role_required
 from utils.audit import log_action
 
@@ -108,6 +112,169 @@ def crear():
 def detalle(pid):
     p = Paciente.query.get_or_404(pid)
     return schema.dump(p)
+
+
+
+def _collect_pacientes_report(desde: str | None, hasta: str | None):
+    desde_dt = _parse_dt(desde)
+    hasta_dt = _parse_dt(hasta)
+    estados_historial = [EstadoTurno.ATENDIDO.value]
+    estado_cobrado = getattr(EstadoTurno, "COBRADO", None)
+    if estado_cobrado:
+        estados_historial.append(estado_cobrado.value)
+    turnos_q = (
+        Turno.query.options(
+            joinedload(Turno.paciente),
+            joinedload(Turno.profesional),
+            joinedload(Turno.items).joinedload(TurnoServicio.servicio),
+            joinedload(Turno.servicio),
+        )
+        .filter(Turno.estado.in_(estados_historial))
+    )
+    if desde_dt:
+        turnos_q = turnos_q.filter(Turno.fecha_hora >= desde_dt)
+    if hasta_dt:
+        turnos_q = turnos_q.filter(Turno.fecha_hora <= hasta_dt)
+    turnos = turnos_q.all()
+    if not turnos:
+        return [
+            {
+                "Paciente ID": "-",
+                "DNI": "-",
+                "Nombre": "Sin resultados",
+                "Fecha servicio": "-",
+                "Hora": "-",
+                "Servicio": "-",
+                "Profesional": "-",
+                "Detalle": "Sin resultados en este periodo",
+                "Estado": "-",
+                "Monto facturado": 0.0,
+                "Metodo pago": "-",
+                "Usuario registro": "-",
+            }
+        ], [
+            ("Total sesiones", 0),
+            ("Total facturado", "PEN 0.00"),
+            ("Promedio por sesion", "PEN 0.00"),
+        ]
+
+    turno_ids = [t.id for t in turnos]
+    movimientos = CajaMovimiento.query.filter(CajaMovimiento.turno_id.in_(turno_ids)).all()
+    mov_map: Dict[int, Dict[str, Any]] = {}
+    for mov in movimientos:
+        bucket = mov_map.setdefault(mov.turno_id, {"monto": 0.0, "metodos": []})
+        try:
+            bucket["monto"] += float(mov.monto or 0)
+        except Exception:
+            bucket["monto"] += 0.0
+        metodo_val = getattr(mov.metodo_pago, "value", None) or getattr(mov.metodo_pago, "name", None) or str(mov.metodo_pago or "-")
+        if metodo_val not in bucket["metodos"]:
+            bucket["metodos"].append(metodo_val)
+
+    rows: List[Dict[str, Any]] = []
+    total_facturado = 0.0
+    for turno in turnos:
+        paciente = turno.paciente
+        profesional = turno.profesional
+        servicios = []
+        if turno.items:
+            for item in turno.items:
+                servicios.append({
+                    "nombre": getattr(item.servicio, "nombre", "Sin servicio"),
+                    "detalle": item.nota or getattr(item.servicio, "descripcion", ""),
+                    "precio": float((item.precio or 0) or getattr(item.servicio, "precio", 0) or 0),
+                })
+        else:
+            servicios.append({
+                "nombre": getattr(turno.servicio, "nombre", "Sin servicio"),
+                "detalle": getattr(turno.servicio, "descripcion", ""),
+                "precio": float(getattr(turno.servicio, "precio", 0) or 0),
+            })
+
+        movimiento = mov_map.get(turno.id, {"monto": 0.0, "metodos": []})
+        monto_total_turno = movimiento["monto"] or sum(s["precio"] for s in servicios)
+        total_facturado += monto_total_turno
+        metodos_txt = ", ".join(movimiento["metodos"]) if movimiento["metodos"] else "-"
+        partes = len(servicios) or 1
+        monto_unit = monto_total_turno / partes
+
+        fecha_hora = turno.fecha_hora or datetime.utcnow()
+        fecha_txt = fecha_hora.strftime("%d/%m/%Y")
+        hora_txt = fecha_hora.strftime("%H:%M")
+        paciente_doc = getattr(paciente, "documento", "") or "-"
+        paciente_nombre = getattr(paciente, "nombre", "") or "Sin nombre"
+        if profesional:
+            profesional_nombre = f"{getattr(profesional, 'nombres', '')} {getattr(profesional, 'apellidos', '')}".strip()
+        else:
+            profesional_nombre = "Sin profesional"
+
+        for servicio in servicios:
+            rows.append({
+                "Paciente ID": getattr(paciente, "id", ""),
+                "DNI": paciente_doc,
+                "Nombre": paciente_nombre,
+                "Fecha servicio": fecha_txt,
+                "Hora": hora_txt,
+                "Servicio": servicio["nombre"],
+                "Profesional": profesional_nombre or "Sin profesional",
+                "Detalle": servicio["detalle"],
+                "Estado": (turno.estado.value if turno.estado else "").upper(),
+                "Monto facturado": round(monto_unit, 2),
+                "Metodo pago": metodos_txt,
+                "Usuario registro": "No disponible",
+            })
+
+    total_sesiones = len(rows)
+    promedio = total_facturado / total_sesiones if total_sesiones else 0.0
+    summary = [
+        ("Total sesiones", total_sesiones),
+        ("Total facturado", f"PEN {total_facturado:0.2f}"),
+        ("Promedio por sesion", f"PEN {promedio:0.2f}"),
+    ]
+    return rows, summary
+
+
+def _build_paciente_export_metadata(total: int, summary: List[Tuple[str, Any]], generated_by: str, desde: str | None, hasta: str | None) -> Dict[str, Any]:
+    date_range = "Sin rango"
+    if desde or hasta:
+        date_range = f"{desde or '-'} - {hasta or '-'}"
+    return {
+        "title": "Pacientes - Historial Clinico",
+        "generated_by": generated_by,
+        "generated_at": datetime.utcnow().strftime("%d/%m/%Y %H:%M"),
+        "total_records": total,
+        "date_range": date_range,
+        "filters": {"desde": desde or "", "hasta": hasta or ""},
+        "summary": summary,
+    }
+
+
+@bp.get("/export/excel")
+@jwt_required()
+def exportar_pacientes_excel():
+    params = request.args or {}
+    desde = params.get("desde")
+    hasta = params.get("hasta")
+    rows, summary = _collect_pacientes_report(desde, hasta)
+    claims = get_jwt() or {}
+    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
+    meta = _build_paciente_export_metadata(len(rows), summary, user_label, desde, hasta)
+    file_path = export_to_excel("pacientes", rows, meta)
+    return send_file(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=os.path.basename(file_path))
+
+
+@bp.get("/export/pdf")
+@jwt_required()
+def exportar_pacientes_pdf():
+    params = request.args or {}
+    desde = params.get("desde")
+    hasta = params.get("hasta")
+    rows, summary = _collect_pacientes_report(desde, hasta)
+    claims = get_jwt() or {}
+    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
+    meta = _build_paciente_export_metadata(len(rows), summary, user_label, desde, hasta)
+    file_path = export_to_pdf("pacientes", rows, meta)
+    return send_file(file_path, mimetype="application/pdf", as_attachment=True, download_name=os.path.basename(file_path))
 
 @bp.get("/<int:pid>/historial")
 @jwt_required()
