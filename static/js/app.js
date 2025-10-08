@@ -15,26 +15,42 @@ if (footerYear) {
 const routes = {
   dashboard: () => {
     routeTitle.textContent = "Dashboard";
+    const shortcuts = [
+      { route: "turnos", title: "Turnos", description: "Gestione turnos del día, semana o mes." },
+      { route: "pacientes", title: "Pacientes", description: "Altas rápidas y búsquedas." },
+      { route: "servicios", title: "Servicios", description: "Catálogo y protocolos." },
+      { route: "profesionales", title: "Profesionales", description: "Equipo y especialidades." },
+      { route: "caja", title: "Caja", description: "Movimientos, cobros y cierres diarios." },
+      { route: "inventario", title: "Inventario", description: "Control de insumos, stock y movimientos." },
+      { route: "reportes", title: "Reportes", description: "Análisis de facturación, pacientes e inventario." },
+    ];
+
     routeContent.innerHTML = `
-      <div class="row">
-        <div class="col card">
-          <h3>Turnos</h3>
-          <p class="muted">Gestione turnos del día, semana o mes.</p>
-        </div>
-        <div class="col card">
-          <h3>Pacientes</h3>
-          <p class="muted">Altas rápidas y búsquedas.</p>
-        </div>
-        <div class="col card">
-          <h3>Servicios</h3>
-          <p class="muted">Catálogo y protocolos.</p>
-        </div>
-        <div class="col card">
-          <h3>Profesionales</h3>
-          <p class="muted">Equipo y especialidades.</p>
-        </div>
+      <div class="dashboard-shortcuts">
+        ${shortcuts
+          .map(
+            (item) => `
+              <article class="card card--shortcut" data-route="${item.route}" tabindex="0" role="button" aria-label="Ir a ${item.title}">
+                <div class="card__header">
+                  <h3 class="card__title">${item.title}</h3>
+                  <p class="card__subtitle">${item.description}</p>
+                </div>
+              </article>
+            `
+          )
+          .join("")}
       </div>
     `;
+
+    routeContent.querySelectorAll(".card--shortcut").forEach((card) => {
+      card.addEventListener("click", () => navigate(card.dataset.route));
+      card.addEventListener("keypress", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          navigate(card.dataset.route);
+        }
+      });
+    });
   },
   pacientes: window.PacientesModule.render,
   turnos: window.TurnosModule.render,

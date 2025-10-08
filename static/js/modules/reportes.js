@@ -62,24 +62,6 @@ window.ReportesModule = (function(){
       <div class="page-shell reportes-page">
         <section class="section-block">
           <article class="card">
-            <h3>Atenciones</h3>
-            <div class="row">
-              <div class="col"><label>Desde</label><input id="ra-desde" type="date"></div>
-              <div class="col"><label>Hasta</label><input id="ra-hasta" type="date"></div>
-              <div class="col"><label>Agrupar por</label>
-                <select id="ra-group">
-                  <option value="dia">Día</option>
-                  <option value="profesional">Profesional</option>
-                  <option value="servicio">Servicio</option>
-                </select>
-              </div>
-              <div class="col"><label>&nbsp;</label><button id="ra-run" class="button button--primary">Calcular</button></div>
-              <div class="col"><label>&nbsp;</label><a id="ra-csv" class="button" target="_blank">Exportar CSV</a></div>
-            </div>
-            <table class="table"><thead><tr><th>Clave</th><th>Cantidad</th></tr></thead><tbody id="ra-tbody"><tr><td colspan="2" class="table__empty muted">Sin datos</td></tr></tbody></table>
-          </article>
-
-          <article class="card">
             <h3>Facturación / Caja</h3>
             <div class="row">
               <div class="col"><label>Desde</label><input id="rf-desde" type="datetime-local"></div>
@@ -128,7 +110,6 @@ window.ReportesModule = (function(){
             <div class="row">
               <div class="col"><label>Desde</label><input id="rp-desde" type="date"></div>
               <div class="col"><label>Hasta</label><input id="rp-hasta" type="date"></div>
-              <div class="col"><label>&nbsp;</label><button id="rp-run" class="button button--primary">Calcular</button></div>
               <div class="col"><label>&nbsp;</label>
                 <div class="report-actions">
                   <button id="rp-excel" class="button">Exportar Excel</button>
@@ -136,7 +117,7 @@ window.ReportesModule = (function(){
                 </div>
               </div>
             </div>
-            <div id="rp-out" class="muted">Sin datos</div>
+            <div id="rp-out" class="muted">Indica el rango y descarga el reporte desde las opciones.</div>
           </article>
 
           <article class="card">
@@ -190,40 +171,9 @@ window.ReportesModule = (function(){
             </div>
             <p class="muted">Exporta la agenda con los filtros aplicados.</p>
           </article>
-
-          <article class="card">
-            <h3>Stock bajo mínimo</h3>
-            <div class="row">
-              <div class="col"><label>&nbsp;</label><button id="rs-run" class="button button--primary">Ver</button></div>
-              <div class="col"><label>&nbsp;</label><a id="rs-csv" class="button" target="_blank">Exportar CSV</a></div>
-            </div>
-            <table class="table"><thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Mín</th><th>Unidad</th></tr></thead><tbody id="rs-tbody"><tr><td colspan="6" class="table__empty muted">Sin datos</td></tr></tbody></table>
-          </article>
         </section>
       </div>
     `;
-
-    // Atenciones
-    const atBody = document.getElementById("ra-tbody");
-    document.getElementById("ra-run").addEventListener("click", async () => {
-      const params = buildParams({
-        desde: () => document.getElementById("ra-desde").value,
-        hasta: () => document.getElementById("ra-hasta").value,
-        group_by: () => document.getElementById("ra-group").value,
-      });
-      try {
-        const data = await req(`/api/reportes/atenciones?${params}`);
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        if (!rows.length){
-          atBody.innerHTML = '<tr><td colspan="2" class="table__empty muted">Sin resultados</td></tr>';
-        } else {
-          atBody.innerHTML = rows.map((row) => `<tr><td>${row.clave}</td><td>${row.cantidad}</td></tr>`).join("");
-        }
-        document.getElementById("ra-csv").href = `/api/reportes/exportar/csv?tipo=atenciones${params.toString() ? `&${params}` : ""}`;
-      } catch (error){
-        atBody.innerHTML = `<tr><td colspan="2" class="table__empty">${error.message || error}</td></tr>`;
-      }
-    });
 
     // Facturación
     const facBody = document.getElementById("rf-tbody");
@@ -264,45 +214,10 @@ window.ReportesModule = (function(){
       downloadReport("/api/reportes/facturacion/export/pdf", facturacionParams(), "reporte_facturacion.pdf");
     });
 
-    // Stock bajo
-    const stockBody = document.getElementById("rs-tbody");
-    document.getElementById("rs-run").addEventListener("click", async () => {
-      try {
-        const data = await req("/api/reportes/stock_bajo");
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        if (!rows.length){
-          stockBody.innerHTML = '<tr><td colspan="6" class="table__empty muted">Sin resultados</td></tr>';
-        } else {
-          stockBody.innerHTML = rows.map((row) => `
-            <tr>
-              <td>${row.sku || ""}</td>
-              <td>${row.nombre || ""}</td>
-              <td>${row.categoria || ""}</td>
-              <td>${row.stock_actual}</td>
-              <td>${row.stock_minimo}</td>
-              <td>${row.unidad || ""}</td>
-            </tr>`).join("");
-        }
-        document.getElementById("rs-csv").href = `/api/reportes/exportar/csv?tipo=stock_bajo`;
-      } catch (error){
-        stockBody.innerHTML = `<tr><td colspan="6" class="table__empty">${error.message || error}</td></tr>`;
-      }
-    });
-
-    // Pacientes - resumen y exportes
+    // Pacientes - exportes
     const pacientesFilters = () => buildParams({
       desde: () => document.getElementById("rp-desde").value,
       hasta: () => document.getElementById("rp-hasta").value,
-    });
-
-    document.getElementById("rp-run").addEventListener("click", async () => {
-      const params = pacientesFilters();
-      try {
-        const data = await req(`/api/reportes/pacientes?${params}`);
-        document.getElementById("rp-out").textContent = `Nuevos: ${data.nuevos} | Frecuentes: ${data.frecuentes} | Inactivos: ${data.inactivos}`;
-      } catch (error){
-        document.getElementById("rp-out").textContent = error.message || error;
-      }
     });
 
     document.getElementById("rp-excel").addEventListener("click", () => {

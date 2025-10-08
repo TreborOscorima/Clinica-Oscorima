@@ -140,6 +140,27 @@ p { margin: 0 0 var(--space-3); }
 .card__subtitle { color: var(--color-muted); }
 .card__body { display:flex; flex-direction:column; gap: var(--space-5); }
 
+.dashboard-shortcuts {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.card--shortcut {
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.card--shortcut:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.card--shortcut:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+.card--shortcut .card__subtitle {
+  margin: 0;
+}
+
 /* Botones */
 button, .button, .btn {
   appearance:none; border:none; font-family:var(--font-base); font-size:1rem; font-weight:600;
