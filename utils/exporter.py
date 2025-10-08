@@ -29,6 +29,15 @@ ALT_ROW_COLOR = "F7F9FC"
 GRID_COLOR = "D0D7ED"
 DATE_FMT = "%d/%m/%Y %H:%M"
 
+DEFAULT_HEADER_FIELDS = [
+    ("Empresa", COMPANY_NAME),
+    ("RUC", COMPANY_RUC or "-"),
+    ("Direccion", COMPANY_ADDRESS),
+    ("Telefono", COMPANY_PHONE or "-"),
+    ("Tipo comprobante", COMPANY_VOUCHER),
+    ("Serie y numero", COMPANY_SERIE),
+]
+
 
 class ExporterError(RuntimeError):
     """Custom exception for exporter failures."""
@@ -56,9 +65,39 @@ def _normalize_filters(filters: Dict[str, Any] | None) -> Dict[str, Any]:
         "system_version": filters.pop("system_version", "v1"),
         "title": filters.pop("title", "Reporte"),
         "filters": filters.pop("filters", filters),
+        "header_fields": filters.pop("header_fields", None),
+        "include_logo_note": filters.pop("include_logo_note", True),
     }
     return meta
 
+
+
+def _resolve_header_value(value: Any, meta: Dict[str, Any]) -> Any:
+    if callable(value):
+        try:
+            return value(meta)
+        except Exception:
+            return value
+    if isinstance(value, str):
+        try:
+            return value.format(**meta)
+        except Exception:
+            return value
+    return value
+
+
+def _default_header_rows(meta: Dict[str, Any]) -> List[Tuple[str, Any]]:
+    rows: List[Tuple[str, Any]] = []
+    for label, value in DEFAULT_HEADER_FIELDS:
+        rows.append((label, _resolve_header_value(value, meta)))
+    rows.extend([
+        ("Reporte", _resolve_header_value("{title}", meta)),
+        ("Fecha generacion", _resolve_header_value("{generated_at}", meta)),
+        ("Generado por", _resolve_header_value("{generated_by}", meta)),
+        ("Total registros", meta.get("total_records") if meta.get("total_records") is not None else "-"),
+        ("Rango", _resolve_header_value("{date_range}", meta)),
+    ])
+    return rows
 
 def _format_currency(value: Any) -> str:
     try:
@@ -107,37 +146,37 @@ def _build_header_block(ws, meta: Dict[str, Any], column_count: int) -> int:
     title_cell.fill = PatternFill("solid", fgColor=HEADER_COLOR)
     title_cell.alignment = Alignment(horizontal="center")
 
-    info_rows = [
-        ("Empresa", COMPANY_NAME),
-        ("RUC", COMPANY_RUC or "-"),
-        ("Direccion", COMPANY_ADDRESS),
-        ("Telefono", COMPANY_PHONE or "-"),
-        ("Tipo comprobante", COMPANY_VOUCHER),
-        ("Serie y numero", COMPANY_SERIE),
-        ("Reporte", meta["title"]),
-        ("Fecha generacion", meta["generated_at"]),
-        ("Generado por", meta["generated_by"]),
-        ("Rango", meta["date_range"]),
-        ("Total registros", meta["total_records"] if meta["total_records"] is not None else "-"),
-    ]
+    header_rows = meta.get("header_fields") or _default_header_rows(meta)
     row_cursor = 2
-    for label, value in info_rows:
+    for label, value in header_rows:
+        if label is None:
+            row_cursor += 1
+            continue
+        resolved = _resolve_header_value(value, meta)
         ws.cell(row=row_cursor, column=1, value=f"{label}:").font = Font(bold=True)
-        ws.cell(row=row_cursor, column=2, value=value)
+        ws.cell(row=row_cursor, column=2, value=resolved)
         row_cursor += 1
 
     ws.cell(row=row_cursor, column=1, value="Filtros:").font = Font(bold=True)
     filters = meta.get("filters") or {}
-    if filters:
+    if isinstance(filters, dict) and filters:
         for key, value in filters.items():
             ws.cell(row=row_cursor, column=2, value=f"{key}: {value}")
             row_cursor += 1
+    elif isinstance(filters, str) and filters.strip():
+        ws.cell(row=row_cursor, column=2, value=filters)
+        row_cursor += 1
     else:
         ws.cell(row=row_cursor, column=2, value="Sin filtros")
         row_cursor += 1
-    ws.cell(row=row_cursor, column=1, value="Nota logo: ")
-    ws.cell(row=row_cursor, column=2, value="Espacio reservado para logo")
-    row_cursor += 2
+
+    if meta.get("include_logo_note", True):
+        ws.cell(row=row_cursor, column=1, value="Logo:").font = Font(italic=True)
+        ws.cell(row=row_cursor, column=2, value="Espacio reservado para logo")
+        row_cursor += 2
+    else:
+        row_cursor += 1
+
     return row_cursor
 
 
@@ -249,21 +288,24 @@ def export_to_pdf(nombre_reporte: str, data: List[Dict[str, Any]], filters: Dict
     story: List[Any] = []
     story.append(Paragraph(SYSTEM_NAME, title_style))
     story.append(Spacer(1, 8))
-    story.append(Paragraph(COMPANY_NAME, bold))
-    story.append(Paragraph(f"RUC: {COMPANY_RUC or '-'}", normal))
-    story.append(Paragraph(COMPANY_ADDRESS, normal))
-    story.append(Paragraph(f"Telefono: {COMPANY_PHONE or '-'}", normal))
-    story.append(Paragraph(f"Tipo comprobante: {COMPANY_VOUCHER}", normal))
-    story.append(Paragraph(f"Serie y numero: {COMPANY_SERIE}", normal))
+    header_rows = meta.get("header_fields") or _default_header_rows(meta)
+    header_data = []
+    for label, value in header_rows:
+        if not label:
+            continue
+        resolved = _resolve_header_value(value, meta)
+        header_data.append([Paragraph(f"<b>{label}</b>", normal), Paragraph(str(resolved), normal)])
+    header_table = Table(header_data, colWidths=[160, 380])
+    header_table.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(header_table)
     story.append(Spacer(1, 12))
-    story.append(Paragraph(f"Reporte: {meta['title']}", bold))
-    story.append(Paragraph(f"Generado por: {meta['generated_by']}", normal))
-    story.append(Paragraph(f"Fecha generacion: {meta['generated_at']}", normal))
-    story.append(Paragraph(f"Rango: {meta['date_range']}", normal))
-    story.append(Paragraph(f"Total registros: {meta['total_records']}", normal))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Logo: espacio reservado", ParagraphStyle(name="LogoNote", parent=normal, italic=True)))
-    story.append(Spacer(1, 12))
+    if meta.get("include_logo_note", True):
+        story.append(Paragraph("Logo: espacio reservado", ParagraphStyle(name="LogoNote", parent=normal, italic=True)))
+        story.append(Spacer(1, 12))
 
     columns = list(data[0].keys()) if data else []
     if not columns:

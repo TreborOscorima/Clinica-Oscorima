@@ -39,6 +39,7 @@ class TurnoSchema(SQLAlchemyAutoSchema):
     # legacy: permitir todavía servicio_id, pero no es requerido si vienen items
     servicio_id = auto_field()
     fecha_hora = auto_field(required=True)
+    created_by_id = auto_field(dump_only=True)
 
     # Enum como string
     estado = fields.Function(
@@ -61,6 +62,7 @@ class TurnoSchema(SQLAlchemyAutoSchema):
     servicio_nombre = fields.Function(lambda o: getattr(o.servicio, "nombre", None))
     servicio_precio = fields.Function(lambda o: getattr(o.servicio, "precio", None))
     servicio_duracion = fields.Function(lambda o: getattr(o.servicio, "duracion_min", None))
+    usuario_registro = fields.Function(lambda o: getattr(o.created_by, "nombre", None))
 
     @validates_schema
     def _validar_items_o_servicio(self, data, **kwargs):

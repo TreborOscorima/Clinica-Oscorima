@@ -1,12 +1,10 @@
 # routes/inventario.py
-import os
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import func, text
 from extensions import db
-from typing import Any, Dict, List, Tuple
 
 def _base_ref(ref: str) -> str:
     ref = (ref or "").strip()
@@ -120,7 +118,6 @@ from models.inventario import (
     ProductoPrecioHist,
 )
 from utils.decorators import role_required
-from utils.exporter import export_to_excel, export_to_pdf
 
 bp = Blueprint("inventario", __name__, url_prefix="/api/inventario")
 
@@ -1194,147 +1191,6 @@ def get_movimiento(mid):
     }
 
 
-
-def _collect_movimientos_report(desde: str | None, hasta: str | None, tipo: str | None, producto_id: str | None):
-    def _parse(value: str | None):
-        if not value:
-            return None
-        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
-            try:
-                return datetime.strptime(value, fmt)
-            except ValueError:
-                continue
-        try:
-            return datetime.fromisoformat(value)
-        except Exception:
-            return None
-
-    desde_dt = _parse(desde)
-    hasta_dt = _parse(hasta)
-    tipo = (tipo or "").strip().lower()
-    prod_id = int(producto_id) if producto_id and str(producto_id).isdigit() else None
-
-    q = db.session.query(MovimientoStock, Producto).join(Producto, MovimientoStock.producto_id == Producto.id)
-    if desde_dt:
-        q = q.filter(MovimientoStock.fecha >= desde_dt)
-    if hasta_dt:
-        q = q.filter(MovimientoStock.fecha <= hasta_dt)
-    if tipo in {"ingreso", "egreso", "ajuste"}:
-        q = q.filter(func.lower(MovimientoStock.tipo) == tipo)
-    if prod_id:
-        q = q.filter(MovimientoStock.producto_id == prod_id)
-
-    movimientos = q.order_by(MovimientoStock.fecha.asc()).all()
-    rows: List[Dict[str, Any]] = []
-    total_ingresos = 0.0
-    total_egresos = 0.0
-    for mov, producto in movimientos:
-        cantidad = float(mov.cantidad or 0)
-        if cantidad >= 0:
-            total_ingresos += cantidad
-        else:
-            total_egresos += abs(cantidad)
-        saldo_anterior = float(mov.saldo or 0) - cantidad
-        fecha = mov.fecha or datetime.utcnow()
-        rows.append({
-            "Codigo producto": producto.sku or producto.id,
-            "Descripcion": producto.nombre,
-            "Tipo": (mov.tipo or "").upper(),
-            "Cantidad": round(cantidad, 3),
-            "Unidad": "No disponible",
-            "Stock anterior": round(saldo_anterior, 3),
-            "Stock posterior": round(float(mov.saldo or 0), 3),
-            "Fecha": fecha.strftime("%d/%m/%Y"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Responsable": "No disponible",
-            "Observacion": mov.motivo or mov.referencia or "-",
-        })
-
-    diferencia = total_ingresos - total_egresos
-    summary: List[Tuple[str, Any]] = [
-        ("Total ingresos", total_ingresos),
-        ("Total egresos", total_egresos),
-        ("Diferencia neta", diferencia),
-    ]
-    if not rows:
-        rows = [{
-            "Codigo producto": "-",
-            "Descripcion": "Sin resultados",
-            "Tipo": "-",
-            "Cantidad": 0.0,
-            "Unidad": "-",
-            "Stock anterior": 0.0,
-            "Stock posterior": 0.0,
-            "Fecha": "-",
-            "Hora": "-",
-            "Responsable": "-",
-            "Observacion": "Sin resultados en este periodo",
-        }]
-        summary = [
-            ("Total ingresos", 0.0),
-            ("Total egresos", 0.0),
-            ("Diferencia neta", 0.0),
-        ]
-    return rows, summary
-
-
-def _build_inventario_export_metadata(total: int, summary: List[Tuple[str, Any]], generated_by: str, filtros: Dict[str, Any]):
-    desde = filtros.get("desde") or "-"
-    hasta = filtros.get("hasta") or "-"
-    date_range = f"{desde} - {hasta}" if (desde != "-" or hasta != "-") else "Sin rango"
-    return {
-        "title": "Inventario - Movimientos",
-        "generated_by": generated_by,
-        "generated_at": datetime.utcnow().strftime("%d/%m/%Y %H:%M"),
-        "total_records": total,
-        "date_range": date_range,
-        "filters": filtros,
-        "summary": summary,
-    }
-
-
-@bp.get("/export/excel")
-@jwt_required()
-def exportar_inventario_excel():
-    params = request.args or {}
-    rows, summary = _collect_movimientos_report(
-        params.get("desde"),
-        params.get("hasta"),
-        params.get("tipo"),
-        params.get("producto_id"),
-    )
-    claims = get_jwt() or {}
-    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
-    meta = _build_inventario_export_metadata(len(rows), summary, user_label, {
-        "desde": params.get("desde") or "",
-        "hasta": params.get("hasta") or "",
-        "tipo": params.get("tipo") or "",
-        "producto_id": params.get("producto_id") or "",
-    })
-    file_path = export_to_excel("inventario", rows, meta)
-    return send_file(file_path, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=os.path.basename(file_path))
-
-
-@bp.get("/export/pdf")
-@jwt_required()
-def exportar_inventario_pdf():
-    params = request.args or {}
-    rows, summary = _collect_movimientos_report(
-        params.get("desde"),
-        params.get("hasta"),
-        params.get("tipo"),
-        params.get("producto_id"),
-    )
-    claims = get_jwt() or {}
-    user_label = claims.get("name") or claims.get("email") or str(claims.get("sub") or "Usuario")
-    meta = _build_inventario_export_metadata(len(rows), summary, user_label, {
-        "desde": params.get("desde") or "",
-        "hasta": params.get("hasta") or "",
-        "tipo": params.get("tipo") or "",
-        "producto_id": params.get("producto_id") or "",
-    })
-    file_path = export_to_pdf("inventario", rows, meta)
-    return send_file(file_path, mimetype="application/pdf", as_attachment=True, download_name=os.path.basename(file_path))
 
 @bp.post("/movimientos/lote")
 @jwt_required()

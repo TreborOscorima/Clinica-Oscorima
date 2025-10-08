@@ -132,6 +132,27 @@ class ReportesExportCSVTestCase(unittest.TestCase):
         self.assertEqual(rows[0]["monto"], "120.0")
         self.assertEqual(rows[0]["total_global"], "120.0")
 
+    def test_exporta_facturacion_en_excel(self):
+        response = self.client.get(
+            "/api/reportes/facturacion/export/excel",
+            headers=self._auth_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.mimetype,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertTrue(response.headers.get("Content-Disposition", "").startswith("attachment;"))
+
+    def test_exporta_facturacion_en_pdf(self):
+        response = self.client.get(
+            "/api/reportes/facturacion/export/pdf",
+            headers=self._auth_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "application/pdf")
+        self.assertTrue(response.headers.get("Content-Disposition", "").startswith("attachment;"))
+
 
 if __name__ == "__main__":
     unittest.main()

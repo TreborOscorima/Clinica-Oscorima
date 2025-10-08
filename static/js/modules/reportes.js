@@ -1,123 +1,346 @@
 window.ReportesModule = (function(){
-  async function req(path){
-    return API.request(path);
+  const money = (value) => Number(value || 0).toLocaleString("es-PE", { style: "currency", currency: "PEN" });
+
+  function buildParams(mapper){
+    const params = new URLSearchParams();
+    Object.entries(mapper).forEach(([key, value]) => {
+      const val = typeof value === "function" ? value() : value;
+      if (val !== undefined && val !== null && String(val).trim() !== ""){
+        params.set(key, String(val).trim());
+      }
+    });
+    return params;
   }
+
+  async function downloadReport(basePath, params, fallbackName){
+    const token = API.token();
+    const headers = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    const url = `${basePath}${params.toString() ? `?${params}` : ""}`;
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok){
+        let message = `Error ${res.status}`;
+        try {
+          const data = await res.json();
+          message = data.message || message;
+        } catch (err) {
+          try {
+            message = await res.text();
+          } catch (err2) {
+            // swallow
+          }
+        }
+        throw new Error(message);
+      }
+      const blob = await res.blob();
+      let filename = fallbackName;
+      const disposition = res.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      if (match && match[1]){
+        filename = match[1];
+      }
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(link.href);
+        link.remove();
+      }, 0);
+    } catch (error){
+      alert(error.message || "No se pudo descargar el reporte");
+    }
+  }
+
+  const req = async (path) => API.request(path);
 
   function render(){
     routeTitle.textContent = "Reportes";
     routeContent.innerHTML = `
-      <div class="card">
-        <h3>Atenciones</h3>
-        <div class="row">
-          <div class="col"><label>Desde</label><input id="ra-desde" type="date"></div>
-          <div class="col"><label>Hasta</label><input id="ra-hasta" type="date"></div>
-          <div class="col"><label>Agrupar por</label>
-            <select id="ra-group">
-              <option value="dia">Día</option>
-              <option value="profesional">Profesional</option>
-              <option value="servicio">Servicio</option>
-            </select>
-          </div>
-          <div class="col"><label>&nbsp;</label><button id="ra-run">Calcular</button></div>
-          <div class="col"><label>&nbsp;</label><a id="ra-csv" class="button" target="_blank">Exportar CSV</a></div>
-        </div>
-        <table class="table"><thead><tr><th>Clave</th><th>Cantidad</th></tr></thead><tbody id="ra-tbody"></tbody></table>
-      </div>
+      <div class="page-shell reportes-page">
+        <section class="section-block">
+          <article class="card">
+            <h3>Atenciones</h3>
+            <div class="row">
+              <div class="col"><label>Desde</label><input id="ra-desde" type="date"></div>
+              <div class="col"><label>Hasta</label><input id="ra-hasta" type="date"></div>
+              <div class="col"><label>Agrupar por</label>
+                <select id="ra-group">
+                  <option value="dia">Día</option>
+                  <option value="profesional">Profesional</option>
+                  <option value="servicio">Servicio</option>
+                </select>
+              </div>
+              <div class="col"><label>&nbsp;</label><button id="ra-run" class="button button--primary">Calcular</button></div>
+              <div class="col"><label>&nbsp;</label><a id="ra-csv" class="button" target="_blank">Exportar CSV</a></div>
+            </div>
+            <table class="table"><thead><tr><th>Clave</th><th>Cantidad</th></tr></thead><tbody id="ra-tbody"><tr><td colspan="2" class="table__empty muted">Sin datos</td></tr></tbody></table>
+          </article>
 
-      <div class="card">
-        <h3>Facturación / Caja</h3>
-        <div class="row">
-          <div class="col"><label>Desde</label><input id="rf-desde" type="datetime-local"></div>
-          <div class="col"><label>Hasta</label><input id="rf-hasta" type="datetime-local"></div>
-          <div class="col"><label>Agrupar por</label>
-            <select id="rf-group">
-              <option value="metodo">Método de pago</option>
-              <option value="dia">Día</option>
-              <option value="servicio">Servicio</option>
-              <option value="profesional">Profesional</option>
-            </select>
-          </div>
-          <div class="col"><label>Tipo</label>
-            <select id="rf-tipo">
-              <option value="">Ambos</option>
-              <option value="ingreso">Ingreso</option>
-              <option value="egreso">Egreso</option>
-            </select>
-          </div>
-          <div class="col"><label>&nbsp;</label><button id="rf-run">Calcular</button></div>
-          <div class="col"><label>&nbsp;</label><a id="rf-csv" class="button" target="_blank">Exportar CSV</a></div>
-        </div>
-        <div id="rf-total" class="muted"></div>
-        <table class="table"><thead><tr><th>Clave</th><th>Monto</th></tr></thead><tbody id="rf-tbody"></tbody></table>
-      </div>
+          <article class="card">
+            <h3>Facturación / Caja</h3>
+            <div class="row">
+              <div class="col"><label>Desde</label><input id="rf-desde" type="datetime-local"></div>
+              <div class="col"><label>Hasta</label><input id="rf-hasta" type="datetime-local"></div>
+              <div class="col"><label>Agrupar por</label>
+                <select id="rf-group">
+                  <option value="metodo">Método de pago</option>
+                  <option value="dia">Día</option>
+                  <option value="servicio">Servicio</option>
+                  <option value="profesional">Profesional</option>
+                  <option value="paciente">Paciente</option>
+                  <option value="producto">Producto</option>
+                </select>
+              </div>
+              <div class="col"><label>Tipo</label>
+                <select id="rf-tipo">
+                  <option value="">Ambos</option>
+                  <option value="ingreso">Ingreso</option>
+                  <option value="egreso">Egreso</option>
+                </select>
+              </div>
+              <div class="col"><label>Método</label>
+                <select id="rf-metodo">
+                  <option value="">Todos</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="col"><label>&nbsp;</label><button id="rf-run" class="button button--primary">Calcular</button></div>
+              <div class="col"><label>&nbsp;</label>
+                <div class="report-actions">
+                  <button id="rf-excel" class="button">Exportar Excel</button>
+                  <button id="rf-pdf" class="button button--ghost">Exportar PDF</button>
+                  <a id="rf-csv" class="button button--ghost" target="_blank" rel="noopener">Exportar CSV</a>
+                </div>
+              </div>
+            </div>
+            <div id="rf-total" class="muted">Sin datos</div>
+            <table class="table"><thead><tr><th>Clave</th><th>Monto</th></tr></thead><tbody id="rf-tbody"><tr><td colspan="2" class="table__empty muted">Sin datos</td></tr></tbody></table>
+          </article>
 
-      <div class="card">
-        <h3>Stock bajo mínimo</h3>
-        <div class="row">
-          <div class="col"><label>&nbsp;</label><button id="rs-run">Ver</button></div>
-          <div class="col"><label>&nbsp;</label><a id="rs-csv" class="button" target="_blank">Exportar CSV</a></div>
-        </div>
-        <table class="table"><thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Mín</th><th>Unidad</th></tr></thead><tbody id="rs-tbody"></tbody></table>
-      </div>
+          <article class="card">
+            <h3>Pacientes - Historial Clínico</h3>
+            <div class="row">
+              <div class="col"><label>Desde</label><input id="rp-desde" type="date"></div>
+              <div class="col"><label>Hasta</label><input id="rp-hasta" type="date"></div>
+              <div class="col"><label>&nbsp;</label><button id="rp-run" class="button button--primary">Calcular</button></div>
+              <div class="col"><label>&nbsp;</label>
+                <div class="report-actions">
+                  <button id="rp-excel" class="button">Exportar Excel</button>
+                  <button id="rp-pdf" class="button button--ghost">Exportar PDF</button>
+                </div>
+              </div>
+            </div>
+            <div id="rp-out" class="muted">Sin datos</div>
+          </article>
 
-      <div class="card">
-        <h3>Pacientes</h3>
-        <div class="row">
-          <div class="col"><label>Desde</label><input id="rp-desde" type="date"></div>
-          <div class="col"><label>Hasta</label><input id="rp-hasta" type="date"></div>
-          <div class="col"><label>Frecuentes (≥ N turnos)</label><input id="rp-n" type="number" value="2"></div>
-          <div class="col"><label>Inactivos (días)</label><input id="rp-dias" type="number" value="60"></div>
-          <div class="col"><label>&nbsp;</label><button id="rp-run">Calcular</button></div>
-        </div>
-        <div id="rp-out" class="muted"></div>
+          <article class="card">
+            <h3>Inventario - Movimientos</h3>
+            <div class="row">
+              <div class="col"><label>Desde</label><input id="ri-desde" type="datetime-local"></div>
+              <div class="col"><label>Hasta</label><input id="ri-hasta" type="datetime-local"></div>
+              <div class="col"><label>Tipo</label>
+                <select id="ri-tipo">
+                  <option value="">Todos</option>
+                  <option value="ingreso">Ingreso</option>
+                  <option value="egreso">Egreso</option>
+                  <option value="ajuste">Ajuste</option>
+                </select>
+              </div>
+              <div class="col"><label>Producto ID</label><input id="ri-producto" type="number" min="1" placeholder="Opcional"></div>
+              <div class="col">
+                <label>&nbsp;</label>
+                <div class="report-actions">
+                  <button id="ri-excel" class="button">Exportar Excel</button>
+                  <button id="ri-pdf" class="button button--ghost">Exportar PDF</button>
+                </div>
+              </div>
+            </div>
+            <p class="muted">Descarga de movimientos detallados. No hay vista previa.</p>
+          </article>
+
+          <article class="card">
+            <h3>Turnos</h3>
+            <div class="row">
+              <div class="col"><label>Desde</label><input id="rt-desde" type="datetime-local"></div>
+              <div class="col"><label>Hasta</label><input id="rt-hasta" type="datetime-local"></div>
+              <div class="col"><label>Estado</label>
+                <select id="rt-estado">
+                  <option value="">Todos</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="confirmado">Confirmado</option>
+                  <option value="cancelado">Cancelado</option>
+                  <option value="atendido">Atendido</option>
+                </select>
+              </div>
+              <div class="col"><label>Profesional ID</label><input id="rt-profesional" type="number" min="1" placeholder="Opcional"></div>
+              <div class="col"><label>Servicio ID</label><input id="rt-servicio" type="number" min="1" placeholder="Opcional"></div>
+              <div class="col">
+                <label>&nbsp;</label>
+                <div class="report-actions">
+                  <button id="rt-excel" class="button">Exportar Excel</button>
+                  <button id="rt-pdf" class="button button--ghost">Exportar PDF</button>
+                </div>
+              </div>
+            </div>
+            <p class="muted">Exporta la agenda con los filtros aplicados.</p>
+          </article>
+
+          <article class="card">
+            <h3>Stock bajo mínimo</h3>
+            <div class="row">
+              <div class="col"><label>&nbsp;</label><button id="rs-run" class="button button--primary">Ver</button></div>
+              <div class="col"><label>&nbsp;</label><a id="rs-csv" class="button" target="_blank">Exportar CSV</a></div>
+            </div>
+            <table class="table"><thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Mín</th><th>Unidad</th></tr></thead><tbody id="rs-tbody"><tr><td colspan="6" class="table__empty muted">Sin datos</td></tr></tbody></table>
+          </article>
+        </section>
       </div>
     `;
 
     // Atenciones
     const atBody = document.getElementById("ra-tbody");
-    document.getElementById("ra-run").addEventListener("click", async ()=>{
-      const d = document.getElementById("ra-desde").value;
-      const h = document.getElementById("ra-hasta").value;
-      const g = document.getElementById("ra-group").value;
-      const q = new URLSearchParams({desde:d||"", hasta:h||"", group_by:g});
-      const r = await req(`/api/reportes/atenciones?${q}`);
-      atBody.innerHTML = r.data.map(x=>`<tr><td>${x.clave}</td><td>${x.cantidad}</td></tr>`).join("");
-      document.getElementById("ra-csv").href = `/api/reportes/exportar/csv?tipo=atenciones&${q}`;
+    document.getElementById("ra-run").addEventListener("click", async () => {
+      const params = buildParams({
+        desde: () => document.getElementById("ra-desde").value,
+        hasta: () => document.getElementById("ra-hasta").value,
+        group_by: () => document.getElementById("ra-group").value,
+      });
+      try {
+        const data = await req(`/api/reportes/atenciones?${params}`);
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        if (!rows.length){
+          atBody.innerHTML = '<tr><td colspan="2" class="table__empty muted">Sin resultados</td></tr>';
+        } else {
+          atBody.innerHTML = rows.map((row) => `<tr><td>${row.clave}</td><td>${row.cantidad}</td></tr>`).join("");
+        }
+        document.getElementById("ra-csv").href = `/api/reportes/exportar/csv?tipo=atenciones${params.toString() ? `&${params}` : ""}`;
+      } catch (error){
+        atBody.innerHTML = `<tr><td colspan="2" class="table__empty">${error.message || error}</td></tr>`;
+      }
     });
 
     // Facturación
     const facBody = document.getElementById("rf-tbody");
-    document.getElementById("rf-run").addEventListener("click", async ()=>{
-      const d = document.getElementById("rf-desde").value;
-      const h = document.getElementById("rf-hasta").value;
-      const g = document.getElementById("rf-group").value;
-      const t = document.getElementById("rf-tipo").value;
-      const q = new URLSearchParams({desde:d||"", hasta:h||"", group_by:g, tipo:t||""});
-      const r = await req(`/api/reportes/facturacion?${q}`);
-      facBody.innerHTML = r.data.map(x=>`<tr><td>${x.clave}</td><td>$${Number(x.monto||0).toFixed(2)}</td></tr>`).join("");
-      document.getElementById("rf-total").textContent = `TOTAL: $${Number(r.total||0).toFixed(2)}`;
-      document.getElementById("rf-csv").href = `/api/reportes/exportar/csv?tipo=facturacion&${q}`;
+    const facTotal = document.getElementById("rf-total");
+    const facturacionParams = () => buildParams({
+      desde: () => document.getElementById("rf-desde").value,
+      hasta: () => document.getElementById("rf-hasta").value,
+      group_by: () => document.getElementById("rf-group").value,
+      tipo: () => document.getElementById("rf-tipo").value,
+      metodo: () => document.getElementById("rf-metodo").value,
+    });
+    document.getElementById("rf-run").addEventListener("click", async () => {
+      const params = facturacionParams();
+      facTotal.textContent = "Calculando...";
+      try {
+        const data = await req(`/api/reportes/facturacion?${params}`);
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        if (!rows.length){
+          facBody.innerHTML = '<tr><td colspan="2" class="table__empty muted">Sin resultados</td></tr>';
+        } else {
+          facBody.innerHTML = rows.map((row) => `<tr><td>${row.clave}</td><td>${money(row.monto)}</td></tr>`).join("");
+        }
+        const resumen = data?.resumen || {};
+        const ingresos = Number(resumen.ingresos ?? 0);
+        const egresos = Number(resumen.egresos ?? 0);
+        const neto = Number(resumen.neto ?? ingresos - egresos);
+        facTotal.textContent = `Ingresos: ${money(ingresos)} | Egresos: ${money(egresos)} | Neto: ${money(neto)}`;
+        document.getElementById("rf-csv").href = `/api/reportes/exportar/csv?tipo=facturacion${params.toString() ? `&${params}` : ""}`;
+      } catch (error){
+        facBody.innerHTML = `<tr><td colspan="2" class="table__empty">${error.message || error}</td></tr>`;
+        facTotal.textContent = error.message || "Error al calcular";
+      }
+    });
+    document.getElementById("rf-excel").addEventListener("click", () => {
+      downloadReport("/api/reportes/facturacion/export/excel", facturacionParams(), "reporte_facturacion.xlsx");
+    });
+    document.getElementById("rf-pdf").addEventListener("click", () => {
+      downloadReport("/api/reportes/facturacion/export/pdf", facturacionParams(), "reporte_facturacion.pdf");
     });
 
     // Stock bajo
-    const sBody = document.getElementById("rs-tbody");
-    document.getElementById("rs-run").addEventListener("click", async ()=>{
-      const r = await req("/api/reportes/stock_bajo");
-      sBody.innerHTML = r.data.map(x=>`
-        <tr><td>${x.sku||""}</td><td>${x.nombre}</td><td>${x.categoria||""}</td>
-        <td>${x.stock_actual}</td><td>${x.stock_minimo}</td><td>${x.unidad||""}</td></tr>`).join("");
-      document.getElementById("rs-csv").href = `/api/reportes/exportar/csv?tipo=stock_bajo`;
+    const stockBody = document.getElementById("rs-tbody");
+    document.getElementById("rs-run").addEventListener("click", async () => {
+      try {
+        const data = await req("/api/reportes/stock_bajo");
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        if (!rows.length){
+          stockBody.innerHTML = '<tr><td colspan="6" class="table__empty muted">Sin resultados</td></tr>';
+        } else {
+          stockBody.innerHTML = rows.map((row) => `
+            <tr>
+              <td>${row.sku || ""}</td>
+              <td>${row.nombre || ""}</td>
+              <td>${row.categoria || ""}</td>
+              <td>${row.stock_actual}</td>
+              <td>${row.stock_minimo}</td>
+              <td>${row.unidad || ""}</td>
+            </tr>`).join("");
+        }
+        document.getElementById("rs-csv").href = `/api/reportes/exportar/csv?tipo=stock_bajo`;
+      } catch (error){
+        stockBody.innerHTML = `<tr><td colspan="6" class="table__empty">${error.message || error}</td></tr>`;
+      }
     });
 
-    // Pacientes
-    document.getElementById("rp-run").addEventListener("click", async ()=>{
-      const d = document.getElementById("rp-desde").value;
-      const h = document.getElementById("rp-hasta").value;
-      const n = document.getElementById("rp-n").value;
-      const dias = document.getElementById("rp-dias").value;
-      const q = new URLSearchParams({desde:d||"", hasta:h||"", frecuentes_n:n, inactivos_dias:dias});
-      const r = await req(`/api/reportes/pacientes?${q}`);
-      document.getElementById("rp-out").textContent = `Nuevos: ${r.nuevos} | Frecuentes (≥${n}): ${r.frecuentes} | Inactivos (≥${dias} días): ${r.inactivos}`;
+    // Pacientes - resumen y exportes
+    const pacientesFilters = () => buildParams({
+      desde: () => document.getElementById("rp-desde").value,
+      hasta: () => document.getElementById("rp-hasta").value,
+    });
+
+    document.getElementById("rp-run").addEventListener("click", async () => {
+      const params = pacientesFilters();
+      try {
+        const data = await req(`/api/reportes/pacientes?${params}`);
+        document.getElementById("rp-out").textContent = `Nuevos: ${data.nuevos} | Frecuentes: ${data.frecuentes} | Inactivos: ${data.inactivos}`;
+      } catch (error){
+        document.getElementById("rp-out").textContent = error.message || error;
+      }
+    });
+
+    document.getElementById("rp-excel").addEventListener("click", () => {
+      const params = pacientesFilters();
+      downloadReport("/api/reportes/pacientes/export/excel", params, "reporte_pacientes.xlsx");
+    });
+    document.getElementById("rp-pdf").addEventListener("click", () => {
+      const params = pacientesFilters();
+      downloadReport("/api/reportes/pacientes/export/pdf", params, "reporte_pacientes.pdf");
+    });
+
+    // Inventario exportes
+    const inventarioParams = () => buildParams({
+      desde: () => document.getElementById("ri-desde").value,
+      hasta: () => document.getElementById("ri-hasta").value,
+      tipo: () => document.getElementById("ri-tipo").value,
+      producto_id: () => document.getElementById("ri-producto").value,
+    });
+    document.getElementById("ri-excel").addEventListener("click", () => {
+      downloadReport("/api/reportes/inventario/export/excel", inventarioParams(), "reporte_inventario.xlsx");
+    });
+    document.getElementById("ri-pdf").addEventListener("click", () => {
+      downloadReport("/api/reportes/inventario/export/pdf", inventarioParams(), "reporte_inventario.pdf");
+    });
+
+    // Turnos exportes
+    const turnosParams = () => buildParams({
+      desde: () => document.getElementById("rt-desde").value,
+      hasta: () => document.getElementById("rt-hasta").value,
+      estado: () => document.getElementById("rt-estado").value,
+      profesional_id: () => document.getElementById("rt-profesional").value,
+      servicio_id: () => document.getElementById("rt-servicio").value,
+    });
+    document.getElementById("rt-excel").addEventListener("click", () => {
+      downloadReport("/api/reportes/turnos/export/excel", turnosParams(), "reporte_turnos.xlsx");
+    });
+    document.getElementById("rt-pdf").addEventListener("click", () => {
+      downloadReport("/api/reportes/turnos/export/pdf", turnosParams(), "reporte_turnos.pdf");
     });
   }
 
