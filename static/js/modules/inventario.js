@@ -226,7 +226,7 @@ window.InventarioModule = (function(){
         <td><input class="cp-cant" type="number" step="0.001"></td>
         <td><input class="cp-costo" type="number" step="0.01"></td>
         <td class="cp-subtotal">${money(0)}</td>
-        <td><button class="button button--ghost cp-eliminar" type="button" >A</button></td>
+        <td><button class="button button--ghost cp-eliminar" type="button">Quitar</button></td>
       </tr>
     `;
   }

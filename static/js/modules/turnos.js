@@ -134,55 +134,46 @@ window.TurnosModule = (function () {
             </header>
 
             <div class="card__body">
-              <div class="form-grid form-grid--three turnos-form-head">
-                <div class="form-field">
-                  <label class="form-field__label">Paciente</label>
-                  <div class="input-group">
-                    <div class="input-group__column">
-                      <span class="input-group__label">Nombre y apellido</span>
-                      <div class="auto-complete">
-                        <input id="t-pac-buscar" placeholder="Ej: Ana Perez" autocomplete="off" />
-                        <div id="t-pac-sug" class="ac-list" style="display:none"></div>
-                      </div>
+              <div class="turnos-head">
+                <div class="turnos-head__row">
+                  <div class="form-field">
+                    <label class="form-field__label" for="t-pac-buscar">Paciente</label>
+                    <span class="turnos-head__sub">Nombre y apellido</span>
+                    <div class="auto-complete">
+                      <input id="t-pac-buscar" placeholder="Ej: Ana Perez" autocomplete="off" />
+                      <div id="t-pac-sug" class="ac-list" style="display:none"></div>
                     </div>
-                    <div class="input-group__column input-group__column--compact">
-                      <span class="input-group__label">DNI</span>
-                      <div class="auto-complete auto-complete--mini">
-                        <input id="t-pac-dni" placeholder="DNI" autocomplete="off" inputmode="numeric" />
-                        <div id="t-pac-dni-sug" class="ac-list" style="display:none"></div>
-                      </div>
-                    </div>
+                    <input id="t-paciente-id" type="hidden" />
+                    <p id="t-pac-chosen" class="form-field__note"></p>
                   </div>
-                  <input id="t-paciente-id" type="hidden" />
-                  <p id="t-pac-chosen" class="form-field__note"></p>
+                  <div class="form-field">
+                    <label class="form-field__label" for="t-pac-dni">DNI</label>
+                    <input id="t-pac-dni" class="input" placeholder="DNI" autocomplete="off" inputmode="numeric" />
+                  </div>
                 </div>
 
-                <!-- 1) FECHA centrada (clase form-field--center) -->
-                <div class="form-field form-field--center">
-                  <label class="form-field__label" for="t-fecha">Fecha y hora</label>
-                  <input id="t-fecha" class="input" type="datetime-local" />
+                <div class="turnos-head__row">
+                  <div class="form-field">
+                    <label class="form-field__label" for="t-fecha">Fecha y hora</label>
+                    <input id="t-fecha" class="input" type="datetime-local" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-field__label" for="t-pro-buscar">Profesional (opcional)</label>
+                    <span class="turnos-head__sub">Nombre y apellido</span>
+                    <div class="auto-complete">
+                      <input id="t-pro-buscar" placeholder="Ej: Dra. Lopez" autocomplete="off" />
+                      <div id="t-pro-sug" class="ac-list" style="display:none"></div>
+                    </div>
+                    <input id="t-prof-id" type="hidden" />
+                    <p id="t-pro-chosen" class="form-field__note"></p>
+                  </div>
                 </div>
 
-                <div class="form-field">
-                  <label class="form-field__label">Profesional (opcional)</label>
-                  <div class="input-group">
-                    <div class="input-group__column">
-                      <span class="input-group__label">Nombre y apellido</span>
-                      <div class="auto-complete">
-                        <input id="t-pro-buscar" placeholder="Ej: Dra. Lopez" autocomplete="off" />
-                        <div id="t-pro-sug" class="ac-list" style="display:none"></div>
-                      </div>
-                    </div>
-                    <div class="input-group__column input-group__column--compact">
-                      <span class="input-group__label">DNI</span>
-                      <div class="auto-complete auto-complete--mini">
-                        <input id="t-pro-dni" placeholder="DNI" autocomplete="off" inputmode="numeric" />
-                        <div id="t-pro-dni-sug" class="ac-list" style="display:none"></div>
-                      </div>
-                    </div>
+                <div class="turnos-head__row">
+                  <div class="form-field">
+                    <label class="form-field__label" for="t-pro-dni">DNI profesional</label>
+                    <input id="t-pro-dni" class="input" placeholder="DNI" autocomplete="off" inputmode="numeric" />
                   </div>
-                  <input id="t-prof-id" type="hidden" />
-                  <p id="t-pro-chosen" class="form-field__note"></p>
                 </div>
               </div>
 
@@ -191,30 +182,32 @@ window.TurnosModule = (function () {
               <div class="card-section">
                 <h3 class="card-section__title">Servicios del turno</h3>
                 <div class="card-section__body">
-                  <div class="input-group input-group--services">
-                    <div class="input-group__column input-group__column--grow">
-                      <span class="input-group__label">Servicio</span>
-                      <div class="auto-complete">
-                        <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off" />
-                        <div id="t-srv-sug" class="ac-list" style="display:none"></div>
+                  <div class="turnos-services">
+                    <div class="turnos-services__row turnos-services__row--fields">
+                      <div class="form-field">
+                        <label class="form-field__label" for="t-srv-buscar">Servicio</label>
+                        <div class="auto-complete">
+                          <input id="t-srv-buscar" placeholder="Ej: Botox" autocomplete="off" />
+                          <div id="t-srv-sug" class="ac-list" style="display:none"></div>
+                        </div>
+                        <input id="t-servicio-id" type="hidden" />
+                        <p id="t-srv-chosen" class="form-field__note"></p>
                       </div>
-                      <input id="t-servicio-id" type="hidden" />
-                      <p id="t-srv-chosen" class="form-field__note"></p>
+                      <div class="form-field">
+                        <label class="form-field__label" for="t-item-precio">Precio</label>
+                        <input id="t-item-precio" class="input" type="number" step="0.01" placeholder="Precio" />
+                      </div>
+                      <div class="form-field">
+                        <label class="form-field__label" for="t-item-cant">Cantidad</label>
+                        <input id="t-item-cant" class="input" type="number" step="0.01" value="1" min="1" />
+                      </div>
+                      <div class="form-field">
+                        <label class="form-field__label" for="t-item-desc">Descuento</label>
+                        <input id="t-item-desc" class="input" type="number" step="0.01" value="0" min="0" />
+                      </div>
                     </div>
-                    <div class="input-group__column input-group__column--compact">
-                      <span class="input-group__label">Precio</span>
-                      <input id="t-item-precio" class="input" type="number" step="0.01" placeholder="Precio" />
-                    </div>
-                    <div class="input-group__column input-group__column--compact">
-                      <span class="input-group__label">Cantidad</span>
-                      <input id="t-item-cant" class="input" type="number" step="0.01" value="1" min="1" />
-                    </div>
-                    <div class="input-group__column input-group__column--compact">
-                      <span class="input-group__label">Descuento</span>
-                      <input id="t-item-desc" class="input" type="number" step="0.01" value="0" min="0" />
-                    </div>
-                    <div class="input-group__column input-group__cta">
-                      <button id="t-item-add" type="button" class="button button--primary">Agregar servicio</button>
+                    <div class="turnos-services__row turnos-services__row--actions">
+                      <button id="t-item-add" type="button" class="button button--primary turnos-services__add">Agregar servicio</button>
                     </div>
                   </div>
                   <div class="table-shell">
