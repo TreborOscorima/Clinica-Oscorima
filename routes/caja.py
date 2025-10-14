@@ -47,6 +47,14 @@ from schemas.caja import (
 )
 
 from utils.inventario_ops import consumir_insumos_por_servicio
+from utils.exporter import (
+    COMPANY_ADDRESS,
+    COMPANY_NAME,
+    COMPANY_PHONE,
+    COMPANY_RUC,
+    COMPANY_SERIE,
+    COMPANY_VOUCHER,
+)
 from utils.numeros import numero_a_letras
 
 bp = Blueprint("caja", __name__, url_prefix="/api/caja")
@@ -265,87 +273,93 @@ def comprobante_pdf(cid: int):
     cursor_y = height - 50
 
     lienzo.setFont("Helvetica-Bold", 14)
-    lienzo.drawString(50, cursor_y, f"Comprobante: {comprobante.tipo.upper()}  No. {comprobante.numero}")
-    cursor_y -= 30
+    lienzo.drawString(50, cursor_y, "WaykiSAC - Sistema de Gestion Clinica")
+    cursor_y -= 24
 
-    lienzo.setFont("Helvetica", 11)
+    lienzo.setFont("Helvetica", 10.5)
+    encabezado = [
+        ("Empresa", COMPANY_NAME),
+        ("RUC", COMPANY_RUC or "-"),
+        ("Direccion", COMPANY_ADDRESS),
+        ("Telefono", COMPANY_PHONE or "-"),
+        ("Tipo comprobante", COMPANY_VOUCHER),
+        ("Serie y Numero", comprobante.numero or COMPANY_SERIE),
+    ]
+    for label, value in encabezado:
+        lienzo.drawString(50, cursor_y, f"{label}: {value}")
+        cursor_y -= 16
+
+    cursor_y -= 4
+    lienzo.setFont("Helvetica", 10.5)
     fecha_segura = getattr(comprobante, "fecha", None) or datetime.utcnow()
     lienzo.drawString(50, cursor_y, f"Fecha: {fecha_segura.strftime('%Y-%m-%d %H:%M')}")
-    cursor_y -= 18
-
+    cursor_y -= 16
     lienzo.drawString(50, cursor_y, f"Paciente: {paciente_nombre}")
-    cursor_y -= 18
-
+    cursor_y -= 16
     if paciente_doc:
         lienzo.drawString(50, cursor_y, f"Documento: {paciente_doc}")
-        cursor_y -= 18
-
+        cursor_y -= 16
     forma_pago = getattr(comprobante.forma_pago, "value", str(comprobante.forma_pago))
     lienzo.drawString(50, cursor_y, f"Forma de pago: {forma_pago}")
-    cursor_y -= 18
-
+    cursor_y -= 16
     if comprobante.observacion:
         lienzo.drawString(50, cursor_y, f"Obs: {comprobante.observacion}")
-        cursor_y -= 18
+        cursor_y -= 16
 
     if getattr(comprobante, "items", None):
         cursor_y -= 12
         lienzo.setFont("Helvetica-Bold", 11)
         lienzo.drawString(50, cursor_y, "Detalle de items")
         cursor_y -= 18
-
         lienzo.setFont("Helvetica-Bold", 10)
         lienzo.drawString(50, cursor_y, "Descripcion")
-        lienzo.drawRightString(350, cursor_y, "Cant.")
-        lienzo.drawRightString(430, cursor_y, "Precio unit.")
-        lienzo.drawRightString(510, cursor_y, "Importe")
+        lienzo.drawRightString(320, cursor_y, "Cant.")
+        lienzo.drawRightString(390, cursor_y, "Precio unit.")
+        lienzo.drawRightString(470, cursor_y, "Importe")
         cursor_y -= 14
         lienzo.setFont("Helvetica", 10)
-
         for item in comprobante.items:
-            if cursor_y < 80:
+            if cursor_y < 120:
                 lienzo.showPage()
-                cursor_y = height - 50
+                cursor_y = height - 60
                 lienzo.setFont("Helvetica-Bold", 10)
                 lienzo.drawString(50, cursor_y, "Descripcion")
-                lienzo.drawRightString(350, cursor_y, "Cant.")
-                lienzo.drawRightString(430, cursor_y, "Precio unit.")
-                lienzo.drawRightString(510, cursor_y, "Importe")
+                lienzo.drawRightString(320, cursor_y, "Cant.")
+                lienzo.drawRightString(390, cursor_y, "Precio unit.")
+                lienzo.drawRightString(470, cursor_y, "Importe")
                 cursor_y -= 14
                 lienzo.setFont("Helvetica", 10)
-
             descripcion = (item.nombre or "").strip()
             tipo_linea = (item.tipo or "").strip()
             if tipo_linea:
                 descripcion = f"{tipo_linea.capitalize()} - {descripcion}" if descripcion else tipo_linea.capitalize()
-
-            lienzo.drawString(50, cursor_y, descripcion[:80])
-            lienzo.drawRightString(350, cursor_y, f"{float(item.cantidad or 0):.2f}")
-            lienzo.drawRightString(430, cursor_y, f"S/ {float(item.precio_unit or 0):.2f}")
-            lienzo.drawRightString(510, cursor_y, f"S/ {float(item.subtotal or 0):.2f}")
+            cantidad = float(item.cantidad or 0)
+            precio_unit = float(item.precio_unit or 0)
+            lienzo.drawString(50, cursor_y, descripcion[:70])
+            lienzo.drawRightString(320, cursor_y, f"{cantidad:.2f}")
+            lienzo.drawRightString(400, cursor_y, f"S/ {precio_unit:.2f}")
+            lienzo.drawRightString(470, cursor_y, f"S/ {float(item.subtotal or (cantidad * precio_unit)):.2f}")
             cursor_y -= 14
 
     cursor_y -= 8
     lienzo.setFont("Helvetica", 10)
-    lienzo.drawRightString(520, cursor_y, f"Subtotal: S/ {float(subtotal):.2f}")
+    lienzo.drawRightString(470, cursor_y, f"Subtotal: S/ {float(subtotal):.2f}")
     cursor_y -= 16
-    lienzo.drawRightString(520, cursor_y, f"Descuento aplicado: S/ {float(descuento):.2f}")
+    lienzo.drawRightString(470, cursor_y, f"Descuento aplicado: S/ {float(descuento):.2f}")
     cursor_y -= 16
     lienzo.setFont("Helvetica-Bold", 11)
-    lienzo.drawRightString(510, cursor_y, f"Total: S/ {float(total):.2f}")
-    cursor_y -= 24
+    lienzo.drawRightString(470, cursor_y, f"Total: S/ {float(total):.2f}")
+    cursor_y -= 22
 
     try:
         total_letras = numero_a_letras(float(total), moneda="soles")
     except Exception:
         total_letras = f"{float(total):.2f}"
-    lienzo.drawString(50, cursor_y, f"Importe: {total_letras}")
-    cursor_y -= 24
+    lienzo.setFont("Helvetica-Bold", 10)
+    lienzo.drawString(50, cursor_y, f"Total en letras: {total_letras}")
+    cursor_y -= 20
 
-    lienzo.line(50, cursor_y, width - 50, cursor_y)
-    cursor_y -= 24
-
-    lienzo.setFont("Helvetica-Oblique", 10)
+    lienzo.setFont("Helvetica", 9.5)
     lienzo.drawString(50, cursor_y, "Documento generado automaticamente por el sistema de gestion.")
     lienzo.showPage()
     lienzo.save()

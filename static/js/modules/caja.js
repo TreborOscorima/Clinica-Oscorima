@@ -384,8 +384,12 @@ window.CajaModule = (function () {
     itemQ.addEventListener("blur", ()=>setTimeout(()=>suggest.style.display="none",150));
     suggest.addEventListener("click",(e)=>{
       const el = e.target.closest(".sug"); if(!el) return;
-      selected = { id:Number(li.dataset.id), nombre: li.dataset.nombre, precio: Number(li.dataset.precio||0) };
-      itemQ.value = selected.nombre;
+      selected = {
+        id: Number(el.dataset.id),
+        nombre: el.dataset.nombre,
+        precio: Number(el.dataset.precio || 0),
+      };
+      itemQ.value = selected.nombre || "";
       if (!itemPrecio.value) itemPrecio.value = selected.precio || "";
       suggest.style.display="none";
     });

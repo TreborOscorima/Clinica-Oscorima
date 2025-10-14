@@ -65,23 +65,39 @@
 
         <main class="content">
           <section id="login-view" class="auth-wrapper">
-            <div class="auth-card">
-              <div class="auth-card__heading">
-                <h2>Bienvenido</h2>
-                <p>Ingresá con tus credenciales para administrar la clínica.</p>
+            <div class="auth-layout">
+              <div class="auth-layout__content">
+              <div class="auth-hero">
+                <div class="auth-hero__badge">WAYKI</div>
+                <h2 class="auth-hero__title">Gesti&oacute;n Cl&iacute;nica Est&eacute;tica</h2>
+                <p class="auth-hero__subtitle">
+                  Administra turnos, caja, inventario y reportes desde una sola plataforma.
+                </p>
+                <ul class="auth-hero__list">
+                  <li>Agenda inteligente y recordatorios.</li>
+                  <li>Control de caja y movimientos en tiempo real.</li>
+                  <li>Reportes listos para exportar.</li>
+                </ul>
               </div>
-              <form id="login-form" class="form">
-                <div class="form-field">
-                  <label for="login-email" class="form-field__label">Email</label>
-                  <input id="login-email" type="email" placeholder="admin@clinic.local" required />
+              <div class="auth-card">
+                <div class="auth-card__heading">
+                  <h2>Bienvenido</h2>
+                  <p>Ingres&aacute; con tus credenciales para administrar la cl&iacute;nica.</p>
                 </div>
-                <div class="form-field">
-                  <label for="login-pass" class="form-field__label">Contraseña</label>
-                  <input id="login-pass" type="password" placeholder="Admin123!" required />
-                </div>
-                <button id="btn-login" type="submit" class="button button--primary">Entrar</button>
-              </form>
-              <p id="login-msg" class="form-actions__feedback"></p>
+                <form id="login-form" class="form">
+                  <div class="form-field">
+                    <label for="login-email" class="form-field__label">Email</label>
+                    <input id="login-email" type="email" placeholder="admin@clinic.local" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="login-pass" class="form-field__label">Contrase&ntilde;a</label>
+                    <input id="login-pass" type="password" placeholder="Admin123!" required />
+                  </div>
+                  <button id="btn-login" type="submit" class="button button--primary button--full">Entrar</button>
+                </form>
+                <p id="login-msg" class="form-actions__feedback"></p>
+              </div>
+              </div>
             </div>
           </section>
 
