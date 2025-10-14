@@ -31,6 +31,9 @@ MANAGED_MODULES = [
 
 
 def _ensure_permissions() -> None:
+    # Guarantees the table exists even if the DB was provisioned before the model
+    RolePermission.__table__.create(bind=db.engine, checkfirst=True)
+
     created = False
     for role in RoleEnum:
         for module in MANAGED_MODULES:
