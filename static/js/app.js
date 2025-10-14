@@ -23,6 +23,7 @@ const routes = {
       { route: "caja", title: "Caja", description: "Movimientos, cobros y cierres diarios." },
       { route: "inventario", title: "Inventario", description: "Control de insumos, stock y movimientos." },
       { route: "reportes", title: "Reportes", description: "Análisis de facturación, pacientes e inventario." },
+      { route: "config", title: "Configuración", description: "Usuarios, roles y permisos de acceso." },
     ];
 
     routeContent.innerHTML = `
@@ -59,6 +60,7 @@ const routes = {
   caja: window.CajaModule.render,
   inventario: window.InventarioModule.render,
   reportes: window.ReportesModule.render,
+  config: window.ConfigModule.render,
 };
 
 function setActiveNav(route) {

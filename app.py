@@ -5,7 +5,7 @@ from config import Config
 from extensions import init_extensions, db
 
 # === Importar TODOS los modelos antes de create_all() ===
-from models.user import User, RoleEnum
+from models.user import User, RoleEnum, RolePermission
 from models.paciente import Paciente
 from models.profesional import Profesional
 from models.servicio import Servicio
@@ -28,6 +28,7 @@ from routes import (
     profesionales as profesionales_routes,
     servicios as servicios_routes,
     servicio_insumos as servicio_insumos_routes,
+    configuracion as configuracion_routes,
     inventario as inventario_routes,
     turnos as turnos_routes,
     caja as caja_routes,
@@ -53,6 +54,7 @@ def create_app():
     app.register_blueprint(inventario_routes.bp)
     app.register_blueprint(reportes_routes.bp)
     app.register_blueprint(servicio_insumos_routes.bp)
+    app.register_blueprint(configuracion_routes.bp)
 
     return app
 

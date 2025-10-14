@@ -26,3 +26,16 @@ class User(db.Model):
 
     def check_password(self, raw):
         return bcrypt.verify(raw, self.password_hash)
+
+
+class RolePermission(db.Model):
+    __tablename__ = "role_permissions"
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(SAEnum(RoleEnum), nullable=False)
+    module = db.Column(db.String(64), nullable=False)
+    can_read = db.Column(db.Boolean, default=True)
+    can_write = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("role", "module", name="uq_role_permissions"),)
