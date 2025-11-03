@@ -1148,3 +1148,8 @@ body:not(.is-authenticated) .content{ padding:0; }
 .report-actions .button { min-width: 140px; }
 .inv-card--purchase .table th:first-child,
 .inv-card--purchase .table td:first-child { min-width: 280px; }
+
+/* Helpers para alinear botones con inputs y celdas CTA */
+.btn--h44{ height:44px; display:inline-flex; align-items:center; padding-inline:16px; }
+.form-field--center{ display:flex; flex-direction:column; justify-content:flex-end; }
+.form-field--cta{ display:flex; align-items:flex-end; justify-content:flex-end; }
