@@ -13,8 +13,18 @@ window.ReportesModule = (function(){
   }
 
   async function downloadReport(basePath, params, fallbackName){
-    const token = API.token();
     const headers = {};
+    try {
+      await API.ensureAccessToken();
+    } catch (err) {
+      alert("Sesion expirada. Inicia sesion nuevamente.");
+      return;
+    }
+    if (!API.hasSession()) {
+      alert("Sesion expirada. Inicia sesion nuevamente.");
+      return;
+    }
+    const token = API.token();
     if (token) headers["Authorization"] = "Bearer " + token;
     const url = `${basePath}${params.toString() ? `?${params}` : ""}`;
     try {

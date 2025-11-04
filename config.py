@@ -23,3 +23,4 @@ class Config:
 
     # 🔑 Token JWT prolongado: 7 días
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)

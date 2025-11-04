@@ -14,26 +14,17 @@ window.CajaModule = (function () {
   // =======================
   // API helper con token + headers extra
   // =======================
+  const apiClient = window.API;
   const API = {
     async request(path, opts = {}) {
-      const token =
-        localStorage.getItem("token") ||
-        sessionStorage.getItem("token") ||
-        "";
-      const base = opts.raw ? {} : { "Content-Type": "application/json" };
-      const auth = token ? { Authorization: `Bearer ${token}` } : {};
-      const headers = Object.assign({}, base, auth, opts.headers || {});
-      const res = await fetch(path, { ...opts, headers });
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { const j = await res.json(); msg = j.message || j.error || msg; } catch (_){}
-        throw new Error(msg);
+      if (!apiClient || typeof apiClient.request !== "function") {
+        throw new Error("API client no disponible");
       }
-      if (opts.raw) return res;
-      const ct = res.headers.get("content-type") || "";
-      return ct.includes("application/json") ? res.json() : res.text();
+      return apiClient.request(path, opts);
     },
-    get(path) { return this.request(path); },
+    get(path) {
+      return this.request(path);
+    },
     post(path, body, extra = {}) {
       return this.request(path, { method: "POST", body: JSON.stringify(body), ...(extra || {}) });
     },
@@ -577,7 +568,8 @@ window.CajaModule = (function () {
           const btn = document.getElementById("pos-dlpdf");
           btn.addEventListener("click", async ()=>{
             try{
-              const res = await API.request(r.pdf_url, { raw:true });
+              const res = await API.request(r.pdf_url, { headers: { Accept: "application/pdf" } });
+              if (!(res instanceof Response)) throw new Error("Respuesta inesperada del servidor");
               const blob = await res.blob(); const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url;
               const nombre = `${(r.comprobante?.tipo || "comp").toUpperCase()}_${r.comprobante?.numero || r.comprobante?.id}.pdf`;

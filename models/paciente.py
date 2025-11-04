@@ -1,6 +1,6 @@
 # models/paciente.py
 from extensions import db
-from datetime import date
+from datetime import date, datetime
 
 class Paciente(db.Model):
     __tablename__ = "pacientes"
@@ -13,8 +13,8 @@ class Paciente(db.Model):
     telefono = db.Column(db.String(60))
     fecha_nacimiento = db.Column(db.Date)
     contacto_emergencia = db.Column(db.String(160))
-    created_at = db.Column(db.DateTime)
-    updated_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def edad(self):

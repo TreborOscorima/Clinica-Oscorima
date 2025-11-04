@@ -95,7 +95,7 @@ function navigate(route) {
 
 // abre la ruta del hash si existe (ej: #/caja?turno=5)
 function openFromHash() {
-  if (!API.token()) return; // si no hay token, no navegar
+  if (!API.hasSession()) return; // si no hay token valido, no navegar
   if (location.hash.startsWith("#/")) {
     const route = location.hash.slice(2).split("?")[0];
     if (routes[route]) return navigate(route);
@@ -105,15 +105,24 @@ function openFromHash() {
 }
 
 // --- auth guard ---
-function checkAuth() {
-  const has = !!API.token();
+async function checkAuth() {
+  let has = API.hasSession();
+  if (has) {
+    try {
+      await API.ensureAccessToken();
+      has = API.hasSession();
+    } catch (err) {
+      has = false;
+    }
+  }
   loginView.style.display = has ? "none" : "block";
   routerView.style.display = has ? "block" : "none";
   document.body.classList.toggle('is-authenticated', has);
   if (!has) {
     closeSidebar();
+  } else {
+    openFromHash();
   }
-  if (has) openFromHash();
 }
 
 // --- login wiring (click + submit + errores) ---
@@ -129,21 +138,30 @@ async function doLogin(ev) {
   const email = (emailEl.value || "").trim();
   const password = passEl.value || "";
   if (!email || !password) {
-    loginMsg.textContent = "Completá email y contraseña.";
+    loginMsg.textContent = "Completa email y contrasena.";
     return;
   }
   try {
     const res = await API.request("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+      auth: "none",
     });
-    const token = res.access_token || res.token;
-    if (!token) throw new Error("La respuesta no trajo token.");
-    API.setToken(token);
-    loginMsg.textContent = "¡Bienvenido!";
-    checkAuth();
+    const { access_token, refresh_token, expires_at, refresh_expires_at } = res || {};
+    if (!access_token || !refresh_token) {
+      throw new Error("La respuesta no incluyo tokens de sesion.");
+    }
+    API.setTokens({
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      expiresAt: expires_at,
+      refreshExpiresAt: refresh_expires_at,
+    });
+    loginMsg.textContent = "Bienvenido!";
+    await checkAuth();
   } catch (e) {
-    loginMsg.textContent = e.message || "Credenciales inválidas o servidor no disponible.";
+    API.clearTokens();
+    loginMsg.textContent = (e && e.message) || "Credenciales invalidas o servidor no disponible.";
   }
 }
 
@@ -154,9 +172,10 @@ if (btnLogin)  btnLogin.addEventListener("click", doLogin);
 document.querySelectorAll("nav a[data-route]").forEach(a => {
   a.addEventListener("click", (ev) => {
     ev.preventDefault();
-    if (!API.token()) { checkAuth(); return; }
+    if (!API.hasSession()) { checkAuth(); return; }
     const route = a.dataset.route;
     navigate(route);
+    closeSidebar();
   });
 });
 
@@ -169,18 +188,44 @@ if (navToggleBtn && sidebarEl) {
 }
 
 
+
+if (sidebarEl) {
+  document.addEventListener("click", (ev) => {
+    if (!bodyEl.classList.contains('sidebar-open')) return;
+    if (sidebarEl.contains(ev.target)) return;
+    if (navToggleBtn && navToggleBtn.contains(ev.target)) return;
+    closeSidebar();
+  });
+}
+
+window.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && bodyEl.classList.contains('sidebar-open')) {
+    closeSidebar();
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (window.innerWidth >= 960) {
+    closeSidebar();
+  }
+});
+
+window.addEventListener("api:session-ended", () => {
+  checkAuth();
+});
+
 // --- logout ---
-document.getElementById("logout").addEventListener("click", (e) => {
+document.getElementById("logout").addEventListener("click", async (e) => {
   e.preventDefault();
-  localStorage.removeItem("token");
+  API.clearTokens();
   location.hash = "";
   closeSidebar();
-  checkAuth();
+  await checkAuth();
 });
 
 // --- cambiar de ruta si cambia el hash (ej: desde Turnos -> Caja con ?turno=ID) ---
 window.addEventListener("hashchange", () => {
-  if (!API.token()) return;
+  if (!API.hasSession()) return;
   openFromHash();
 });
 
