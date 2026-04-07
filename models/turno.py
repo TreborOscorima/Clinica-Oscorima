@@ -20,7 +20,7 @@ class Turno(db.Model):
     servicio_id = db.Column(db.Integer, ForeignKey("servicios.id"))
 
     fecha_hora = db.Column(db.DateTime, nullable=False)
-    created_by_id = db.Column(db.Integer, ForeignKey("users.id"))
+    created_by_id = db.Column(db.Integer, ForeignKey("usuarios.id"))
     estado = db.Column(SAEnum(EstadoTurno), default=EstadoTurno.PENDIENTE)
     motivo_cancelacion = db.Column(db.String(240))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

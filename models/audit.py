@@ -1,8 +1,10 @@
 from datetime import datetime
 from extensions import db
 
-class AuditLog(db.Model):
-    __tablename__ = "audit_logs"
+
+class Auditoria(db.Model):
+    """Registro de auditoría de acciones del sistema."""
+    __tablename__ = "auditoria"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=True)
     action = db.Column(db.String(120), nullable=False)

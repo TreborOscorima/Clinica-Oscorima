@@ -60,7 +60,7 @@ class CierreCaja(db.Model):
     total_ingresos = db.Column(db.Numeric(10, 2), default=0)
     total_egresos = db.Column(db.Numeric(10, 2), default=0)
     saldo = db.Column(db.Numeric(10, 2), default=0)
-    usuario_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)
+    usuario_id = db.Column(db.Integer, ForeignKey("usuarios.id"), nullable=True)
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
 
 

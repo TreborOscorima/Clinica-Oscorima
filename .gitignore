@@ -62,3 +62,12 @@ uploads/
 media/
 logs/
 *.log
+
+# -------- Exports generados (reportes dinámicos) --------
+exports/
+
+# -------- Flask-Migrate --------
+# OJO: la carpeta migrations/ SÍ debe commitearse (histórico de esquema de DB)
+# pero los archivos compilados de Alembic no:
+migrations/__pycache__/
+migrations/versions/__pycache__/

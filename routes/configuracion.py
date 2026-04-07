@@ -6,16 +6,16 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required
 
 from extensions import db
-from models.user import User, RoleEnum, RolePermission
-from schemas.user import UserSchema, RolePermissionSchema
+from models.user import User, RoleEnum, PermisoRol
+from schemas.user import UserSchema, PermisoRolSchema
 from utils.decorators import role_required
 
 bp = Blueprint("configuracion", __name__, url_prefix="/api/config")
 
 user_schema = UserSchema()
 user_many = UserSchema(many=True)
-perm_schema = RolePermissionSchema()
-perm_many = RolePermissionSchema(many=True)
+perm_schema = PermisoRolSchema()
+perm_many = PermisoRolSchema(many=True)
 
 MANAGED_MODULES = [
     {"key": "dashboard", "label": "Dashboard"},
@@ -31,16 +31,16 @@ MANAGED_MODULES = [
 
 
 def _ensure_permissions() -> None:
-    # Guarantees the table exists even if the DB was provisioned before the model
-    RolePermission.__table__.create(bind=db.engine, checkfirst=True)
+    # Garantiza que la tabla existe incluso si la DB fue provisionada antes del modelo
+    PermisoRol.__table__.create(bind=db.engine, checkfirst=True)
 
     created = False
     for role in RoleEnum:
         for module in MANAGED_MODULES:
-            exists = RolePermission.query.filter_by(role=role, module=module["key"]).first()
+            exists = PermisoRol.query.filter_by(role=role, module=module["key"]).first()
             if not exists:
                 db.session.add(
-                    RolePermission(
+                    PermisoRol(
                         role=role,
                         module=module["key"],
                         can_read=True,
@@ -129,7 +129,7 @@ def actualizar_usuario(uid: int):
 @role_required("administracion")
 def listar_permisos():
     _ensure_permissions()
-    permisos = RolePermission.query.order_by(RolePermission.role.asc(), RolePermission.module.asc()).all()
+    permisos = PermisoRol.query.order_by(PermisoRol.role.asc(), PermisoRol.module.asc()).all()
     return {
         "data": perm_many.dump(permisos),
         "modules": MANAGED_MODULES,
@@ -141,7 +141,7 @@ def listar_permisos():
 @jwt_required()
 @role_required("administracion")
 def actualizar_permiso(pid: int):
-    permiso: RolePermission = RolePermission.query.get_or_404(pid)
+    permiso: PermisoRol = PermisoRol.query.get_or_404(pid)
     payload = request.get_json(silent=True) or {}
 
     if "can_read" in payload:

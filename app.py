@@ -1,11 +1,24 @@
 # app.py
+"""
+Punto de entrada principal — WaykiSAC Sistema de Gestión para Clínicas
+
+Comandos:
+    python app.py run          — Inicia el servidor de desarrollo
+    python app.py db_create    — Crea tablas (solo para desarrollo inicial)
+    python app.py seed_admin   — Crea el usuario admin por defecto
+
+Para migraciones de producción (Flask-Migrate):
+    flask --app app:create_app db init      # Solo la primera vez
+    flask --app app:create_app db migrate   # Cada vez que cambies un modelo
+    flask --app app:create_app db upgrade   # Aplica la migración a la DB
+"""
 import sys
 from flask import Flask, render_template
 from config import Config
 from extensions import init_extensions, db
 
-# === Importar TODOS los modelos antes de create_all() ===
-from models.user import User, RoleEnum, RolePermission
+# ─── Importar todos los modelos ANTES de create_all() / Migrate ───────────────
+from models.user import User, RoleEnum, PermisoRol
 from models.paciente import Paciente
 from models.profesional import Profesional
 from models.servicio import Servicio
@@ -16,12 +29,12 @@ from models.turno import Turno, EstadoTurno
 from models.caja import (
     Comprobante,
     CierreCaja,
-    CajaMovimiento,     
-    ComprobanteItem,    
-    DeudaPaciente,        
+    CajaMovimiento,
+    ComprobanteItem,
+    DeudaPaciente,
 )
 
-# === Rutas / Blueprints ===
+# ─── Blueprints ───────────────────────────────────────────────────────────────
 from routes import (
     auth as auth_routes,
     pacientes as pacientes_routes,
@@ -35,16 +48,21 @@ from routes import (
     reportes as reportes_routes,
 )
 
-def create_app():
+
+def create_app() -> Flask:
+    """
+    App factory pattern — compatible con Flask CLI y Flask-Migrate.
+    Usar: flask --app app:create_app <comando>
+    """
     app = Flask(__name__, static_folder="static", template_folder="templates")
     app.config.from_object(Config)
-    init_extensions(app)
+    init_extensions(app)  # Registra db, jwt, migrate, limiter, cors
 
     @app.get("/")
     def index():
         return render_template("index.html")
 
-    # Registrar blueprints
+    # ─── Registrar blueprints ─────────────────────────────────────────────────
     app.register_blueprint(auth_routes.bp)
     app.register_blueprint(pacientes_routes.bp)
     app.register_blueprint(profesionales_routes.bp)
@@ -58,13 +76,23 @@ def create_app():
 
     return app
 
-def db_create():
+
+# ─── Comandos de CLI (solo para desarrollo) ───────────────────────────────────
+
+def db_create() -> None:
+    """
+    Crea todas las tablas directamente (solo para desarrollo inicial).
+    En PRODUCCIÓN usa: flask --app app:create_app db upgrade
+    """
     app = create_app()
     with app.app_context():
         db.create_all()
-        print("✔ Tablas creadas")
+        print("✔ Tablas creadas (desarrollo)")
+        print("⚠  En producción usa: flask --app app:create_app db upgrade")
 
-def seed_admin():
+
+def seed_admin() -> None:
+    """Crea el usuario administrador por defecto si no existe."""
     app = create_app()
     with app.app_context():
         if not User.query.filter_by(email="admin@clinic.local").first():
@@ -73,13 +101,22 @@ def seed_admin():
             db.session.add(u)
             db.session.commit()
             print("✔ Admin creado: admin@clinic.local / Admin123!")
+            print("⚠  Cambia esta contraseña inmediatamente en producción.")
         else:
             print("ℹ Admin ya existe")
 
-def run():
+
+def run() -> None:
+    """Inicia el servidor de desarrollo."""
     app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True)
 
+
 if __name__ == "__main__":
+    _commands = {
+        "db_create": db_create,
+        "seed_admin": seed_admin,
+        "run": run,
+    }
     cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
-    {"db_create": db_create, "seed_admin": seed_admin, "run": run}.get(cmd, lambda: print("Comandos: db_create | seed_admin | run"))()
+    _commands.get(cmd, lambda: print("Comandos: db_create | seed_admin | run"))()

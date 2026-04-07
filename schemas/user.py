@@ -1,6 +1,6 @@
 from marshmallow_sqlalchemy import SQLAlchemySchema, auto_field
 
-from models.user import User, RolePermission
+from models.user import User, PermisoRol
 
 
 class UserSchema(SQLAlchemySchema):
@@ -17,9 +17,9 @@ class UserSchema(SQLAlchemySchema):
     updated_at = auto_field(dump_only=True)
 
 
-class RolePermissionSchema(SQLAlchemySchema):
+class PermisoRolSchema(SQLAlchemySchema):
     class Meta:
-        model = RolePermission
+        model = PermisoRol
         load_instance = True
 
     id = auto_field(dump_only=True)
