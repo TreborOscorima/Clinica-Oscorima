@@ -58,70 +58,62 @@ window.ProfesionalesModule = (function(){
   function render(){
     routeTitle.textContent = "Profesionales";
     routeContent.innerHTML = `
-      <div class="page-shell profesionales-page">
-        <section class="section-block">
+      <div class="page-shell profesionales-page split-layout">
+        <aside class="split-layout__sidebar">
           <article class="card form-card profesionales-card">
             <header class="card__header">
-              <p class="card__eyebrow">Gestión</p>
-              <h2 class="card__title">Profesionales</h2>
-              <p class="card__subtitle">Administra los profesionales que atienden en la clínica.</p>
+              <h2 class="card__title" id="pro-form-title">Registrar profesional</h2>
             </header>
-
             <div class="card__body">
+              <div class="form-grid profesionales-form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-field">
+                  <label class="form-field__label" for="pro-dni">DNI</label>
+                  <input id="pro-dni" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pro-nombres">Nombres</label>
+                  <input id="pro-nombres" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pro-apellidos">Apellidos</label>
+                  <input id="pro-apellidos" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pro-esp">Especialidad</label>
+                  <input id="pro-esp" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pro-mat">Matrícula</label>
+                  <input id="pro-mat" class="input" autocomplete="off">
+                </div>
+              </div>
+              <div class="profesionales-form-actions" style="margin-top: var(--space-4);">
+                <div id="pro-msg" class="form-feedback"></div>
+                <div class="profesionales-buttons" style="display: flex; gap: 8px;">
+                  <button id="pro-cancel" type="button" class="button button--ghost" style="width: 100%;">Cancelar</button>
+                  <button id="pro-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </aside>
+
+        <main class="split-layout__main">
+          <article class="card list-card profesionales-list-card" style="height: 100%;">
+            <header class="card__header">
+              <h2 class="card__title">Catálogo de Profesionales</h2>
+            </header>
+            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
               <div class="card-section profesionales-search">
                 <div class="card-section__body">
-                  <div class="form-field">
+                  <div class="form-field" style="max-width: 320px;">
                     <label class="form-field__label" for="pro-buscar">Buscar</label>
                     <input id="pro-buscar" class="input" placeholder="Nombre, apellido o DNI" autocomplete="off">
                   </div>
                 </div>
               </div>
 
-              <div class="card-section">
-                <h3 class="card-section__title" id="pro-form-title">Registrar profesional</h3>
-                <div class="card-section__body">
-                  <div class="form-grid profesionales-form-grid">
-                    <div class="form-field">
-                      <label class="form-field__label" for="pro-dni">DNI</label>
-                      <input id="pro-dni" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pro-nombres">Nombres</label>
-                      <input id="pro-nombres" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pro-apellidos">Apellidos</label>
-                      <input id="pro-apellidos" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pro-esp">Especialidad</label>
-                      <input id="pro-esp" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pro-mat">Matrícula</label>
-                      <input id="pro-mat" class="input" autocomplete="off">
-                    </div>
-                  </div>
-                  <div class="profesionales-form-actions">
-                    <div id="pro-msg" class="form-feedback"></div>
-                    <div class="profesionales-buttons">
-                      <button id="pro-cancel" type="button" class="button button--ghost">Cancelar</button>
-                      <button id="pro-guardar" type="button" class="button button--primary">Guardar</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="card list-card profesionales-list-card">
-            <header class="card__header">
-              <p class="card__eyebrow">Listado</p>
-              <h2 class="card__title">Profesionales registrados</h2>
-              <p class="card__subtitle">Consulta y gestiona a los profesionales en servicio.</p>
-            </header>
-            <div class="card__body">
-              <div class="table-shell profesionales-table">
+              <div class="table-shell profesionales-table grow">
                 <table class="table table--full" id="pro-tabla">
                   <thead>
                     <tr><th>DNI</th><th>Nombre</th><th>Especialidad</th><th>Matrícula</th><th>Acciones</th></tr>
@@ -132,7 +124,7 @@ window.ProfesionalesModule = (function(){
               <div id="pro-pagination" class="table-pagination"></div>
             </div>
           </article>
-        </section>
+        </main>
       </div>
     `;
 

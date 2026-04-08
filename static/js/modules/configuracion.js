@@ -180,13 +180,12 @@ window.ConfigModule = (function () {
           })
           .join("");
         return `
-          <article class="card config-card">
-            <header class="card__header">
-              <h3 class="card__title">Rol: ${roleLabels[role] || role}</h3>
-              <p class="card__subtitle">Defina accesos de lectura y escritura por módulo.</p>
+          <article class="card config-card" style="margin-bottom: 0;">
+            <header class="card__header" style="background: var(--color-surface-soft); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); border-radius: 6px 6px 0 0;">
+              <h3 class="card__title" style="font-size: 1rem;">Rol: ${roleLabels[role] || role}</h3>
             </header>
-            <div class="card__body">
-              <table class="table table--compact">
+            <div class="card__body" style="padding: 0;">
+              <table class="table table--compact" style="margin: 0; font-size: 0.85rem; border: none;">
                 <thead>
                   <tr><th>Módulo</th><th class="table-center">Lectura</th><th class="table-center">Edición</th></tr>
                 </thead>
@@ -250,17 +249,16 @@ window.ConfigModule = (function () {
   function render() {
     routeTitle.textContent = "Configuración";
     routeContent.innerHTML = `
-      <div class="page-shell config-page">
-        <section class="section-block">
-          <article class="card">
+      <div class="page-shell config-page split-layout">
+        <aside class="split-layout__sidebar" style="display: flex; flex-direction: column; gap: var(--space-5);">
+          <article class="card form-card">
             <header class="card__header">
-              <p class="card__eyebrow">Usuarios</p>
-              <h2 class="card__title">Gestión de usuarios y roles</h2>
-              <p class="card__subtitle">Cree nuevas cuentas, asigne roles y active o desactive el acceso.</p>
+              <h2 class="card__title">Nuevo Usuario</h2>
+              <p class="card__subtitle">Cree cuentas y asigne roles.</p>
             </header>
             <div class="card__body config-users">
               <form id="cfg-user-form" class="form config-user-form">
-                <div class="form-grid config-user-grid">
+                <div class="form-grid config-user-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
                   <div class="form-field">
                     <label class="form-field__label">Nombre</label>
                     <input name="nombre" class="input" required placeholder="Nombre completo">
@@ -269,25 +267,35 @@ window.ConfigModule = (function () {
                     <label class="form-field__label">Email</label>
                     <input name="email" type="email" class="input" required placeholder="usuario@dominio.com">
                   </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Rol</label>
-                    <select name="rol" class="input input--select" required>
-                      ${Object.entries(roleLabels)
-                        .map(([value, label]) => `<option value="${value}">${label}</option>`)
-                        .join("")}
-                    </select>
-                  </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Contraseña</label>
-                    <input name="password" type="password" class="input" required placeholder="Contraseña inicial">
+                  <div class="form-grid form-grid--two">
+                      <div class="form-field">
+                        <label class="form-field__label">Rol</label>
+                        <select name="rol" class="input input--select" required>
+                          ${Object.entries(roleLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
+                        </select>
+                      </div>
+                      <div class="form-field">
+                        <label class="form-field__label">Contraseña</label>
+                        <input name="password" type="password" class="input" required placeholder="Inicial">
+                      </div>
                   </div>
                 </div>
-                <div class="form-actions">
-                  <button type="submit" class="button button--primary">Crear usuario</button>
+                <div class="form-actions" style="margin-top: var(--space-4);">
+                  <button type="submit" class="button button--primary" style="width: 100%;">Crear usuario</button>
                 </div>
               </form>
+            </div>
+          </article>
+        </aside>
 
-              <div class="table-shell">
+        <main class="split-layout__main" style="display: flex; flex-direction: column; gap: var(--space-5);">
+          
+          <article class="card list-card">
+            <header class="card__header">
+              <h2 class="card__title">Directorio de Usuarios</h2>
+            </header>
+            <div class="card__body">
+              <div class="table-shell" style="max-height: 250px;">
                 <table class="table table--compact">
                   <thead>
                     <tr>
@@ -303,17 +311,19 @@ window.ConfigModule = (function () {
             </div>
           </article>
 
-          <article class="card">
+          <article class="card list-card">
             <header class="card__header">
-              <p class="card__eyebrow">Permisos</p>
               <h2 class="card__title">Accesos por módulos</h2>
-              <p class="card__subtitle">Controle qué puede ver o editar cada rol dentro del sistema.</p>
+              <p class="card__subtitle" style="margin-top: 4px;">Controle qué puede ver o editar cada rol dentro del sistema.</p>
             </header>
-            <div class="card__body config-perms-wrapper" id="cfg-perms-wrapper">
-              <div class="muted">Cargando permisos...</div>
+            <div class="card__body">
+              <div id="cfg-perms-wrapper" class="config-perms-wrapper" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); background: var(--color-surface-soft); padding: 16px; border-radius: 8px;">
+                <div class="muted">Cargando permisos...</div>
+              </div>
             </div>
           </article>
-        </section>
+
+        </main>
       </div>
     `;
 

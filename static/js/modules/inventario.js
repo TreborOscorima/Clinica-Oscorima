@@ -238,51 +238,84 @@ window.InventarioModule = (function(){
     routeTitle.textContent = "Inventario";
 
     routeContent.innerHTML = `
-      <div class="page-shell inventario-page">
-        <section class="section-block">
+      <div class="page-shell inventario-page split-layout">
+        <aside class="split-layout__sidebar" style="display: flex; flex-direction: column; gap: var(--space-5);">
           <article class="card inv-card inv-card--quick">
             <header class="card__header">
               <p class="card__eyebrow">Inventario</p>
-              <h2 class="card__title">Crear producto rapido</h2>
-              <p class="card__subtitle">Registra referencias basicas para cargar stock en segundos.</p>
+              <h2 class="card__title">Crear producto</h2>
             </header>
             <div class="card__body">
-              <div class="form-grid inv-quick-grid">
-                <div class="form-field"><label for="pr-sku">SKU</label><input id="pr-sku"></div>
-                <div class="form-field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required></div>
-                <div class="form-field"><label for="pr-min">Stock minimo</label><input id="pr-min" type="number" step="0.001"></div>
-                <div class="form-field"><label for="pr-pv">Precio venta</label><input id="pr-pv" type="number" step="0.01"></div>
-                <div class="form-field form-field--cta"><button id="pr-guardar" type="button" class="button button--primary">Guardar</button></div>
+              <div class="form-grid inv-quick-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
+                <div class="form-field"><label for="pr-sku">SKU</label><input id="pr-sku" class="input"></div>
+                <div class="form-field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required class="input"></div>
+                <div class="form-grid form-grid--two">
+                  <div class="form-field"><label for="pr-min">Stock min</label><input id="pr-min" type="number" step="0.001" class="input"></div>
+                  <div class="form-field"><label for="pr-pv">P. venta</label><input id="pr-pv" type="number" step="0.01" class="input"></div>
+                </div>
+                <div class="form-field form-field--cta"><button id="pr-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar producto</button></div>
               </div>
               <div id="pr-msg" class="form-feedback"></div>
             </div>
           </article>
-        </section>
 
-        <section class="section-block">
-          <article class="card inv-card inv-card--list">
+          <article class="card inv-card inv-card--purchase">
             <header class="card__header">
-              <h2 class="card__title">Listado de productos</h2>
-              <p class="card__subtitle">Administra precios, stock y estado de cada referencia.</p>
+              <h2 class="card__title">Registro de Compra</h2>
             </header>
             <div class="card__body">
-              <div class="form-grid inv-filters">
-                <div class="form-field"><label for="pl-q">Buscar</label><input id="pl-q" placeholder="SKU o nombre"></div>
-                <div class="form-field"><label for="pl-estado">Estado</label>
-                  <select id="pl-estado">
-                    <option value="">Todos</option>
+              <div class="form-grid inv-compra-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
+                <div class="form-field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre" class="input"></div>
+                <div class="form-grid form-grid--two">
+                  <div class="form-field"><label for="cp-tipo">Tipo doc</label>
+                    <select id="cp-tipo" class="input input--select"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
+                  </div>
+                  <div class="form-field"><label for="cp-numero">Num.</label><input id="cp-numero" placeholder="000-00" class="input"></div>
+                </div>
+                <div class="form-field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(opcional)" class="input"></div>
+              </div>
+              <div class="table-shell" style="max-height: 250px;">
+                <table class="table table--compact" id="cp-tabla" style="font-size: 0.8rem;">
+                  <thead><tr><th>Prod</th><th>Cant</th><th>Cost</th><th>Sub</th><th></th></tr></thead>
+                  <tbody id="cp-tbody"></tbody>
+                </table>
+              </div>
+              <div style="text-align: right; font-weight: bold; font-size: 0.95rem; margin-top: 8px;" id="cp-total">S/ 0.00</div>
+              <div class="form-actions inv-compra-actions" style="margin-top: var(--space-3); justify-content: space-between;">
+                <button id="cp-add-row" type="button" class="button button--ghost" style="padding: 0 10px; font-size: 0.8rem;">+ Item</button>
+                <div class="inv-compra-actions__right">
+                  <div id="cp-cancelar-wrap" style="display:none"><button id="cp-cancelar-ed" type="button" class="button button--ghost">Cancelar</button></div>
+                  <button id="cp-guardar" type="button" class="button button--primary">Guardar compra</button>
+                </div>
+              </div>
+              <div id="cp-compra-msg" class="form-feedback"></div>
+            </div>
+          </article>
+        </aside>
+
+        <main class="split-layout__main" style="display: flex; flex-direction: column; gap: var(--space-5);">
+          <article class="card inv-card inv-card--list">
+            <header class="card__header">
+              <h2 class="card__title">Listado general de productos</h2>
+            </header>
+            <div class="card__body">
+              <div class="form-grid inv-filters" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                <div class="form-field"><input id="pl-q" placeholder="SKU o nombre" class="input"></div>
+                <div class="form-field">
+                  <select id="pl-estado" class="input input--select">
+                    <option value="">Estado: Todos</option>
                     <option value="true">Activos</option>
                     <option value="false">Inactivos</option>
                   </select>
                 </div>
-                <div class="form-field"><label for="pl-per">Por pagina</label>
-                  <select id="pl-per"><option>10</option><option>25</option><option>50</option></select>
+                <div class="form-field">
+                  <select id="pl-per" class="input input--select"><option value="10">Filas: 10</option><option value="25">25</option><option value="50">50</option></select>
                 </div>
                 <div class="form-field form-field--cta"><button id="pl-filtrar" type="button" class="button button--primary">Aplicar</button></div>
               </div>
-              <div class="table-shell">
+              <div class="table-shell" style="max-height: calc(33vh);">
                 <table class="table">
-                  <thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Minimo</th><th>Precio venta</th><th>Ult. costo</th><th>Activo</th><th>Acciones</th></tr></thead>
+                  <thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Min</th><th>PV</th><th>Ult. costo</th><th>Activo</th><th>Acciones</th></tr></thead>
                   <tbody id="pl-tbody"></tbody>
                 </table>
               </div>
@@ -298,61 +331,21 @@ window.InventarioModule = (function(){
               <div id="pl-msg" class="form-feedback"></div>
             </div>
           </article>
-        </section>
 
-        <section class="section-block">
-          <article class="card inv-card inv-card--purchase">
-            <header class="card__header">
-              <h2 class="card__title">Registrar compra</h2>
-              <p class="card__subtitle">Carga facturas o boletas para actualizar stock y costos.</p>
-            </header>
-            <div class="card__body">
-              <div class="form-grid inv-compra-grid">
-                <div class="form-field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre del proveedor"></div>
-                <div class="form-field"><label for="cp-tipo">Tipo doc</label>
-                  <select id="cp-tipo"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
-                </div>
-                <div class="form-field"><label for="cp-numero">Numero</label><input id="cp-numero" placeholder="Serie-00000000"></div>
-                <div class="form-field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(si aplica)"></div>
-              </div>
-              <div class="table-shell">
-                <table class="table" id="cp-tabla">
-                  <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit</th><th>Subtotal</th><th></th></tr></thead>
-                  <tbody id="cp-tbody"></tbody>
-                  <tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td id="cp-total"><b>${money(0)}</b></td><td></td></tr></tfoot>
-                </table>
-              </div>
-              <div class="form-actions inv-compra-actions">
-                <button id="cp-add-row" type="button" class="button button--ghost">Agregar item</button>
-                <div class="inv-compra-actions__right">
-                  <div id="cp-cancelar-wrap" style="display:none">
-                    <button id="cp-cancelar-ed" type="button" class="button button--ghost">Cancelar edicion</button>
-                  </div>
-                  <button id="cp-guardar" type="button" class="button button--primary">Guardar compra</button>
-                </div>
-              </div>
-              <div id="cp-compra-msg" class="form-feedback"></div>
-            </div>
-          </article>
-        </section>
-
-
-        <section class="section-block">
           <article class="card inv-card inv-card--movimientos">
             <header class="card__header">
               <h2 class="card__title">Listado de movimientos</h2>
-              <p class="card__subtitle">Consulta ingresos, egresos y ajustes con filtros rapidos.</p>
             </header>
             <div class="card__body">
-              <div class="form-grid inv-mov-filters">
-                <div class="form-field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local"></div>
-                <div class="form-field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local"></div>
+              <div class="form-grid inv-mov-filters" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+                <div class="form-field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local" class="input"></div>
+                <div class="form-field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local" class="input"></div>
                 <div class="form-field"><label for="fl-tipo">Tipo</label>
-                  <select id="fl-tipo"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
+                  <select id="fl-tipo" class="input input--select"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
                 </div>
                 <div class="form-field form-field--cta"><button id="fl-filtrar" type="button" class="button button--primary">Filtrar</button></div>
               </div>
-              <div class="table-shell">
+              <div class="table-shell" style="max-height: calc(33vh);">
                 <table class="table">
                   <thead><tr><th>Fecha</th><th>Dato</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Ref</th><th></th></tr></thead>
                   <tbody id="mv-tbody"></tbody>
@@ -369,37 +362,36 @@ window.InventarioModule = (function(){
               </div>
             </div>
           </article>
-        </section>
 
-        <section class="section-block">
           <article class="card inv-card inv-card--kardex">
             <header class="card__header">
-              <h2 class="card__title">Kardex</h2>
-              <p class="card__subtitle">Revisa el detalle de movimientos y saldos por producto.</p>
+              <h2 class="card__title">Kardex por Producto</h2>
             </header>
             <div class="card__body">
-              <div class="form-grid inv-kardex-grid">
+              <div class="form-grid inv-kardex-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
                 <div class="form-field">
                   <label for="kx-prod">Producto</label>
-                  <input id="kx-prod" placeholder="Buscar producto" autocomplete="off">
-                  <div id="kx-sug" class="ac-list" style="display:none"></div>
+                  <div class="auto-complete">
+                    <input id="kx-prod" placeholder="Buscar..." autocomplete="off" class="input">
+                    <div id="kx-sug" class="ac-list" style="display:none"></div>
+                  </div>
                   <input type="hidden" id="kx-prod-id">
                 </div>
                 <div class="form-field">
-                  <label for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local">
+                  <label for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local" class="input">
                 </div>
                 <div class="form-field">
-                  <label for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local">
+                  <label for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local" class="input">
                 </div>
                 <div class="form-field">
                   <label for="kx-perpage">Mostrar</label>
-                  <select id="kx-perpage"><option value="10">Ultimos 10</option><option value="25">25</option><option value="50">50</option></select>
+                  <select id="kx-perpage" class="input input--select"><option value="10">10 res.</option><option value="25">25 res.</option><option value="50">50 res.</option></select>
+                </div>
+                <div class="form-field form-field--cta">
+                  <button id="kx-ver" type="button" class="button button--primary">Ver kardex</button>
                 </div>
               </div>
-              <div class="form-actions">
-                <button id="kx-ver" type="button" class="button button--primary">Ver kardex</button>
-              </div>
-              <div class="table-shell">
+              <div class="table-shell" style="max-height: calc(33vh);">
                 <table class="table">
                   <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Saldo</th><th>Motivo</th><th>Ref</th></tr></thead>
                   <tbody id="kx-tbody"></tbody>
@@ -416,7 +408,7 @@ window.InventarioModule = (function(){
               </div>
             </div>
           </article>
-        </section>
+        </main>
       </div>
     `;
 

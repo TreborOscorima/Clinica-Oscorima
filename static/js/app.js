@@ -14,32 +14,45 @@ if (footerYear) {
 
 const routes = {
   dashboard: () => {
-    routeTitle.textContent = "Dashboard";
+    routeTitle.textContent = "Dashboard General";
     const shortcuts = [
-      { route: "turnos", title: "Turnos", description: "Gestione turnos del día, semana o mes." },
-      { route: "pacientes", title: "Pacientes", description: "Altas rápidas y búsquedas." },
-      { route: "servicios", title: "Servicios", description: "Catálogo y protocolos." },
-      { route: "profesionales", title: "Profesionales", description: "Equipo y especialidades." },
-      { route: "caja", title: "Caja", description: "Movimientos, cobros y cierres diarios." },
-      { route: "inventario", title: "Inventario", description: "Control de insumos, stock y movimientos." },
-      { route: "reportes", title: "Reportes", description: "Análisis de facturación, pacientes e inventario." },
-      { route: "config", title: "Configuración", description: "Usuarios, roles y permisos de acceso." },
+      { route: "turnos", icon: "🗓️", title: "Turnos", description: "Gestione la agenda de los profesionales." },
+      { route: "caja", icon: "💳", title: "Caja", description: "Movimientos, cobros y facturación." },
+      { route: "pacientes", icon: "🧑‍🤝‍🧑", title: "Pacientes", description: "Fichas, altas rápidas e historiales." },
+      { route: "profesionales", icon: "🩺", title: "Profesionales", description: "Directorio del equipo y especialidades." },
+      { route: "inventario", icon: "📦", title: "Inventario", description: "Control de stock e insumos médicos." },
+      { route: "servicios", icon: "💼", title: "Servicios", description: "Precios y catálogo de tratamientos." },
+      { route: "reportes", icon: "📈", title: "Reportes", description: "Análisis y exportación de datos." },
+      { route: "configuracion", icon: "⚙️", title: "Ajustes", description: "Permisos, roles y usuarios del sistema." },
     ];
 
     routeContent.innerHTML = `
-      <div class="dashboard-shortcuts">
-        ${shortcuts
-          .map(
-            (item) => `
-              <article class="card card--shortcut" data-route="${item.route}" tabindex="0" role="button" aria-label="Ir a ${item.title}">
-                <div class="card__header">
-                  <h3 class="card__title">${item.title}</h3>
-                  <p class="card__subtitle">${item.description}</p>
-                </div>
-              </article>
-            `
-          )
-          .join("")}
+      <div class="page-shell">
+        <header class="page-header" style="margin-bottom: var(--space-5);">
+          <div>
+            <p class="page-header__eyebrow" style="color: var(--color-primary); font-weight: 600; text-transform: uppercase;">Bienvenido(a)</p>
+            <h1 class="page-header__title" style="font-size: 2rem;">Centro de Control</h1>
+            <p style="color: var(--color-muted); font-size: 1.05rem;">Acceda a todos los módulos desde aquí.</p>
+          </div>
+        </header>
+
+        <div class="dashboard-shortcuts" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-5);">
+          ${shortcuts
+            .map(
+              (item) => `
+                <article class="card card--shortcut" data-route="${item.route}" tabindex="0" role="button" aria-label="Ir a ${item.title}" style="display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-4); padding: var(--space-4);">
+                  <div style="font-size: 2rem; background: var(--color-primary-soft); width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                    ${item.icon}
+                  </div>
+                  <div style="flex: 1;">
+                    <h3 class="card__title" style="margin-bottom: 4px;">${item.title}</h3>
+                    <p class="card__subtitle" style="font-size: 0.9rem; line-height: 1.4;">${item.description}</p>
+                  </div>
+                </article>
+              `
+            )
+            .join("")}
+        </div>
       </div>
     `;
 
@@ -60,7 +73,7 @@ const routes = {
   caja: window.CajaModule.render,
   inventario: window.InventarioModule.render,
   reportes: window.ReportesModule.render,
-  config: window.ConfigModule.render,
+  configuracion: window.ConfigModule.render,
 };
 
 function setActiveNav(route) {

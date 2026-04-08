@@ -57,74 +57,68 @@ window.ServiciosModule = (function(){
   function render(){
     routeTitle.textContent = "Servicios / Tratamientos";
     routeContent.innerHTML = `
-      <div class="page-shell servicios-page">
-        <section class="section-block">
+      <div class="page-shell servicios-page split-layout">
+        <aside class="split-layout__sidebar">
           <article class="card form-card servicios-card">
             <header class="card__header">
-              <p class="card__eyebrow">Servicios</p>
-              <h2 class="card__title">Gestión de servicios</h2>
-              <p class="card__subtitle">Registra y actualiza los tratamientos disponibles en la clínica.</p>
+              <h2 class="card__title" id="srv-form-title">Registrar servicio</h2>
             </header>
-
             <div class="card__body">
+              <div class="form-grid servicios-form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-field">
+                  <label class="form-field__label" for="srv-nombre">Nombre</label>
+                  <input id="srv-nombre" class="input" autocomplete="off">
+                </div>
+                <div class="form-grid form-grid--two">
+                    <div class="form-field">
+                    <label class="form-field__label" for="srv-precio">Precio</label>
+                    <input id="srv-precio" class="input" type="number" step="0.01" min="0">
+                    </div>
+                    <div class="form-field">
+                    <label class="form-field__label" for="srv-duracion">Dura. (min)</label>
+                    <input id="srv-duracion" class="input" type="number" step="5" min="0" value="30">
+                    </div>
+                </div>
+                <div class="form-field form-field--full">
+                  <label class="form-field__label" for="srv-desc">Descripción</label>
+                  <input id="srv-desc" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="srv-insumos">Insumos</label>
+                  <input id="srv-insumos" class="input" placeholder="ej: crema X, aguja 32G" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="srv-protocolo">Protocolo</label>
+                  <input id="srv-protocolo" class="input" placeholder="pasos..." autocomplete="off">
+                </div>
+              </div>
+              <div class="servicios-form-actions" style="margin-top: var(--space-4);">
+                <div id="srv-msg" class="form-feedback"></div>
+                <div class="servicios-buttons" style="display: flex; gap: 8px;">
+                  <button id="srv-cancelar" type="button" class="button button--ghost" style="width: 100%;">Cancelar</button>
+                  <button id="srv-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </aside>
+
+        <main class="split-layout__main">
+          <article class="card list-card servicios-list-card" style="height: 100%;">
+            <header class="card__header">
+              <h2 class="card__title">Catálogo de servicios</h2>
+            </header>
+            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
               <div class="card-section servicios-search">
                 <div class="card-section__body">
-                  <div class="form-field">
+                  <div class="form-field" style="max-width: 320px;">
                     <label class="form-field__label" for="srv-buscar">Buscar</label>
                     <input id="srv-buscar" class="input" placeholder="Nombre de servicio" autocomplete="off">
                   </div>
                 </div>
               </div>
 
-              <div class="card-section">
-                <h3 class="card-section__title" id="srv-form-title">Registrar servicio</h3>
-                <div class="card-section__body">
-                  <div class="form-grid servicios-form-grid">
-                    <div class="form-field">
-                      <label class="form-field__label" for="srv-nombre">Nombre</label>
-                      <input id="srv-nombre" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="srv-precio">Precio</label>
-                      <input id="srv-precio" class="input" type="number" step="0.01" min="0">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="srv-duracion">Duración (min)</label>
-                      <input id="srv-duracion" class="input" type="number" step="5" min="0" value="30">
-                    </div>
-                    <div class="form-field form-field--full">
-                      <label class="form-field__label" for="srv-desc">Descripción</label>
-                      <input id="srv-desc" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="srv-insumos">Insumos (texto)</label>
-                      <input id="srv-insumos" class="input" placeholder="ej: crema X, aguja 32G" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="srv-protocolo">Protocolo</label>
-                      <input id="srv-protocolo" class="input" placeholder="pasos..." autocomplete="off">
-                    </div>
-                  </div>
-                  <div class="servicios-form-actions">
-                    <div id="srv-msg" class="form-feedback"></div>
-                    <div class="servicios-buttons">
-                      <button id="srv-cancelar" type="button" class="button button--ghost">Cancelar</button>
-                      <button id="srv-guardar" type="button" class="button button--primary">Guardar</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="card list-card servicios-list-card">
-            <header class="card__header">
-              <p class="card__eyebrow">Listado</p>
-              <h2 class="card__title">Servicios registrados</h2>
-              <p class="card__subtitle">Consulta los tratamientos disponibles y gestiona su información.</p>
-            </header>
-            <div class="card__body">
-              <div class="table-shell servicios-table">
+              <div class="table-shell servicios-table grow">
                 <table class="table table--full">
                   <thead>
                     <tr><th>Nombre</th><th>Precio</th><th>Duración</th><th>Descripción</th><th>Insumos</th><th>Protocolo</th><th>Acciones</th></tr>
@@ -135,7 +129,7 @@ window.ServiciosModule = (function(){
               <div id="srv-pagination" class="table-pagination"></div>
             </div>
           </article>
-        </section>
+        </main>
       </div>
     `;
 

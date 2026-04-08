@@ -124,140 +124,105 @@ window.TurnosModule = (function () {
   function render() {
     routeTitle.textContent = "Turnos";
     routeContent.innerHTML = `
-      <div class="page-shell turnos-page">
-        <section class="section-block">
+      <div class="page-shell turnos-page split-layout">
+        <aside class="split-layout__sidebar">
           <article class="card form-card">
             <header class="card__header">
-              <p class="card__eyebrow">Gestion de turnos</p>
               <h2 class="card__title">Registrar turno</h2>
-              <p class="card__subtitle">Completa los datos del paciente, asigna los servicios y guarda el turno.</p>
             </header>
 
             <div class="card__body">
-              <div class="card">
-                <div class="card__body">
-                  <div class="form-grid form-grid--3">
-                    <!-- Paciente -->
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-pac-buscar">Paciente</label>
-                      <span class="form-field__hint">Nombre y apellido</span>
-                      <div class="auto-complete">
-                        <input id="t-pac-buscar" class="input" placeholder="Ej: Ana Perez" autocomplete="off" />
-                        <div id="t-pac-sug" class="ac-list" style="display:none"></div>
-                      </div>
-                      <input id="t-paciente-id" type="hidden" />
-                      <p id="t-pac-chosen" class="form-field__note"></p>
-                    </div>
-
-                    <!-- DNI paciente -->
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-pac-dni">DNI</label>
-                      <input id="t-pac-dni" class="input" placeholder="DNI" autocomplete="off" inputmode="numeric" />
-                    </div>
-
-                    <!-- Fecha y hora -->
-                    <div class="form-field form-field--center">
-                      <label class="form-field__label" for="t-fecha">Fecha y hora</label>
-                      <input id="t-fecha" class="input" type="datetime-local" />
-                    </div>
-
-                    <!-- Profesional -->
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-pro-buscar">Profesional (opcional)</label>
-                      <span class="form-field__hint">Nombre y apellido</span>
-                      <div class="auto-complete">
-                        <input id="t-pro-buscar" class="input" placeholder="Ej: Dra. Lopez" autocomplete="off" />
-                        <div id="t-pro-sug" class="ac-list" style="display:none"></div>
-                      </div>
-                      <input id="t-prof-id" type="hidden" />
-                      <p id="t-pro-chosen" class="form-field__note"></p>
-                    </div>
-
-                    <!-- DNI profesional -->
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-pro-dni">DNI profesional</label>
-                      <input id="t-pro-dni" class="input" placeholder="DNI" autocomplete="off" inputmode="numeric" />
-                    </div>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label class="form-field__label" for="t-pac-buscar">Paciente</label>
+                  <div class="auto-complete">
+                    <input id="t-pac-buscar" class="input" placeholder="Ej: Ana Perez" autocomplete="off" />
+                    <div id="t-pac-sug" class="ac-list" style="display:none"></div>
                   </div>
+                  <input id="t-paciente-id" type="hidden" />
+                </div>
+
+                <div class="form-field">
+                  <label class="form-field__label" for="t-pac-dni">DNI</label>
+                  <input id="t-pac-dni" class="input" placeholder="DNI" autocomplete="off" inputmode="numeric" />
+                </div>
+
+                <div class="form-field">
+                  <label class="form-field__label" for="t-fecha">Fecha y hora</label>
+                  <input id="t-fecha" class="input" type="datetime-local" />
+                </div>
+
+                <div class="form-field">
+                  <label class="form-field__label" for="t-pro-buscar">Profesional</label>
+                  <div class="auto-complete">
+                    <input id="t-pro-buscar" class="input" placeholder="Ej: Dra. Lopez" autocomplete="off" />
+                    <div id="t-pro-sug" class="ac-list" style="display:none"></div>
+                  </div>
+                  <input id="t-prof-id" type="hidden" />
                 </div>
               </div>
 
-              <hr class="section-divider" />
+              <hr class="section-divider" style="margin: var(--space-3) 0" />
 
               <div class="card-section">
-                <h3 class="card-section__title">Servicios del turno</h3>
+                <h3 class="card-section__title" style="font-size: .95rem;">Servicio</h3>
                 <div class="card-section__body">
-                  <div class="form-grid form-grid--4">
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-srv-buscar">Servicio</label>
+                  <div class="form-grid form-grid--two">
+                    <div class="form-field form-field--full">
                       <div class="auto-complete">
-                        <input id="t-srv-buscar" class="input" placeholder="Ej: Botox" autocomplete="off" />
+                        <input id="t-srv-buscar" class="input" placeholder="Buscar servicio..." autocomplete="off" />
                         <div id="t-srv-sug" class="ac-list" style="display:none"></div>
                       </div>
                       <input id="t-servicio-id" type="hidden" />
-                      <p id="t-srv-chosen" class="form-field__note"></p>
+                    </div>
+                    
+                    <div class="form-field" style="display:none">
+                      <input id="t-item-precio" class="input" type="number" step="0.01" />
                     </div>
 
                     <div class="form-field">
-                      <label class="form-field__label" for="t-item-precio">Precio</label>
-                      <input id="t-item-precio" class="input" type="number" step="0.01" placeholder="Precio" />
-                    </div>
-
-                    <div class="form-field">
-                      <label class="form-field__label" for="t-item-cant">Cantidad</label>
+                      <label class="form-field__label" for="t-item-cant">Cant.</label>
                       <input id="t-item-cant" class="input" type="number" step="0.01" value="1" min="1" />
                     </div>
 
                     <div class="form-field">
-                      <label class="form-field__label" for="t-item-desc">Descuento</label>
-                      <input id="t-item-desc" class="input" type="number" step="0.01" value="0" min="0" />
+                      <label class="form-field__label" for="t-item-desc">Desc.</label>
+                      <input id="t-item-desc" class="input" type="number" step="0.01" value="0" />
                     </div>
 
-                    <div class="form-field form-field--cta">
-                      <button id="t-item-add" type="button" class="button button--primary">Agregar servicio</button>
+                    <div class="form-field form-field--cta form-field--full">
+                      <button id="t-item-add" type="button" class="button button--secondary" style="width: 100%;">Agregar</button>
                     </div>
                   </div>
 
-                  <!-- Mantener la tabla y el footer tal como estan en el archivo -->
-                  <div class="table-shell">
-                    <table class="table table--compact">
-                      <thead>
-                        <tr><th>Servicio</th><th>Precio</th><th>Cant.</th><th>Desc.</th><th>Subtotal</th><th></th></tr>
-                      </thead>
+                  <div class="table-shell" style="max-height: 180px; margin-top: var(--space-2);">
+                    <table class="table" style="font-size: 0.8rem;">
+                      <thead><tr><th>Servicio</th><th>$$</th><th></th></tr></thead>
                       <tbody id="t-items"></tbody>
-                      <tfoot>
-                        <tr class="table__summary">
-                          <td colspan="4" class="table__summary-label">Total</td>
-                          <td id="t-total" class="table__summary-value">S/ 0.00</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
+                  <div style="text-align: right; font-weight: bold; font-size: 0.95rem;" id="t-total">S/ 0.00</div>
 
-                  <div class="form-actions turnos-actions">
+                  <div class="form-actions turnos-actions" style="margin-top: var(--space-3);">
                     <p id="t-msg" class="form-actions__feedback"></p>
-                    <button id="t-crear" class="button button--primary">Guardar turno</button>
+                    <button id="t-crear" class="button button--primary" style="width: 100%;">Guardar turno</button>
                   </div>
                 </div>
               </div>
             </div>
           </article>
-        </section>
+        </aside>
 
-        <section class="section-block">
-          <article class="card list-card">
+        <main class="split-layout__main">
+          <article class="card list-card" style="height: 100%;">
             <header class="card__header">
-              <p class="card__eyebrow">Gestion de turnos</p>
               <h2 class="card__title">Listado de turnos</h2>
-              <p class="card__subtitle">Consulta los turnos mas recientes cargados en el sistema.</p>
             </header>
-            <div class="card__body">
+            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
               <div class="card-section card-section--filters">
-                <div class="form-field">
-                  <label class="form-field__label" for="t-estado">Estado</label>
+                <div class="form-field" style="max-width: 220px;">
                   <select id="t-estado" class="input input--select">
-                    <option value="">Todos</option>
+                    <option value="">Estado: Todos</option>
                     <option value="pendiente">Pendiente</option>
                     <option value="confirmado">Confirmado</option>
                     <option value="cancelado">Cancelado</option>
@@ -266,7 +231,7 @@ window.TurnosModule = (function () {
                 </div>
               </div>
 
-              <div class="table-shell">
+              <div class="table-shell grow">
                 <table class="table table--full">
                   <thead>
                     <tr><th>ID</th><th>Paciente</th><th>Servicios</th><th>Profesional</th><th>Fecha/Hora</th><th>Estado</th><th>Acciones</th></tr>
@@ -275,11 +240,10 @@ window.TurnosModule = (function () {
                 </table>
               </div>
 
-              <!-- 3) Paginación UI -->
               <div id="t-pagination" class="table-pagination"></div>
             </div>
           </article>
-        </section>
+        </main>
 
         <!-- Modales -->
         <div id="turno-modal-backdrop" class="dialog-backdrop"></div>

@@ -166,78 +166,73 @@ window.PacientesModule = (function(){
   function render(){
     routeTitle.textContent = "Pacientes";
     routeContent.innerHTML = `
-      <div class="page-shell pacientes-page">
-        <section class="section-block">
+      <div class="page-shell pacientes-page split-layout">
+        <aside class="split-layout__sidebar">
           <article class="card form-card pacientes-card">
             <header class="card__header">
-              <p class="card__eyebrow">Gestión</p>
-              <h2 class="card__title">Pacientes</h2>
-              <p class="card__subtitle">Registra nuevos pacientes, actualiza sus datos y consúltalos rápidamente.</p>
+              <h2 class="card__title" id="pac-form-title">Registrar paciente</h2>
             </header>
 
             <div class="card__body">
+              <div class="form-grid pacientes-form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-field">
+                  <label class="form-field__label" for="pac-nombre">Nombre</label>
+                  <input id="pac-nombre" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pac-documento">Documento</label>
+                  <input id="pac-documento" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pac-email">Email</label>
+                  <input id="pac-email" class="input" type="email" autocomplete="off">
+                </div>
+                <div class="form-grid form-grid--two">
+                    <div class="form-field">
+                    <label class="form-field__label" for="pac-telefono">Teléfono</label>
+                    <input id="pac-telefono" class="input" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                    <label class="form-field__label" for="pac-fnac">F. Nacimiento</label>
+                    <input id="pac-fnac" class="input" type="date">
+                    </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pac-direccion">Dirección</label>
+                  <input id="pac-direccion" class="input" autocomplete="off">
+                </div>
+                <div class="form-field">
+                  <label class="form-field__label" for="pac-emerg">Contacto emergencia</label>
+                  <input id="pac-emerg" class="input" autocomplete="off">
+                </div>
+              </div>
+              <div class="pacientes-form-actions" style="margin-top: var(--space-4);">
+                <div id="pac-msg" class="form-feedback"></div>
+                <div class="pacientes-buttons" style="display: flex; gap: 8px;">
+                  <button id="pac-cancelar" type="button" class="button button--ghost" style="width: 100%;">Cancelar</button>
+                  <button id="pac-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </aside>
+
+        <main class="split-layout__main">
+          <article class="card list-card pacientes-list-card" style="height: 100%;">
+            <header class="card__header">
+              <h2 class="card__title">Listado general</h2>
+            </header>
+            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
               <div class="card-section pacientes-search">
                 <div class="card-section__body">
-                  <div class="form-field">
+                  <div class="form-field" style="max-width: 320px;">
                     <label class="form-field__label" for="pac-buscar">Buscar</label>
                     <input id="pac-buscar" class="input" placeholder="Nombre o documento" autocomplete="off">
                   </div>
                 </div>
               </div>
-
-              <div class="card-section">
-                <h3 class="card-section__title" id="pac-form-title">Registrar paciente</h3>
-                <div class="card-section__body">
-                  <div class="form-grid pacientes-form-grid">
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-nombre">Nombre</label>
-                      <input id="pac-nombre" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-documento">Documento</label>
-                      <input id="pac-documento" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-email">Email</label>
-                      <input id="pac-email" class="input" type="email" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-telefono">Teléfono</label>
-                      <input id="pac-telefono" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-direccion">Dirección</label>
-                      <input id="pac-direccion" class="input" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-fnac">Fecha nacimiento</label>
-                      <input id="pac-fnac" class="input" type="date">
-                    </div>
-                    <div class="form-field">
-                      <label class="form-field__label" for="pac-emerg">Contacto emergencia</label>
-                      <input id="pac-emerg" class="input" autocomplete="off">
-                    </div>
-                  </div>
-                  <div class="pacientes-form-actions">
-                    <div id="pac-msg" class="form-feedback"></div>
-                    <div class="pacientes-buttons">
-                      <button id="pac-cancelar" type="button" class="button button--ghost">Cancelar</button>
-                      <button id="pac-guardar" type="button" class="button button--primary">Guardar</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="card list-card pacientes-list-card">
-            <header class="card__header">
-              <p class="card__eyebrow">Listado</p>
-              <h2 class="card__title">Pacientes registrados</h2>
-              <p class="card__subtitle">Consulta el resumen de tus pacientes y gestiona sus registros.</p>
-            </header>
-            <div class="card__body">
-              <div class="table-shell pacientes-table">
+              
+              <div class="table-shell pacientes-table grow">
                 <table class="table table--full" id="pac-tabla">
                   <thead>
                     <tr><th>Nombre</th><th>Documento</th><th>Email</th><th>Teléfono</th><th>Edad</th><th>Acciones</th></tr>
@@ -248,7 +243,7 @@ window.PacientesModule = (function(){
               <div id="pac-pagination" class="table-pagination"></div>
             </div>
           </article>
-        </section>
+        </main>
       </div>
     `;
 
