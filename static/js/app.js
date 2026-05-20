@@ -1,10 +1,41 @@
-const loginView = document.getElementById("login-view");
-const routerView = document.getElementById("router-view");
-const routeTitle = document.getElementById("route-title");
-const routeContent = document.getElementById("route-content");
-const bodyEl = document.body;
-const sidebarEl = document.getElementById("sidebar");
-const navToggleBtn = document.getElementById("nav-toggle");
+window.loginView = document.getElementById("login-view");
+window.routerView = document.getElementById("router-view");
+window.routeTitle = document.getElementById("route-title");
+window.routeContent = document.getElementById("route-content");
+window.bodyEl = document.body;
+window.sidebarEl = document.getElementById("sidebar");
+window.navToggleBtn = document.getElementById("nav-toggle");
+
+const routeLoader = document.getElementById("route-loader");
+
+// Setup FAB for Mobile Bottom-sheets
+window.setupMobileFab = function() {
+  const fab = document.getElementById("fab-mobile");
+  const overlay = document.getElementById("bottom-sheet-overlay");
+  const sidebar = document.querySelector(".split-layout__sidebar");
+  
+  if (!fab || !overlay) return;
+  
+  fab.replaceWith(fab.cloneNode(true));
+  overlay.replaceWith(overlay.cloneNode(true));
+  
+  const newFab = document.getElementById("fab-mobile");
+  const newOverlay = document.getElementById("bottom-sheet-overlay");
+  
+  if (sidebar) {
+    newFab.classList.add("is-visible");
+    newFab.addEventListener("click", () => {
+      sidebar.classList.add("is-open");
+      newOverlay.classList.add("is-active");
+    });
+    newOverlay.addEventListener("click", () => {
+      sidebar.classList.remove("is-open");
+      newOverlay.classList.remove("is-active");
+    });
+  } else {
+    newFab.classList.remove("is-visible");
+  }
+};
 const footerYear = document.querySelector('.sidebar__footer small');
 if (footerYear) {
   footerYear.textContent = '© ' + new Date().getFullYear() + ' Clínica Estética WAYKI SAC';
@@ -14,49 +45,42 @@ if (footerYear) {
 
 const routes = {
   dashboard: () => {
-    routeTitle.textContent = "Dashboard General";
+    window.routeTitle.textContent = "Centro de Control";
     const shortcuts = [
-      { route: "turnos", icon: "🗓️", title: "Turnos", description: "Gestione la agenda de los profesionales." },
-      { route: "caja", icon: "💳", title: "Caja", description: "Movimientos, cobros y facturación." },
-      { route: "pacientes", icon: "🧑‍🤝‍🧑", title: "Pacientes", description: "Fichas, altas rápidas e historiales." },
-      { route: "profesionales", icon: "🩺", title: "Profesionales", description: "Directorio del equipo y especialidades." },
-      { route: "inventario", icon: "📦", title: "Inventario", description: "Control de stock e insumos médicos." },
-      { route: "servicios", icon: "💼", title: "Servicios", description: "Precios y catálogo de tratamientos." },
-      { route: "reportes", icon: "📈", title: "Reportes", description: "Análisis y exportación de datos." },
-      { route: "configuracion", icon: "⚙️", title: "Ajustes", description: "Permisos, roles y usuarios del sistema." },
+      { route: "turnos", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>', title: "Turnos", description: "Gestione la agenda de los profesionales." },
+      { route: "caja", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>', title: "Caja", description: "Movimientos, cobros y facturación." },
+      { route: "pacientes", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', title: "Pacientes", description: "Fichas, altas rápidas e historiales." },
+      { route: "profesionales", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>', title: "Profesionales", description: "Directorio del equipo y especialidades." },
+      { route: "inventario", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>', title: "Inventario", description: "Control de stock e insumos médicos." },
+      { route: "servicios", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>', title: "Servicios", description: "Precios y catálogo de tratamientos." },
+      { route: "reportes", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>', title: "Reportes", description: "Análisis y exportación de datos." },
+      { route: "configuracion", icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', title: "Ajustes", description: "Permisos, roles y usuarios del sistema." },
     ];
 
-    routeContent.innerHTML = `
+    window.routeContent.innerHTML = `
       <div class="page-shell">
-        <header class="page-header" style="margin-bottom: var(--space-5);">
-          <div>
-            <p class="page-header__eyebrow" style="color: var(--color-primary); font-weight: 600; text-transform: uppercase;">Bienvenido(a)</p>
-            <h1 class="page-header__title" style="font-size: 2rem;">Centro de Control</h1>
-            <p style="color: var(--color-muted); font-size: 1.05rem;">Acceda a todos los módulos desde aquí.</p>
+        <header class="dash-header">
+          <div class="dash-header__text">
+            <span class="eyebrow">Panel principal</span>
+            <h1 style="font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:700;margin:0;">Acceso Rápido</h1>
+            <p style="color:var(--text-muted);margin-top:var(--s2);">Módulos del ecosistema WaykiSAC.</p>
           </div>
         </header>
-
-        <div class="dashboard-shortcuts" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-5);">
-          ${shortcuts
-            .map(
-              (item) => `
-                <article class="card card--shortcut" data-route="${item.route}" tabindex="0" role="button" aria-label="Ir a ${item.title}" style="display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-4); padding: var(--space-4);">
-                  <div style="font-size: 2rem; background: var(--color-primary-soft); width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
-                    ${item.icon}
-                  </div>
-                  <div style="flex: 1;">
-                    <h3 class="card__title" style="margin-bottom: 4px;">${item.title}</h3>
-                    <p class="card__subtitle" style="font-size: 0.9rem; line-height: 1.4;">${item.description}</p>
-                  </div>
-                </article>
-              `
-            )
-            .join("")}
+        <div class="dashboard-shortcuts">
+          ${shortcuts.map((item, i) => `
+            <article class="card card--shortcut animate-in stagger-${i + 1}" data-route="${item.route}" tabindex="0" role="button" aria-label="Ir a ${item.title}">
+              <div class="shortcut-icon">${item.icon}</div>
+              <div class="shortcut-body">
+                <h3 class="card__title">${item.title}</h3>
+                <p class="card__subtitle">${item.description}</p>
+              </div>
+            </article>
+          `).join("")}
         </div>
       </div>
     `;
 
-    routeContent.querySelectorAll(".card--shortcut").forEach((card) => {
+    window.routeContent.querySelectorAll(".card--shortcut").forEach((card) => {
       card.addEventListener("click", () => navigate(card.dataset.route));
       card.addEventListener("keypress", (ev) => {
         if (ev.key === "Enter" || ev.key === " ") {
@@ -96,14 +120,26 @@ function navigate(route) {
   if (location.hash !== `#/${route}` && !location.hash.startsWith(`#/${route}?`)) {
     location.hash = `#/${route}`;
   }
-  routeTitle.textContent = route.charAt(0).toUpperCase() + route.slice(1);
+  
+  if (window.routeTitle) window.routeTitle.textContent = route.charAt(0).toUpperCase() + route.slice(1);
   setActiveNav(route);
   closeSidebar();
-  if (typeof fn === "function") {
-    fn();
-  } else {
-    routeContent.innerHTML = "<div class='card'>Ruta no encontrada</div>";
-  }
+  
+  // Transición elegante y setup de FAB
+  if (routeLoader) routeLoader.style.display = "block";
+  if (window.routeContent) window.routeContent.classList.add("is-loading");
+  
+  setTimeout(() => {
+    if (typeof fn === "function") {
+      fn();
+    } else {
+      if (window.routeContent) window.routeContent.innerHTML = "<div class='card'>Ruta no encontrada</div>";
+    }
+    
+    if (window.routeContent) window.routeContent.classList.remove("is-loading");
+    if (routeLoader) routeLoader.style.display = "none";
+    window.setupMobileFab();
+  }, 150);
 }
 
 // abre la ruta del hash si existe (ej: #/caja?turno=5)
@@ -128,8 +164,8 @@ async function checkAuth() {
       has = false;
     }
   }
-  loginView.style.display = has ? "none" : "block";
-  routerView.style.display = has ? "block" : "none";
+  window.loginView.style.display = has ? "none" : "block";
+  window.routerView.style.display = has ? "block" : "none";
   document.body.classList.toggle('is-authenticated', has);
   if (!has) {
     closeSidebar();

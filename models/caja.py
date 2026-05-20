@@ -1,10 +1,14 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from enum import Enum
 
 from sqlalchemy import Enum as SAEnum, ForeignKey
 from sqlalchemy.orm import relationship
 
 from extensions import db
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class TipoMovimiento(str, Enum):
@@ -22,9 +26,10 @@ class MetodoPago(str, Enum):
 class Comprobante(db.Model):
     __tablename__ = "comprobantes"
     id = db.Column(db.Integer, primary_key=True)
+    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
     tipo = db.Column(db.String(20), default="recibo")
     numero = db.Column(db.String(40), unique=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=_utcnow)
     paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"))
     # Totales
     total = db.Column(db.Numeric(10, 2), default=0)              # total neto (después de descuento)
@@ -33,14 +38,21 @@ class Comprobante(db.Model):
     # Otros
     forma_pago = db.Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO)
     observacion = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     # Idempotencia (nuevo)
     idempotency_key = db.Column(db.String(64), unique=True, index=True, nullable=True)
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
 
 
 class CajaMovimiento(db.Model):
     __tablename__ = "caja_movimientos"
     id = db.Column(db.Integer, primary_key=True)
+    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
     fecha = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     tipo = db.Column(SAEnum(TipoMovimiento), nullable=False, default=TipoMovimiento.INGRESO)
     monto = db.Column(db.Numeric(10, 2), nullable=False)
@@ -51,17 +63,34 @@ class CajaMovimiento(db.Model):
     comprobante_id = db.Column(db.Integer, ForeignKey("comprobantes.id"), nullable=True)
     turno_id = db.Column(db.Integer, db.ForeignKey("turnos.id"), nullable=True)
     observacion = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
 
 
 class CierreCaja(db.Model):
     __tablename__ = "cierres_caja"
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.Date, default=date.today, unique=True)
+    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
+    fecha = db.Column(db.Date, default=date.today)
     total_ingresos = db.Column(db.Numeric(10, 2), default=0)
     total_egresos = db.Column(db.Numeric(10, 2), default=0)
     saldo = db.Column(db.Numeric(10, 2), default=0)
     usuario_id = db.Column(db.Integer, ForeignKey("usuarios.id"), nullable=True)
-    creado_en = db.Column(db.DateTime, default=datetime.utcnow)
+    creado_en = db.Column(db.DateTime, default=_utcnow)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("clinica_id", "fecha", name="uq_cierres_caja_clinica_fecha"),
+    )
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
 
 
 class ComprobanteItem(db.Model):
@@ -82,11 +111,18 @@ class ComprobanteItem(db.Model):
 class DeudaPaciente(db.Model):
     __tablename__ = "deudas_paciente"
     id = db.Column(db.Integer, primary_key=True)
+    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
     paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"), nullable=False, index=True)
     comprobante_id = db.Column(db.Integer, ForeignKey("comprobantes.id"), nullable=False, index=True)
     total = db.Column(db.Numeric(10, 2), nullable=False)  # total del comprobante (neto)
     pagado = db.Column(db.Numeric(10, 2), default=0)      # suma de pagos registrados
     saldo = db.Column(db.Numeric(10, 2), nullable=False)  # total - pagado
     estado = db.Column(db.String(20), default="pendiente")  # pendiente / cancelada
-    creado_en = db.Column(db.DateTime, default=datetime.utcnow)
-    actualizado_en = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    creado_en = db.Column(db.DateTime, default=_utcnow)
+    actualizado_en = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()

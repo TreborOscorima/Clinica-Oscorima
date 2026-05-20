@@ -13,6 +13,7 @@ class PacienteSchema(SQLAlchemyAutoSchema):
         ordered = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     nombre = auto_field(required=True)
     documento = auto_field()
     direccion = auto_field()
@@ -20,6 +21,10 @@ class PacienteSchema(SQLAlchemyAutoSchema):
     telefono = auto_field()
     fecha_nacimiento = fields.Date(allow_none=True)  # si querés forzar formato: fields.Date(format="%Y-%m-%d")
     contacto_emergencia = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
+    created_at = auto_field(dump_only=True)
+    updated_at = auto_field(dump_only=True)
     edad = fields.Integer(dump_only=True)
 
     @pre_load

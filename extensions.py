@@ -7,6 +7,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from marshmallow import ValidationError
 
+from database import close_sqlmodel_session, init_sqlmodel
+
 # ─── Instancias globales de extensiones ───────────────────────────────────────
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -27,8 +29,10 @@ def init_extensions(app: Flask) -> None:
     CORS(app, supports_credentials=True, origins=app.config.get("CORS_ORIGINS", []))
 
     db.init_app(app)
+    init_sqlmodel(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
+    app.teardown_appcontext(close_sqlmodel_session)
 
     # Flask-Limiter: toma RATELIMIT_STORAGE_URI desde config (Redis en cloud)
     limiter.init_app(app)

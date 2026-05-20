@@ -13,12 +13,15 @@ Para migraciones de producción (Flask-Migrate):
     flask --app app:create_app db upgrade   # Aplica la migración a la DB
 """
 import sys
-from flask import Flask, render_template
+from flask import Flask, current_app, render_template
+from sqlmodel import select
 from config import Config
 from extensions import init_extensions, db
+from database import create_sqlmodel_tables, get_session
 
 # ─── Importar todos los modelos ANTES de create_all() / Migrate ───────────────
 from models.user import User, RoleEnum, PermisoRol
+from models.clinica import Clinica
 from models.paciente import Paciente
 from models.profesional import Profesional
 from models.servicio import Servicio
@@ -49,20 +52,7 @@ from routes import (
 )
 
 
-def create_app() -> Flask:
-    """
-    App factory pattern — compatible con Flask CLI y Flask-Migrate.
-    Usar: flask --app app:create_app <comando>
-    """
-    app = Flask(__name__, static_folder="static", template_folder="templates")
-    app.config.from_object(Config)
-    init_extensions(app)  # Registra db, jwt, migrate, limiter, cors
-
-    @app.get("/")
-    def index():
-        return render_template("index.html")
-
-    # ─── Registrar blueprints ─────────────────────────────────────────────────
+def register_blueprints(app: Flask) -> None:
     app.register_blueprint(auth_routes.bp)
     app.register_blueprint(pacientes_routes.bp)
     app.register_blueprint(profesionales_routes.bp)
@@ -73,6 +63,22 @@ def create_app() -> Flask:
     app.register_blueprint(reportes_routes.bp)
     app.register_blueprint(servicio_insumos_routes.bp)
     app.register_blueprint(configuracion_routes.bp)
+
+
+def create_app(config_object: type[Config] = Config) -> Flask:
+    """
+    App factory pattern — compatible con Flask CLI y Flask-Migrate.
+    Usar: flask --app app:create_app <comando>
+    """
+    app = Flask(__name__, static_folder="static", template_folder="templates")
+    app.config.from_object(config_object)
+    init_extensions(app)  # Registra db, jwt, migrate, limiter, cors
+
+    @app.get("/")
+    def index():
+        return render_template("index.html")
+
+    register_blueprints(app)
 
     return app
 
@@ -87,16 +93,40 @@ def db_create() -> None:
     app = create_app()
     with app.app_context():
         db.create_all()
+        create_sqlmodel_tables()
         print("✔ Tablas creadas (desarrollo)")
         print("⚠  En producción usa: flask --app app:create_app db upgrade")
+
+
+def seed_default_clinica() -> Clinica:
+    """Crea el tenant inicial para desarrollo y migraciones legacy."""
+    session = get_session()
+    slug = current_app.config["DEFAULT_CLINICA_SLUG"]
+    clinica = session.exec(select(Clinica).where(Clinica.slug == slug)).first()
+    if clinica:
+        return clinica
+    clinica = Clinica(nombre="Clinica Default", slug=slug)
+    session.add(clinica)
+    session.commit()
+    session.refresh(clinica)
+    return clinica
 
 
 def seed_admin() -> None:
     """Crea el usuario administrador por defecto si no existe."""
     app = create_app()
     with app.app_context():
-        if not User.query.filter_by(email="admin@clinic.local").first():
-            u = User(email="admin@clinic.local", nombre="Admin", rol=RoleEnum.ADMIN)
+        existing = db.session.execute(
+            select(User).where(User.email == "admin@clinic.local")
+        ).scalar_one_or_none()
+        if not existing:
+            clinica = seed_default_clinica()
+            u = User(
+                clinica_id=clinica.id,
+                email="admin@clinic.local",
+                nombre="Admin",
+                rol=RoleEnum.ADMIN,
+            )
             u.set_password("Admin123!")
             db.session.add(u)
             db.session.commit()

@@ -14,6 +14,7 @@ class ProductoSchema(SQLAlchemyAutoSchema):
         unknown = EXCLUDE
         ordered = True
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     sku = auto_field()
     nombre = auto_field(required=True)
     precio_costo = auto_field()
@@ -21,6 +22,8 @@ class ProductoSchema(SQLAlchemyAutoSchema):
     stock_actual = auto_field()
     stock_minimo = auto_field()
     activo = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 class MovimientoStockSchema(SQLAlchemyAutoSchema):
     class Meta:
@@ -30,6 +33,7 @@ class MovimientoStockSchema(SQLAlchemyAutoSchema):
         unknown = EXCLUDE
         ordered = True
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     fecha = auto_field(dump_only=True)
     producto_id = auto_field(required=True)
     tipo = auto_field(required=True)
@@ -37,6 +41,8 @@ class MovimientoStockSchema(SQLAlchemyAutoSchema):
     saldo = auto_field()
     motivo = auto_field()
     referencia = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 class ProveedorSchema(SQLAlchemyAutoSchema):
     class Meta:
@@ -46,12 +52,15 @@ class ProveedorSchema(SQLAlchemyAutoSchema):
         unknown = EXCLUDE
         ordered = True
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     nombre = auto_field(required=True)
     documento = auto_field()
     email = auto_field()
     telefono = auto_field()
     direccion = auto_field()
     activo = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 class CompraItemSchema(SQLAlchemyAutoSchema):
     class Meta:
@@ -75,6 +84,7 @@ class CompraSchema(SQLAlchemyAutoSchema):
         unknown = EXCLUDE
         ordered = True
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     fecha = auto_field(dump_only=True)
     proveedor_id = auto_field()
     tipo_doc = auto_field()
@@ -82,4 +92,6 @@ class CompraSchema(SQLAlchemyAutoSchema):
     nro_registro = auto_field()
     total = auto_field(dump_only=True)
     observacion = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
     

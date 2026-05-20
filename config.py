@@ -21,6 +21,8 @@ class Config:
         f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}"
         f"@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}?charset=utf8mb4"
     )
+    DATABASE_URL = os.getenv("DATABASE_URL", SQLALCHEMY_DATABASE_URI)
+    SQLMODEL_ECHO = os.getenv("SQLMODEL_ECHO", "false").lower() == "true"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         # Pool de conexiones para Cloud: reconecta automáticamente si cae la DB
@@ -44,8 +46,17 @@ class Config:
     # En producción Cloud: usa Redis para que los límites persistan entre reinicios
     # Formato: "redis://[:password@]host[:port][/db]"
     RATELIMIT_STORAGE_URI = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    RQ_DEFAULT_QUEUE = os.getenv("RQ_DEFAULT_QUEUE", "default")
+    REPORT_EXPORT_DIR = os.getenv("REPORT_EXPORT_DIR", "exports")
+    REPORT_EXPORT_JOB_TIMEOUT = int(os.getenv("REPORT_EXPORT_JOB_TIMEOUT", "600"))
     RATELIMIT_HEADERS_ENABLED = True     # Devuelve X-RateLimit-* headers al cliente
     RATELIMIT_STRATEGY = "fixed-window"  # Alternativa: "moving-window" (más preciso)
+
+    # ─── Multi-tenant ─────────────────────────────────────────────────────────
+    # Compatibilidad temporal hasta que los JWT incluyan clinica_id.
+    DEFAULT_CLINICA_ID = int(os.getenv("DEFAULT_CLINICA_ID", "0")) or None
+    DEFAULT_CLINICA_SLUG = os.getenv("DEFAULT_CLINICA_SLUG", "clinica-default")
 
     # ─── Fase 2: Cookies HttpOnly (preparado, no activo aún) ────────────────────
     # Descomentar cuando se migre el frontend a cookie-based auth:

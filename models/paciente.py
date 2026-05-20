@@ -1,28 +1,43 @@
-# models/paciente.py
+from __future__ import annotations
+
+from datetime import date
+
+from sqlalchemy import Column, Date, UniqueConstraint
+from sqlmodel import Field
+
 from extensions import db
-from datetime import date, datetime
+from models.base import TenantSQLModel
 
-class Paciente(db.Model):
+
+class Paciente(TenantSQLModel, table=True):
     __tablename__ = "pacientes"
+    metadata = db.metadata
+    __table_args__ = (
+        UniqueConstraint("clinica_id", "documento", name="uq_pacientes_clinica_documento"),
+        UniqueConstraint("clinica_id", "email", name="uq_pacientes_clinica_email"),
+    )
 
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(180), nullable=False)
-    documento = db.Column(db.String(40), index=True, unique=True)
-    direccion = db.Column(db.String(200))
-    email = db.Column(db.String(120), unique=True, nullable=True)
-    telefono = db.Column(db.String(60))
-    fecha_nacimiento = db.Column(db.Date)
-    contacto_emergencia = db.Column(db.String(160))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    nombre: str = Field(max_length=180, nullable=False, index=True)
+    documento: str | None = Field(default=None, max_length=40, nullable=True, index=True)
+    direccion: str | None = Field(default=None, max_length=200, nullable=True)
+    email: str | None = Field(default=None, max_length=120, nullable=True, index=True)
+    telefono: str | None = Field(default=None, max_length=60, nullable=True)
+    fecha_nacimiento: date | None = Field(
+        default=None, sa_column=Column(Date(), nullable=True)
+    )
+    contacto_emergencia: str | None = Field(default=None, max_length=160, nullable=True)
+    # is_active, deleted_at → SoftDeleteMixin
+    # clinica_id → TenantMixin
+    # id, created_at, updated_at → BaseSQLModel
+    # soft_delete() → SoftDeleteMixin
 
     @property
-    def edad(self):
-        if self.fecha_nacimiento:
-            hoy = date.today()
-            return (
-                hoy.year
-                - self.fecha_nacimiento.year
-                - ((hoy.month, hoy.day) < (self.fecha_nacimiento.month, self.fecha_nacimiento.day))
-            )
-        return None
+    def edad(self) -> int | None:
+        if not self.fecha_nacimiento:
+            return None
+        hoy = date.today()
+        return (
+            hoy.year
+            - self.fecha_nacimiento.year
+            - ((hoy.month, hoy.day) < (self.fecha_nacimiento.month, self.fecha_nacimiento.day))
+        )

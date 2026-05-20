@@ -247,11 +247,11 @@ window.InventarioModule = (function(){
             </header>
             <div class="card__body">
               <div class="form-grid inv-quick-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
-                <div class="form-field"><label for="pr-sku">SKU</label><input id="pr-sku" class="input"></div>
-                <div class="form-field"><label for="pr-nombre">Nombre</label><input id="pr-nombre" required class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="pr-sku">SKU</label><input id="pr-sku" class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="pr-nombre">Nombre</label><input id="pr-nombre" required class="input"></div>
                 <div class="form-grid form-grid--two">
-                  <div class="form-field"><label for="pr-min">Stock min</label><input id="pr-min" type="number" step="0.001" class="input"></div>
-                  <div class="form-field"><label for="pr-pv">P. venta</label><input id="pr-pv" type="number" step="0.01" class="input"></div>
+                  <div class="form-field"><label class="form-field__label" for="pr-min">Stock min</label><input id="pr-min" type="number" step="0.001" class="input"></div>
+                  <div class="form-field"><label class="form-field__label" for="pr-pv">P. venta</label><input id="pr-pv" type="number" step="0.01" class="input"></div>
                 </div>
                 <div class="form-field form-field--cta"><button id="pr-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar producto</button></div>
               </div>
@@ -265,14 +265,14 @@ window.InventarioModule = (function(){
             </header>
             <div class="card__body">
               <div class="form-grid inv-compra-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
-                <div class="form-field"><label for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre" class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre" class="input"></div>
                 <div class="form-grid form-grid--two">
-                  <div class="form-field"><label for="cp-tipo">Tipo doc</label>
+                  <div class="form-field"><label class="form-field__label" for="cp-tipo">Tipo doc</label>
                     <select id="cp-tipo" class="input input--select"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
                   </div>
-                  <div class="form-field"><label for="cp-numero">Num.</label><input id="cp-numero" placeholder="000-00" class="input"></div>
+                  <div class="form-field"><label class="form-field__label" for="cp-numero">Num.</label><input id="cp-numero" placeholder="000-00" class="input"></div>
                 </div>
-                <div class="form-field"><label for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(opcional)" class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(opcional)" class="input"></div>
               </div>
               <div class="table-shell" style="max-height: 250px;">
                 <table class="table table--compact" id="cp-tabla" style="font-size: 0.8rem;">
@@ -338,9 +338,9 @@ window.InventarioModule = (function(){
             </header>
             <div class="card__body">
               <div class="form-grid inv-mov-filters" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
-                <div class="form-field"><label for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local" class="input"></div>
-                <div class="form-field"><label for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local" class="input"></div>
-                <div class="form-field"><label for="fl-tipo">Tipo</label>
+                <div class="form-field"><label class="form-field__label" for="fl-desde">Desde</label><input id="fl-desde" type="datetime-local" class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="fl-hasta">Hasta</label><input id="fl-hasta" type="datetime-local" class="input"></div>
+                <div class="form-field"><label class="form-field__label" for="fl-tipo">Tipo</label>
                   <select id="fl-tipo" class="input input--select"><option value="">Todos</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="ajuste">Ajuste</option></select>
                 </div>
                 <div class="form-field form-field--cta"><button id="fl-filtrar" type="button" class="button button--primary">Filtrar</button></div>
@@ -370,7 +370,7 @@ window.InventarioModule = (function(){
             <div class="card__body">
               <div class="form-grid inv-kardex-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
                 <div class="form-field">
-                  <label for="kx-prod">Producto</label>
+                  <label class="form-field__label" for="kx-prod">Producto</label>
                   <div class="auto-complete">
                     <input id="kx-prod" placeholder="Buscar..." autocomplete="off" class="input">
                     <div id="kx-sug" class="ac-list" style="display:none"></div>
@@ -378,13 +378,13 @@ window.InventarioModule = (function(){
                   <input type="hidden" id="kx-prod-id">
                 </div>
                 <div class="form-field">
-                  <label for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local" class="input">
+                  <label class="form-field__label" for="kx-desde">Desde</label><input id="kx-desde" type="datetime-local" class="input">
                 </div>
                 <div class="form-field">
-                  <label for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local" class="input">
+                  <label class="form-field__label" for="kx-hasta">Hasta</label><input id="kx-hasta" type="datetime-local" class="input">
                 </div>
                 <div class="form-field">
-                  <label for="kx-perpage">Mostrar</label>
+                  <label class="form-field__label" for="kx-perpage">Mostrar</label>
                   <select id="kx-perpage" class="input input--select"><option value="10">10 res.</option><option value="25">25 res.</option><option value="50">50 res.</option></select>
                 </div>
                 <div class="form-field form-field--cta">

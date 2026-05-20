@@ -2,6 +2,7 @@ import logging
 from logging.config import fileConfig
 
 from flask import current_app
+from sqlmodel import SQLModel
 
 from alembic import context
 
@@ -47,8 +48,12 @@ target_db = current_app.extensions['migrate'].db
 
 def get_metadata():
     if hasattr(target_db, 'metadatas'):
-        return target_db.metadatas[None]
-    return target_db.metadata
+        legacy_metadata = target_db.metadatas[None]
+    else:
+        legacy_metadata = target_db.metadata
+    if SQLModel.metadata.tables:
+        return [legacy_metadata, SQLModel.metadata]
+    return legacy_metadata
 
 
 def run_migrations_offline():

@@ -1,5 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from extensions import db
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Auditoria(db.Model):
@@ -10,4 +14,4 @@ class Auditoria(db.Model):
     action = db.Column(db.String(120), nullable=False)
     details = db.Column(db.Text)
     ip = db.Column(db.String(64))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)

@@ -2,14 +2,17 @@ import csv
 import io
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from flask_jwt_extended import create_access_token
+from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.pool import StaticPool
 
 from app import create_app
 from config import Config
 from extensions import db
 from models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
+from models.clinica import Clinica
 from models.inventario import Producto
 from models.paciente import Paciente
 from models.profesional import Profesional
@@ -59,10 +62,12 @@ class ReportesExportCSVTestCase(unittest.TestCase):
         return {"Authorization": f"Bearer {self.token}"}
 
     def _seed_data(self):
-        paciente = Paciente(nombre="Paciente Demo")
+        clinica = Clinica(id=1, nombre="Clinica Default", slug="clinica-default")
+        paciente = Paciente(clinica_id=1, nombre="Paciente Demo")
         profesional = Profesional(nombres="Ana", apellidos="García")
         servicio = Servicio(nombre="Limpieza facial")
         producto = Producto(
+            clinica_id=1,
             sku="SKU-1",
             nombre="Gel limpiador",
             stock_actual=1,
@@ -71,10 +76,11 @@ class ReportesExportCSVTestCase(unittest.TestCase):
         producto.categoria = "Faciales"
         producto.unidad = "ml"
 
-        db.session.add_all([paciente, profesional, servicio, producto])
+        db.session.add_all([clinica, paciente, profesional, servicio, producto])
         db.session.commit()
 
         turno = Turno(
+            clinica_id=1,
             paciente_id=paciente.id,
             profesional_id=profesional.id,
             servicio_id=servicio.id,
@@ -83,6 +89,7 @@ class ReportesExportCSVTestCase(unittest.TestCase):
         )
 
         movimiento = CajaMovimiento(
+            clinica_id=1,
             tipo=TipoMovimiento.INGRESO,
             monto=120,
             metodo_pago=MetodoPago.EFECTIVO,
@@ -152,6 +159,60 @@ class ReportesExportCSVTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/pdf")
         self.assertTrue(response.headers.get("Content-Disposition", "").startswith("attachment;"))
+
+    def test_exporta_async_enqueuea_job(self):
+        class FakeConnection:
+            def ping(self):
+                return True
+
+        class FakeJob:
+            id = "job-1"
+
+            def get_status(self, refresh=True):
+                return "queued"
+
+        class FakeQueue:
+            name = "default"
+            connection = FakeConnection()
+
+            def enqueue(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+                return FakeJob()
+
+        fake_queue = FakeQueue()
+        with patch("routes.reportes.get_queue", return_value=fake_queue):
+            response = self.client.post(
+                "/api/reportes/exportar/async",
+                json={"tipo": "facturacion", "formato": "excel", "filtros": {"desde": "2026-01-01"}},
+                headers=self._auth_headers(),
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json["job_id"], "job-1")
+        self.assertEqual(fake_queue.args[0], "tasks.reportes.export_report_job")
+        self.assertEqual(fake_queue.args[1], "facturacion")
+        self.assertEqual(fake_queue.args[2], "excel")
+        self.assertEqual(fake_queue.args[4], 1)
+
+    def test_exporta_async_responde_503_si_redis_no_disponible(self):
+        class FakeConnection:
+            def ping(self):
+                raise RedisConnectionError("down")
+
+        class FakeQueue:
+            name = "default"
+            connection = FakeConnection()
+
+        with patch("routes.reportes.get_queue", return_value=FakeQueue()):
+            response = self.client.post(
+                "/api/reportes/exportar/async",
+                json={"tipo": "facturacion", "formato": "excel", "filtros": {}},
+                headers=self._auth_headers(),
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Redis no está disponible", response.json["message"])
 
 
 if __name__ == "__main__":

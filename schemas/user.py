@@ -9,10 +9,12 @@ class UserSchema(SQLAlchemySchema):
         load_instance = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     email = auto_field()
     nombre = auto_field()
     rol = auto_field()
-    activo = auto_field()
+    is_active = auto_field()
+    deleted_at = auto_field(dump_only=True)
     created_at = auto_field(dump_only=True)
     updated_at = auto_field(dump_only=True)
 

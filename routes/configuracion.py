@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime
-
-from flask import Blueprint, request
+from flask import Blueprint, abort, request
 from flask_jwt_extended import jwt_required
+from sqlalchemy import select
 
 from extensions import db
 from models.user import User, RoleEnum, PermisoRol
 from schemas.user import UserSchema, PermisoRolSchema
 from utils.decorators import role_required
+from utils.tenant import get_current_clinica_id
 
 bp = Blueprint("configuracion", __name__, url_prefix="/api/config")
 
@@ -31,13 +31,18 @@ MANAGED_MODULES = [
 
 
 def _ensure_permissions() -> None:
-    # Garantiza que la tabla existe incluso si la DB fue provisionada antes del modelo
-    PermisoRol.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as conn:
+        PermisoRol.__table__.create(conn, checkfirst=True)
 
     created = False
     for role in RoleEnum:
         for module in MANAGED_MODULES:
-            exists = PermisoRol.query.filter_by(role=role, module=module["key"]).first()
+            exists = db.session.execute(
+                select(PermisoRol).where(
+                    PermisoRol.role == role,
+                    PermisoRol.module == module["key"],
+                )
+            ).scalar_one_or_none()
             if not exists:
                 db.session.add(
                     PermisoRol(
@@ -56,7 +61,12 @@ def _ensure_permissions() -> None:
 @jwt_required()
 @role_required("administracion")
 def listar_usuarios():
-    usuarios = User.query.order_by(User.created_at.desc()).all()
+    clinica_id = get_current_clinica_id()
+    usuarios = db.session.execute(
+        select(User)
+        .where(User.clinica_id == clinica_id)
+        .order_by(User.created_at.desc())
+    ).scalars().all()
     return {
         "data": user_many.dump(usuarios),
         "roles": [role.value for role in RoleEnum],
@@ -68,6 +78,7 @@ def listar_usuarios():
 @role_required("administracion")
 def crear_usuario():
     payload = request.get_json(silent=True) or {}
+    clinica_id = get_current_clinica_id()
     email = (payload.get("email") or "").strip().lower()
     nombre = (payload.get("nombre") or "").strip()
     rol_raw = payload.get("rol") or ""
@@ -75,7 +86,7 @@ def crear_usuario():
 
     if not email or not nombre or not rol_raw or not password:
         return {"message": "email, nombre, rol y password son requeridos"}, 400
-    if User.query.filter_by(email=email).first():
+    if db.session.execute(select(User).where(User.email == email)).scalar_one_or_none():
         return {"message": "Email ya registrado"}, 409
 
     try:
@@ -83,7 +94,13 @@ def crear_usuario():
     except ValueError:
         return {"message": "Rol inválido"}, 400
 
-    usuario = User(email=email, nombre=nombre, rol=rol_enum, activo=bool(payload.get("activo", True)))
+    usuario = User(
+        clinica_id=clinica_id,
+        email=email,
+        nombre=nombre,
+        rol=rol_enum,
+        is_active=bool(payload.get("activo", True)),
+    )
     usuario.set_password(password)
     db.session.add(usuario)
     db.session.commit()
@@ -95,7 +112,12 @@ def crear_usuario():
 @jwt_required()
 @role_required("administracion")
 def actualizar_usuario(uid: int):
-    usuario: User = User.query.get_or_404(uid)
+    usuario = db.session.execute(
+        select(User).where(User.id == uid, User.clinica_id == get_current_clinica_id())
+    ).scalar_one_or_none()
+    if not usuario:
+        abort(404)
+
     payload = request.get_json(silent=True) or {}
 
     nombre = payload.get("nombre")
@@ -113,13 +135,12 @@ def actualizar_usuario(uid: int):
             return {"message": "Rol inválido"}, 400
 
     if "activo" in payload:
-        usuario.activo = bool(payload.get("activo"))
+        usuario.is_active = bool(payload.get("activo"))
 
     password = payload.get("password")
     if password:
         usuario.set_password(password)
 
-    usuario.updated_at = datetime.utcnow()
     db.session.commit()
     return user_schema.dump(usuario)
 
@@ -129,7 +150,9 @@ def actualizar_usuario(uid: int):
 @role_required("administracion")
 def listar_permisos():
     _ensure_permissions()
-    permisos = PermisoRol.query.order_by(PermisoRol.role.asc(), PermisoRol.module.asc()).all()
+    permisos = db.session.execute(
+        select(PermisoRol).order_by(PermisoRol.role.asc(), PermisoRol.module.asc())
+    ).scalars().all()
     return {
         "data": perm_many.dump(permisos),
         "modules": MANAGED_MODULES,
@@ -141,7 +164,10 @@ def listar_permisos():
 @jwt_required()
 @role_required("administracion")
 def actualizar_permiso(pid: int):
-    permiso: PermisoRol = PermisoRol.query.get_or_404(pid)
+    permiso = db.session.get(PermisoRol, pid)
+    if not permiso:
+        abort(404)
+
     payload = request.get_json(silent=True) or {}
 
     if "can_read" in payload:
@@ -151,6 +177,5 @@ def actualizar_permiso(pid: int):
         if permiso.can_write:
             permiso.can_read = True
 
-    permiso.updated_at = datetime.utcnow()
     db.session.commit()
     return perm_schema.dump(permiso)

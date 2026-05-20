@@ -19,19 +19,32 @@ def _D(x) -> Decimal:
     except (InvalidOperation, ValueError): 
         return Decimal("0")
 
-def consumir_insumos_por_servicio(servicio_id: int, multiplicador=1, motivo="", referencia=""):
+def consumir_insumos_por_servicio(
+    servicio_id: int,
+    multiplicador=1,
+    motivo="",
+    referencia="",
+    session: Session = None,
+    estricta: bool = False,
+    clinica_id: int | None = None,
+):
     """
     Compatibilidad: delega en la versión por lotes.
     """
     return consumir_insumos_por_servicios_en_lote(
         [(servicio_id, multiplicador)],
-        motivo=motivo, referencia=referencia, session=db.session, estricta=False
+        motivo=motivo,
+        referencia=referencia,
+        session=session or db.session,
+        estricta=estricta,
+        clinica_id=clinica_id,
     )
 
 def consumir_insumos_por_servicios_en_lote(
     servicios: list,  # [(servicio_id, multiplicador), ...]
     *, motivo: str = "", referencia: str = "",
-    session: Session = None, estricta: bool = False
+    session: Session = None, estricta: bool = False,
+    clinica_id: int | None = None,
 ):
     """
     Suma insumos de TODOS los servicios del POS y descuenta por producto.
@@ -63,9 +76,10 @@ def consumir_insumos_por_servicios_en_lote(
             # si por alguna razón quedó 0 después de acumular, ignorar en la validación también
             if cant <= 0:
                 continue
-            prod = session.execute(
-                select(Producto).where(Producto.id == pid).with_for_update(read=True)
-            ).scalar_one_or_none()
+            stmt = select(Producto).where(Producto.id == pid)
+            if clinica_id is not None:
+                stmt = stmt.where(Producto.clinica_id == clinica_id, Producto.is_active.is_(True))
+            prod = session.execute(stmt.with_for_update(read=True)).scalar_one_or_none()
             disp = _D(getattr(prod, "stock_actual", 0)) if prod else Decimal("0")
             if disp < cant:
                 falt.append({"producto_id": pid, "requerido": str(cant), "disponible": str(disp)})
@@ -79,9 +93,10 @@ def consumir_insumos_por_servicios_en_lote(
         if cant is None or cant <= 0:
             continue
 
-        prod = session.execute(
-            select(Producto).where(Producto.id == pid).with_for_update()
-        ).scalar_one_or_none()
+        stmt = select(Producto).where(Producto.id == pid)
+        if clinica_id is not None:
+            stmt = stmt.where(Producto.clinica_id == clinica_id, Producto.is_active.is_(True))
+        prod = session.execute(stmt.with_for_update()).scalar_one_or_none()
         if not prod:
             if estricta:
                 raise ValueError(f"Producto {pid} no existe")
@@ -98,6 +113,7 @@ def consumir_insumos_por_servicios_en_lote(
 
         nuevo = disp - desc
         mov = MovimientoStock(
+            clinica_id=prod.clinica_id,
             producto_id=pid,
             tipo=TipoMov.EGRESO.value if hasattr(TipoMov, "EGRESO") else "egreso",
             cantidad=desc,

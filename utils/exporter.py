@@ -15,6 +15,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from flask import current_app, has_app_context
 
 SYSTEM_NAME = "WaykiSAC - Sistema de Gestion Clinica"
 COMPANY_NAME = "Clinica Estetica OSCORIMA"
@@ -23,7 +24,7 @@ COMPANY_ADDRESS = "Jiron las Begonias N° 29 Ayacucho-Peru"
 COMPANY_PHONE = ""
 COMPANY_VOUCHER = "BOLETA DE VENTA ELECTRONICA"
 COMPANY_SERIE = "B001 - 000001"
-EXPORT_DIR = Path("exports")
+EXPORT_DIR = Path(os.getenv("REPORT_EXPORT_DIR", "exports"))
 HEADER_COLOR = "1F3C88"
 ALT_ROW_COLOR = "F7F9FC"
 GRID_COLOR = "D0D7ED"
@@ -44,8 +45,9 @@ class ExporterError(RuntimeError):
 
 
 def _ensure_export_dir() -> Path:
-    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-    return EXPORT_DIR
+    export_dir = Path(current_app.config.get("REPORT_EXPORT_DIR", EXPORT_DIR)) if has_app_context() else EXPORT_DIR
+    export_dir.mkdir(parents=True, exist_ok=True)
+    return export_dir
 
 
 def _timestamp_path(prefix: str, ext: str) -> Path:
@@ -265,7 +267,7 @@ def export_to_pdf(nombre_reporte: str, data: List[Dict[str, Any]], filters: Dict
     file_path = _timestamp_path(nombre_reporte, ".pdf")
 
     doc = SimpleDocTemplate(
-        file_path,
+        str(file_path),
         pagesize=landscape(A4),
         leftMargin=36,
         rightMargin=36,

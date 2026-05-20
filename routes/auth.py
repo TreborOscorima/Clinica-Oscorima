@@ -17,8 +17,9 @@ from flask_jwt_extended import (
     get_jwt,
     jwt_required,
 )
+from sqlalchemy import select
 
-from extensions import limiter
+from extensions import db, limiter
 from models.user import User
 from schemas.auth import LoginSchema
 from utils.audit import log_action
@@ -47,7 +48,11 @@ def _build_token_pair(user: User) -> dict[str, Any]:
     Genera un par access/refresh token para el usuario dado y arma el payload
     de respuesta estándar.
     """
-    claims: dict[str, str] = {"role": user.rol.value, "name": user.nombre}
+    claims: dict[str, Any] = {
+        "role": user.rol.value,
+        "name": user.nombre,
+        "clinica_id": user.clinica_id,
+    }
     access_token: str = create_access_token(
         identity=str(user.id), additional_claims=claims
     )
@@ -78,11 +83,13 @@ def login() -> tuple[dict[str, Any], int]:
     data: dict[str, Any] = login_schema.load(request.json or {})
 
     # Consulta única — no revelamos si el email existe o no
-    user: User | None = User.query.filter_by(email=data["email"]).first()
+    user: User | None = db.session.execute(
+        select(User).where(User.email == data["email"])
+    ).scalar_one_or_none()
 
     # Validación unificada: devolvemos el MISMO mensaje para email no existente,
     # password incorrecta y cuenta inactiva → previene User Enumeration
-    if not user or not user.check_password(data["password"]) or not user.activo:
+    if not user or not user.check_password(data["password"]) or not user.is_active:
         return {"message": "Credenciales inválidas"}, 401
 
     log_action(user.id, "login", f"Usuario {user.email} inició sesión")
@@ -92,6 +99,7 @@ def login() -> tuple[dict[str, Any], int]:
         "id": user.id,
         "nombre": user.nombre,
         "rol": user.rol.value,
+        "clinica_id": user.clinica_id,
     }
     return payload, 200
 
@@ -112,10 +120,10 @@ def refresh() -> tuple[dict[str, Any], int]:
     except (TypeError, ValueError):
         return {"message": "Token inválido"}, 401
 
-    user: User | None = User.query.get(user_id)
+    user: User | None = db.session.get(User, user_id)
 
     # Anti User-Enumeration: mismo mensaje para usuario inexistente e inactivo
-    if not user or not user.activo:
+    if not user or not user.is_active:
         return {"message": "Credenciales inválidas"}, 401
 
     return _build_token_pair(user), 200

@@ -15,6 +15,7 @@ class CajaMovimientoSchema(SQLAlchemySchema):
         load_instance = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     fecha = auto_field()
     tipo = auto_field()
     monto = auto_field()
@@ -25,6 +26,8 @@ class CajaMovimientoSchema(SQLAlchemySchema):
     comprobante_id = auto_field()
     observacion = auto_field()
     turno_id = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 
 class ComprobanteSchema(SQLAlchemySchema):
@@ -33,6 +36,7 @@ class ComprobanteSchema(SQLAlchemySchema):
         load_instance = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     tipo = auto_field()
     numero = auto_field()
     fecha = auto_field()
@@ -44,6 +48,8 @@ class ComprobanteSchema(SQLAlchemySchema):
     # Otros
     forma_pago = auto_field()
     observacion = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 
 class CierreCajaSchema(SQLAlchemySchema):
@@ -52,12 +58,15 @@ class CierreCajaSchema(SQLAlchemySchema):
         load_instance = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     fecha = auto_field()
     total_ingresos = auto_field()
     total_egresos = auto_field()
     saldo = auto_field()
     usuario_id = auto_field()
     creado_en = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
 
 
 class ComprobanteItemSchema(SQLAlchemySchema):
@@ -81,11 +90,14 @@ class DeudaPacienteSchema(SQLAlchemySchema):
         load_instance = True
 
     id = auto_field(dump_only=True)
+    clinica_id = auto_field(load_only=True)
     paciente_id = auto_field()
     comprobante_id = auto_field()
     total = auto_field()
     pagado = auto_field()
     saldo = auto_field()
     estado = auto_field()
+    is_active = auto_field(dump_only=True)
+    deleted_at = auto_field(dump_only=True)
     creado_en = auto_field()
     actualizado_en = auto_field()
