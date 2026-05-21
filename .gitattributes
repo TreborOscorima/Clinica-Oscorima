@@ -1,0 +1,18 @@
+# Normalizar line endings: LF en el repo, conversión automática en checkout Windows
+* text=auto eol=lf
+
+# Forzar LF en archivos críticos para Docker/Linux
+Dockerfile*        text eol=lf
+docker-compose.yml text eol=lf
+*.sh               text eol=lf
+.env*              text eol=lf
+
+# Binarios — sin conversión
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.woff2 binary
+*.woff  binary
+*.ttf   binary
+*.eot   binary

@@ -1,0 +1,54 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Secrets / Env ─────────────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+*.key
+*.pem
+
+# ── Reflex frontend build (se compila dentro del container) ──────────────────
+.web/
+
+# ── Datos generados en runtime ────────────────────────────────────────────────
+exports/
+logs/
+*.log
+
+# ── Herramientas de desarrollo ────────────────────────────────────────────────
+.agents/
+.claude/
+.git/
+.gitignore
+.editorconfig
+
+# ── Flask era (ya no se usa, no va a la imagen) ──────────────────────────────
+app.py
+config.py
+database.py
+extensions.py
+models/
+routes/
+services/
+tasks/
+utils/
+templates/
+static/
+migrations/
+tests/
+error_trace.txt
+inventario_old_block.txt
+start_redis.bat
+skills-lock.json
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

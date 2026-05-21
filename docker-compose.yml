@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+
+  # ─── MySQL (RDS-compatible) ─────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-rootpass}
+      MYSQL_DATABASE:      ${MYSQL_DB:-clinica_estetica}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis (ElastiCache-compatible) ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── App Reflex ─────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # Frontend Next.js compilado
+      - "8000:8000"   # Backend FastAPI / WebSocket de Reflex
+    environment:
+      DATABASE_URL:  "mysql+pymysql://${MYSQL_USER:-root}:${MYSQL_PASSWORD:-rootpass}@db:3306/${MYSQL_DB:-clinica_estetica}?charset=utf8mb4"
+      REDIS_URL:     "redis://redis:6379/0"
+      SECRET_KEY:    "${SECRET_KEY:-change-me-in-production}"
+      SQLMODEL_ECHO: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - exports_data:/app/exports
+
+  # ─── Worker RQ (reportes en background) ─────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:      "mysql+pymysql://${MYSQL_USER:-root}:${MYSQL_PASSWORD:-rootpass}@db:3306/${MYSQL_DB:-clinica_estetica}?charset=utf8mb4"
+      REDIS_URL:         "redis://redis:6379/0"
+      REPORT_EXPORT_DIR: "/app/exports"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - exports_data:/app/exports
+
+volumes:
+  mysql_data:
+  exports_data:
