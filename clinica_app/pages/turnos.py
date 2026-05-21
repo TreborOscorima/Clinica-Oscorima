@@ -25,12 +25,12 @@ def _modal_nuevo() -> rx.Component:
                 rx.el.div(
                     _select_field("Paciente *", TurnosState.pacientes_cat,
                                   TurnosState.form_paciente_id,
-                                  TurnosState.set_var("form_paciente_id")),
+                                  TurnosState.set_form_paciente_id),
                     _select_field("Profesional", TurnosState.profesionales_cat,
                                   TurnosState.form_profesional_id,
-                                  TurnosState.set_var("form_profesional_id"), required=False),
+                                  TurnosState.set_form_profesional_id, required=False),
                     _input_field("Fecha y hora *", "datetime-local",
-                                 TurnosState.form_fecha_hora, TurnosState.set_var("form_fecha_hora")),
+                                 TurnosState.form_fecha_hora, TurnosState.set_form_fecha_hora),
                     class_name="space-y-4",
                 ),
                 rx.cond(
@@ -72,7 +72,7 @@ def _modal_estado() -> rx.Component:
                         rx.el.option("Atendido", value="atendido"),
                         rx.el.option("Cancelado", value="cancelado"),
                         value=TurnosState.form_nuevo_estado,
-                        on_change=TurnosState.set_var("form_nuevo_estado"),
+                        on_change=TurnosState.set_form_nuevo_estado,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                     ),
                     class_name="mb-4",
@@ -83,7 +83,7 @@ def _modal_estado() -> rx.Component:
                         rx.el.label("Motivo (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
                         rx.el.textarea(
                             value=TurnosState.form_motivo,
-                            on_change=TurnosState.set_var("form_motivo"),
+                            on_change=TurnosState.set_form_motivo,
                             rows=3,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -127,17 +127,17 @@ def _select_field(label, options, value, on_change, required=True) -> rx.Compone
 
 def _fila_turno(t: dict) -> rx.Component:
     return rx.el.tr(
-        rx.el.td(t["paciente_nombre"] or "—", class_name="px-4 py-3 text-sm font-medium text-gray-900"),
-        rx.el.td(t["profesional_nombre"] or "—", class_name="px-4 py-3 text-sm text-gray-600"),
-        rx.el.td(t["servicio_nombre"] or "—", class_name="px-4 py-3 text-sm text-gray-600"),
+        rx.el.td(rx.cond(t["paciente_nombre"], t["paciente_nombre"], "—"), class_name="px-4 py-3 text-sm font-medium text-gray-900"),
+        rx.el.td(rx.cond(t["profesional_nombre"], t["profesional_nombre"], "—"), class_name="px-4 py-3 text-sm text-gray-600"),
+        rx.el.td(rx.cond(t["servicio_nombre"], t["servicio_nombre"], "—"), class_name="px-4 py-3 text-sm text-gray-600"),
         rx.el.td(
             rx.el.span(
-                (t["fecha_hora"] or "")[:16].replace("T", " "),
+                t["fecha_hora"],  # servicio ya devuelve "YYYY-MM-DD HH:MM"
                 class_name="text-sm text-gray-600 font-mono",
             ),
             class_name="px-4 py-3",
         ),
-        rx.el.td(estado_badge(t["estado"] or ""), class_name="px-4 py-3"),
+        rx.el.td(estado_badge(t["estado"]), class_name="px-4 py-3"),
         rx.el.td(
             rx.el.button(
                 rx.icon("pencil", size=15),
@@ -195,7 +195,7 @@ def turnos_page() -> rx.Component:
                         ),
                         class_name="bg-gray-50 border-b border-gray-200",
                     ),
-                    rx.el.tbody(rx.foreach(TurnosState.turnos, _fila_turno)),
+                    rx.el.tbody(rx.foreach(TurnosState.turnos.to(list[dict]), _fila_turno)),
                     class_name="w-full border-collapse",
                 ),
                 class_name="overflow-x-auto",

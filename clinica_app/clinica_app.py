@@ -1,5 +1,5 @@
 """
-clinica_app.py — Punto de entrada de la aplicación Reflex.
+clinica_app/clinica_app.py — Punto de entrada de la aplicación Reflex.
 
 Arrancar en desarrollo:
     reflex run
@@ -8,7 +8,8 @@ Arrancar en producción:
     reflex run --env prod
 """
 import reflex as rx
-from fastapi.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from clinica_app.pages.login      import login_page
 from clinica_app.pages.dashboard  import dashboard_page
@@ -40,7 +41,8 @@ app.add_page(reportes_page,      route="/reportes")
 app.add_page(configuracion_page, route="/configuracion")
 
 
-@app.api.get("/health")
-async def health_check():
+async def _health_check(request: Request) -> JSONResponse:
     """Health check para AWS ALB / ECS. Retorna 200 si el backend está vivo."""
     return JSONResponse({"status": "ok"})
+
+app._api.add_route("/health", _health_check)

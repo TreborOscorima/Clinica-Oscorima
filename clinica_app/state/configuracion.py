@@ -72,6 +72,20 @@ class ConfiguracionState(BaseState):
     def set_tab(self, tab: str):
         self.tab_activo = tab
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_form_nombre(self, v: str):           self.form_nombre = v
+    def set_form_razon_social(self, v: str):     self.form_razon_social = v
+    def set_form_documento_fiscal(self, v: str): self.form_documento_fiscal = v
+    def set_form_email_clinica(self, v: str):    self.form_email_clinica = v
+    def set_form_telefono(self, v: str):         self.form_telefono = v
+    def set_form_u_nombre(self, v: str):         self.form_u_nombre = v
+    def set_form_u_email(self, v: str):          self.form_u_email = v
+    def set_form_u_rol(self, v: str):            self.form_u_rol = v
+    def set_form_u_password(self, v: str):       self.form_u_password = v
+    def set_form_u_password2(self, v: str):      self.form_u_password2 = v
+    def set_form_pw_nueva(self, v: str):         self.form_pw_nueva = v
+    def set_form_pw_nueva2(self, v: str):        self.form_pw_nueva2 = v
+
     # ── Guardar datos de la clínica ────────────────────────────────────────────
 
     async def guardar_clinica(self):
@@ -142,7 +156,7 @@ class ConfiguracionState(BaseState):
 
         self.is_saving_usuario = False
         self.modal_usuario     = False
-        return self._recargar_usuarios()
+        self._recargar_usuarios()
 
     # ── Cambiar contraseña ─────────────────────────────────────────────────────
 

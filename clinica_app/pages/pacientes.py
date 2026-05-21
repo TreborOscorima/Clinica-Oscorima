@@ -30,13 +30,13 @@ def _modal_paciente() -> rx.Component:
                 ),
                 # Campos del formulario
                 rx.el.div(
-                    _campo("Nombre *",          "text",  PacientesState.form_nombre,    PacientesState.set_var("form_nombre")),
-                    _campo("Documento / DNI",   "text",  PacientesState.form_documento, PacientesState.set_var("form_documento")),
-                    _campo("Email",             "email", PacientesState.form_email,     PacientesState.set_var("form_email")),
-                    _campo("Teléfono",          "text",  PacientesState.form_telefono,  PacientesState.set_var("form_telefono")),
-                    _campo("Dirección",         "text",  PacientesState.form_direccion, PacientesState.set_var("form_direccion")),
-                    _campo("Fecha nacimiento",  "date",  PacientesState.form_nacimiento, PacientesState.set_var("form_nacimiento")),
-                    _campo("Contacto emergencia", "text", PacientesState.form_emergencia, PacientesState.set_var("form_emergencia")),
+                    _campo("Nombre *",          "text",  PacientesState.form_nombre,    PacientesState.set_form_nombre),
+                    _campo("Documento / DNI",   "text",  PacientesState.form_documento, PacientesState.set_form_documento),
+                    _campo("Email",             "email", PacientesState.form_email,     PacientesState.set_form_email),
+                    _campo("Teléfono",          "text",  PacientesState.form_telefono,  PacientesState.set_form_telefono),
+                    _campo("Dirección",         "text",  PacientesState.form_direccion, PacientesState.set_form_direccion),
+                    _campo("Fecha nacimiento",  "date",  PacientesState.form_nacimiento, PacientesState.set_form_nacimiento),
+                    _campo("Contacto emergencia", "text", PacientesState.form_emergencia, PacientesState.set_form_emergencia),
                     class_name="space-y-4",
                 ),
                 rx.cond(
@@ -90,12 +90,12 @@ def _campo(label: str, tipo: str, value, on_change) -> rx.Component:
 def _fila_paciente(p: dict) -> rx.Component:
     return rx.el.tr(
         rx.el.td(p["nombre"], class_name="px-4 py-3 text-sm font-medium text-gray-900"),
-        rx.el.td(p["documento"] or "—", class_name="px-4 py-3 text-sm text-gray-600"),
-        rx.el.td(p["email"] or "—", class_name="px-4 py-3 text-sm text-gray-600"),
-        rx.el.td(p["telefono"] or "—", class_name="px-4 py-3 text-sm text-gray-600"),
+        rx.el.td(rx.cond(p["documento"], p["documento"], "—"), class_name="px-4 py-3 text-sm text-gray-600"),
+        rx.el.td(rx.cond(p["email"], p["email"], "—"), class_name="px-4 py-3 text-sm text-gray-600"),
+        rx.el.td(rx.cond(p["telefono"], p["telefono"], "—"), class_name="px-4 py-3 text-sm text-gray-600"),
         rx.el.td(
             rx.el.span(
-                rx.cond(p["edad"], f"{p['edad']} años", "—"),
+                rx.cond(p["edad"], rx.el.span(p["edad"], " años"), "—"),
                 class_name="text-sm text-gray-600",
             ),
             class_name="px-4 py-3",
@@ -173,7 +173,7 @@ def pacientes_page() -> rx.Component:
                         class_name="bg-gray-50 border-b border-gray-200",
                     ),
                     rx.el.tbody(
-                        rx.foreach(PacientesState.pacientes, _fila_paciente),
+                        rx.foreach(PacientesState.pacientes.to(list[dict]), _fila_paciente),
                     ),
                     class_name="w-full border-collapse",
                 ),

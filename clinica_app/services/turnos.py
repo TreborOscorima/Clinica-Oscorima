@@ -41,11 +41,11 @@ def _dump(t: Turno) -> dict[str, Any]:
         "profesional_nombre":   prof_nombre,
         "servicio_id":          t.servicio_id,
         "servicio_nombre":      servicio_nombre,
-        "fecha_hora":           t.fecha_hora.isoformat() if t.fecha_hora else None,
+        "fecha_hora":           t.fecha_hora.strftime("%Y-%m-%d %H:%M") if t.fecha_hora else "",
         "estado":               t.estado.value if t.estado else None,
         "motivo_cancelacion":   t.motivo_cancelacion,
         "items":                items,
-        "created_at":           t.created_at.isoformat() if t.created_at else None,
+        "created_at":           t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else "",
     }
 
 

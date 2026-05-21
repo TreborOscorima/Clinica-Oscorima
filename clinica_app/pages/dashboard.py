@@ -10,8 +10,8 @@ from clinica_app.state.dashboard import DashboardState
 
 def _fila_turno_reciente(t: dict) -> rx.Component:
     return rx.el.tr(
-        rx.el.td(f"#{t['id']}", class_name="px-4 py-3 text-xs font-mono text-gray-400"),
-        rx.el.td(f"Pac. #{t['paciente_id']}", class_name="px-4 py-3 text-sm text-gray-700"),
+        rx.el.td(rx.el.span("#", t["id"]), class_name="px-4 py-3 text-xs font-mono text-gray-400"),
+        rx.el.td(rx.el.span("Pac. #", t["paciente_id"]), class_name="px-4 py-3 text-sm text-gray-700"),
         rx.el.td(t["fecha_hora"], class_name="px-4 py-3 text-sm text-gray-600 font-mono"),
         rx.el.td(estado_badge(t["estado"]), class_name="px-4 py-3"),
         class_name="border-t border-gray-100 hover:bg-gray-50",
@@ -62,7 +62,7 @@ def dashboard_page() -> rx.Component:
                         ),
                         class_name="bg-gray-50 border-b border-gray-100",
                     ),
-                    rx.el.tbody(rx.foreach(DashboardState.turnos_recientes, _fila_turno_reciente)),
+                    rx.el.tbody(rx.foreach(DashboardState.turnos_recientes.to(list[dict]), _fila_turno_reciente)),
                     class_name="w-full border-collapse",
                 ),
                 class_name="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100",

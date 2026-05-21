@@ -59,6 +59,15 @@ class PacientesState(BaseState):
         self.page = 1
         return self.cargar()
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_form_nombre(self, v: str):     self.form_nombre = v
+    def set_form_documento(self, v: str):  self.form_documento = v
+    def set_form_email(self, v: str):      self.form_email = v
+    def set_form_telefono(self, v: str):   self.form_telefono = v
+    def set_form_direccion(self, v: str):  self.form_direccion = v
+    def set_form_nacimiento(self, v: str): self.form_nacimiento = v
+    def set_form_emergencia(self, v: str): self.form_emergencia = v
+
     # ── Paginación ─────────────────────────────────────────────────────────────
 
     def prev_page(self):
@@ -138,7 +147,7 @@ class PacientesState(BaseState):
 
         self.is_saving     = False
         self.modal_abierto = False
-        return self.cargar()
+        self.cargar()
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 

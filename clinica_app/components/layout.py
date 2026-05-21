@@ -6,11 +6,16 @@ from clinica_app.components.sidebar import sidebar
 from clinica_app.state.base import BaseState
 
 
-def shell(*content: rx.Component, title: str = "") -> rx.Component:
+def shell(*content: rx.Component, title: str = "", on_mount=None) -> rx.Component:
     """
     Layout principal de la app: sidebar fijo + área de contenido scrollable.
     Protegida: redirige al login si el usuario no está autenticado.
+    `on_mount` se reenvía al div raíz para que Reflex lo dispare al montar la página.
     """
+    outer_kwargs = {}
+    if on_mount is not None:
+        outer_kwargs["on_mount"] = on_mount
+
     return rx.el.div(
         rx.cond(
             BaseState.is_authenticated,
@@ -44,4 +49,5 @@ def shell(*content: rx.Component, title: str = "") -> rx.Component:
                 on_mount=BaseState.require_auth,
             ),
         ),
+        **outer_kwargs,
     )

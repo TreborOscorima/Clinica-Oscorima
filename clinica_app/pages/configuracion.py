@@ -116,9 +116,9 @@ def _modal_nuevo_usuario() -> rx.Component:
                 # Campos
                 rx.el.div(
                     _campo("Nombre completo *", "text", ConfiguracionState.form_u_nombre,
-                           ConfiguracionState.set_var("form_u_nombre"), "Ej: Ana García"),
+                           ConfiguracionState.set_form_u_nombre, "Ej: Ana García"),
                     _campo("Email *", "email", ConfiguracionState.form_u_email,
-                           ConfiguracionState.set_var("form_u_email"), "usuario@clinica.com"),
+                           ConfiguracionState.set_form_u_email, "usuario@clinica.com"),
                     # Selector de rol
                     rx.el.div(
                         rx.el.label("Rol *", class_name="block text-sm font-medium text-gray-700 mb-1"),
@@ -128,15 +128,15 @@ def _modal_nuevo_usuario() -> rx.Component:
                             rx.el.option("Administrador",  value="administracion"),
                             rx.el.option("Contador",       value="contador"),
                             value=ConfiguracionState.form_u_rol,
-                            on_change=ConfiguracionState.set_var("form_u_rol"),
+                            on_change=ConfiguracionState.set_form_u_rol,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm "
                                        "focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
                     _campo_password("Contraseña *",        ConfiguracionState.form_u_password,
-                                    ConfiguracionState.set_var("form_u_password")),
+                                    ConfiguracionState.set_form_u_password),
                     _campo_password("Confirmar contraseña *", ConfiguracionState.form_u_password2,
-                                    ConfiguracionState.set_var("form_u_password2")),
+                                    ConfiguracionState.set_form_u_password2),
                     class_name="space-y-4",
                 ),
                 # Feedback
@@ -199,9 +199,9 @@ def _modal_password() -> rx.Component:
                 ),
                 rx.el.div(
                     _campo_password("Nueva contraseña *",    ConfiguracionState.form_pw_nueva,
-                                    ConfiguracionState.set_var("form_pw_nueva")),
+                                    ConfiguracionState.set_form_pw_nueva),
                     _campo_password("Confirmar contraseña *", ConfiguracionState.form_pw_nueva2,
-                                    ConfiguracionState.set_var("form_pw_nueva2")),
+                                    ConfiguracionState.set_form_pw_nueva2),
                     class_name="space-y-4",
                 ),
                 rx.cond(ConfiguracionState.form_pw_error   != "", _alert(ConfiguracionState.form_pw_error,   "red")),
@@ -240,15 +240,15 @@ def _seccion_clinica() -> rx.Component:
         ),
         rx.el.div(
             _campo("Nombre *",          "text",  ConfiguracionState.form_nombre,
-                   ConfiguracionState.set_var("form_nombre"), "Clínica Estética..."),
+                   ConfiguracionState.set_form_nombre, "Clínica Estética..."),
             _campo("Razón social",      "text",  ConfiguracionState.form_razon_social,
-                   ConfiguracionState.set_var("form_razon_social"), "S.A.C. / S.R.L...."),
+                   ConfiguracionState.set_form_razon_social, "S.A.C. / S.R.L...."),
             _campo("Documento fiscal",  "text",  ConfiguracionState.form_documento_fiscal,
-                   ConfiguracionState.set_var("form_documento_fiscal"), "RUC / CUIT / NIF..."),
+                   ConfiguracionState.set_form_documento_fiscal, "RUC / CUIT / NIF..."),
             _campo("Email de contacto", "email", ConfiguracionState.form_email_clinica,
-                   ConfiguracionState.set_var("form_email_clinica"), "correo@clinica.com"),
+                   ConfiguracionState.set_form_email_clinica, "correo@clinica.com"),
             _campo("Teléfono",          "tel",   ConfiguracionState.form_telefono,
-                   ConfiguracionState.set_var("form_telefono"), "+51 999 999 999"),
+                   ConfiguracionState.set_form_telefono, "+51 999 999 999"),
             class_name="grid grid-cols-1 gap-4 sm:grid-cols-2",
         ),
         rx.cond(ConfiguracionState.clinica_error   != "", _alert(ConfiguracionState.clinica_error,   "red")),
@@ -272,7 +272,7 @@ def _fila_usuario(u: dict) -> rx.Component:
         rx.el.td(
             rx.el.div(
                 rx.el.div(
-                    u["nombre"][:1].upper(),
+                    rx.icon("user", size=14),
                     class_name="w-8 h-8 rounded-full bg-sky-100 text-sky-700 flex items-center "
                                "justify-center text-sm font-bold shrink-0",
                 ),
@@ -365,7 +365,7 @@ def _seccion_usuarios() -> rx.Component:
                         class_name="bg-gray-50 border-b border-gray-200",
                     ),
                     rx.el.tbody(
-                        rx.foreach(ConfiguracionState.usuarios, _fila_usuario),
+                        rx.foreach(ConfiguracionState.usuarios.to(list[dict]), _fila_usuario),
                     ),
                     class_name="w-full border-collapse",
                 ),

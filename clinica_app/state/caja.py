@@ -61,6 +61,12 @@ class CajaState(BaseState):
         self.page = 1
         return self.cargar()
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_form_tipo(self, v: str):        self.form_tipo = v
+    def set_form_monto(self, v: str):       self.form_monto = v
+    def set_form_metodo(self, v: str):      self.form_metodo = v
+    def set_form_observacion(self, v: str): self.form_observacion = v
+
     def prev_page(self):
         if self.page > 1:
             self.page -= 1
@@ -113,7 +119,8 @@ class CajaState(BaseState):
 
         self.is_saving     = False
         self.modal_abierto = False
-        return self._cargar_resumen() or self.cargar()
+        self._cargar_resumen()
+        self.cargar()
 
     def eliminar_movimiento(self, mov_id: int):
         try:

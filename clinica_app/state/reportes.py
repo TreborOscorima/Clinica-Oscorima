@@ -30,6 +30,10 @@ class ReportesState(BaseState):
         self.job_result   = ""
         self.job_error    = ""
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_fecha_desde(self, v: str): self.fecha_desde = v
+    def set_fecha_hasta(self, v: str): self.fecha_hasta = v
+
     async def generar_reporte(self):
         self.is_enqueuing = True
         self.job_id       = ""

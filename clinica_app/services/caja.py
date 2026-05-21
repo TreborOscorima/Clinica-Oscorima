@@ -22,7 +22,7 @@ def dec2(v) -> Decimal:
 def _dump_mov(m: CajaMovimiento) -> dict[str, Any]:
     return {
         "id":           m.id,
-        "fecha":        m.fecha.isoformat() if m.fecha else None,
+        "fecha":        m.fecha.strftime("%Y-%m-%d %H:%M") if m.fecha else "",
         "tipo":         m.tipo.value if m.tipo else None,
         "monto":        str(m.monto),
         "metodo_pago":  m.metodo_pago.value if m.metodo_pago else None,

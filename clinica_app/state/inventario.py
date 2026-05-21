@@ -59,6 +59,17 @@ class InventarioState(BaseState):
         self.page = 1
         return self.cargar()
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_form_nombre(self, v: str):        self.form_nombre = v
+    def set_form_sku(self, v: str):           self.form_sku = v
+    def set_form_precio_costo(self, v: str):  self.form_precio_costo = v
+    def set_form_precio_venta(self, v: str):  self.form_precio_venta = v
+    def set_form_stock_actual(self, v: str):  self.form_stock_actual = v
+    def set_form_stock_minimo(self, v: str):  self.form_stock_minimo = v
+    def set_form_mov_tipo(self, v: str):      self.form_mov_tipo = v
+    def set_form_mov_cantidad(self, v: str):  self.form_mov_cantidad = v
+    def set_form_mov_motivo(self, v: str):    self.form_mov_motivo = v
+
     def toggle_minimo(self):
         self.solo_minimo = not self.solo_minimo
         self.page = 1
@@ -131,7 +142,7 @@ class InventarioState(BaseState):
 
         self.is_saving      = False
         self.modal_producto = False
-        return self.cargar()
+        self.cargar()
 
     def eliminar_producto(self, prod_id: int):
         try:

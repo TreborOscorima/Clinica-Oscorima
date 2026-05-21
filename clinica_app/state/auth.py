@@ -82,7 +82,7 @@ class AuthState(BaseState):
         self.email    = ""
         self.password = ""
 
-        return rx.redirect("/")
+        yield rx.redirect("/")
 
     def handle_logout(self):
         return self.logout()

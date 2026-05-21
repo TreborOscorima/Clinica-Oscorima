@@ -27,7 +27,7 @@ def _modal_movimiento() -> rx.Component:
                         rx.el.div(
                             rx.el.button(
                                 rx.icon("trending-up", size=16), "Ingreso",
-                                on_click=CajaState.set_var("form_tipo", "ingreso"),
+                                on_click=CajaState.set_form_tipo("ingreso"),
                                 class_name=rx.cond(
                                     CajaState.form_tipo == "ingreso",
                                     "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white",
@@ -36,7 +36,7 @@ def _modal_movimiento() -> rx.Component:
                             ),
                             rx.el.button(
                                 rx.icon("trending-down", size=16), "Egreso",
-                                on_click=CajaState.set_var("form_tipo", "egreso"),
+                                on_click=CajaState.set_form_tipo("egreso"),
                                 class_name=rx.cond(
                                     CajaState.form_tipo == "egreso",
                                     "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white",
@@ -54,7 +54,7 @@ def _modal_movimiento() -> rx.Component:
                             rx.el.input(
                                 type="number", step="0.01", min="0",
                                 value=CajaState.form_monto,
-                                on_change=CajaState.set_var("form_monto"),
+                                on_change=CajaState.set_form_monto,
                                 placeholder="0.00",
                                 class_name="flex-1 py-2 pr-3 outline-none text-sm",
                             ),
@@ -70,7 +70,7 @@ def _modal_movimiento() -> rx.Component:
                             rx.el.option("Transferencia", value="transferencia"),
                             rx.el.option("Otro", value="otro"),
                             value=CajaState.form_metodo,
-                            on_change=CajaState.set_var("form_metodo"),
+                            on_change=CajaState.set_form_metodo,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
@@ -79,7 +79,7 @@ def _modal_movimiento() -> rx.Component:
                         rx.el.label("Observación", class_name="block text-sm font-medium text-gray-700 mb-1"),
                         rx.el.textarea(
                             value=CajaState.form_observacion,
-                            on_change=CajaState.set_var("form_observacion"),
+                            on_change=CajaState.set_form_observacion,
                             rows=2, placeholder="Opcional...",
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
                         ),
@@ -113,14 +113,14 @@ def _modal_movimiento() -> rx.Component:
 def _fila_mov(m: dict) -> rx.Component:
     return rx.el.tr(
         rx.el.td(
-            rx.el.span((m["fecha"] or "")[:16].replace("T", " "),
+            rx.el.span(m["fecha"],  # servicio ya devuelve "YYYY-MM-DD HH:MM"
                        class_name="text-sm text-gray-600 font-mono"),
             class_name="px-4 py-3",
         ),
-        rx.el.td(estado_badge(m["tipo"] or ""), class_name="px-4 py-3"),
+        rx.el.td(estado_badge(m["tipo"]), class_name="px-4 py-3"),
         rx.el.td(
             rx.el.span(
-                f"$ {m['monto']}",
+                "$ ", m["monto"],
                 class_name=rx.cond(
                     m["tipo"] == "ingreso",
                     "text-sm font-semibold text-green-700",
@@ -129,8 +129,8 @@ def _fila_mov(m: dict) -> rx.Component:
             ),
             class_name="px-4 py-3",
         ),
-        rx.el.td(m["metodo_pago"] or "—", class_name="px-4 py-3 text-sm text-gray-600 capitalize"),
-        rx.el.td(m["observacion"] or "—", class_name="px-4 py-3 text-sm text-gray-500 max-w-xs truncate"),
+        rx.el.td(rx.cond(m["metodo_pago"], m["metodo_pago"], "—"), class_name="px-4 py-3 text-sm text-gray-600 capitalize"),
+        rx.el.td(rx.cond(m["observacion"], m["observacion"], "—"), class_name="px-4 py-3 text-sm text-gray-500 max-w-xs truncate"),
         rx.el.td(
             rx.el.button(
                 rx.icon("trash-2", size=15),
@@ -191,7 +191,7 @@ def caja_page() -> rx.Component:
                         ),
                         class_name="bg-gray-50 border-b border-gray-200",
                     ),
-                    rx.el.tbody(rx.foreach(CajaState.movimientos, _fila_mov)),
+                    rx.el.tbody(rx.foreach(CajaState.movimientos.to(list[dict]), _fila_mov)),
                     class_name="w-full border-collapse",
                 ),
                 class_name="overflow-x-auto",

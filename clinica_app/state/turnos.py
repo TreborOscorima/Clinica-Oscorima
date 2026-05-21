@@ -77,6 +77,13 @@ class TurnosState(BaseState):
         self.page = 1
         return self.cargar()
 
+    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    def set_form_paciente_id(self, v: str):    self.form_paciente_id = v
+    def set_form_profesional_id(self, v: str): self.form_profesional_id = v
+    def set_form_fecha_hora(self, v: str):     self.form_fecha_hora = v
+    def set_form_nuevo_estado(self, v: str):   self.form_nuevo_estado = v
+    def set_form_motivo(self, v: str):         self.form_motivo = v
+
     def prev_page(self):
         if self.page > 1:
             self.page -= 1
@@ -126,7 +133,7 @@ class TurnosState(BaseState):
 
         self.is_saving   = False
         self.modal_nuevo = False
-        return self.cargar()
+        self.cargar()
 
     # ── Modal cambiar estado ───────────────────────────────────────────────────
 

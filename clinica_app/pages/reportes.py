@@ -107,7 +107,7 @@ def reportes_page() -> rx.Component:
                         rx.el.label("Desde", class_name="block text-xs text-gray-500 mb-1"),
                         rx.el.input(
                             type="date", value=ReportesState.fecha_desde,
-                            on_change=ReportesState.set_var("fecha_desde"),
+                            on_change=ReportesState.set_fecha_desde,
                             class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
@@ -115,7 +115,7 @@ def reportes_page() -> rx.Component:
                         rx.el.label("Hasta", class_name="block text-xs text-gray-500 mb-1"),
                         rx.el.input(
                             type="date", value=ReportesState.fecha_hasta,
-                            on_change=ReportesState.set_var("fecha_hasta"),
+                            on_change=ReportesState.set_fecha_hasta,
                             class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
