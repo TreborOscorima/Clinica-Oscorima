@@ -31,16 +31,16 @@ def _modal_producto() -> rx.Component:
                     _campo("Nombre *", "text", InventarioState.form_nombre, InventarioState.set_form_nombre),
                     _campo("SKU", "text", InventarioState.form_sku, InventarioState.set_form_sku),
                     rx.el.div(
-                        _campo("Precio costo", "number", InventarioState.form_precio_costo,
+                        _campo("Precio costo", "text", InventarioState.form_precio_costo,
                                InventarioState.set_form_precio_costo, "0.00"),
-                        _campo("Precio venta", "number", InventarioState.form_precio_venta,
+                        _campo("Precio venta", "text", InventarioState.form_precio_venta,
                                InventarioState.set_form_precio_venta, "0.00"),
                         class_name="grid grid-cols-2 gap-3",
                     ),
                     rx.el.div(
-                        _campo("Stock actual", "number", InventarioState.form_stock_actual,
+                        _campo("Stock actual", "text", InventarioState.form_stock_actual,
                                InventarioState.set_form_stock_actual, "0"),
-                        _campo("Stock mínimo", "number", InventarioState.form_stock_minimo,
+                        _campo("Stock mínimo", "text", InventarioState.form_stock_minimo,
                                InventarioState.set_form_stock_minimo, "0"),
                         class_name="grid grid-cols-2 gap-3",
                     ),
@@ -89,7 +89,7 @@ def _modal_movimiento() -> rx.Component:
                     ),
                     class_name="mb-4",
                 ),
-                _campo("Cantidad *", "number", InventarioState.form_mov_cantidad,
+                _campo("Cantidad *", "text", InventarioState.form_mov_cantidad,
                        InventarioState.set_form_mov_cantidad, "0"),
                 rx.el.div(class_name="mb-4"),
                 _campo("Motivo", "text", InventarioState.form_mov_motivo,
@@ -132,7 +132,7 @@ def _fila_producto(p: dict) -> rx.Component:
                 rx.cond(
                     p["bajo_minimo"],
                     rx.el.span(
-                        rx.icon("alert-triangle", size=14),
+                        rx.icon("triangle-alert", size=14),
                         " Stock bajo",
                         class_name="ml-2 text-xs text-red-600 flex items-center gap-0.5",
                     ),
@@ -179,7 +179,7 @@ def inventario_page() -> rx.Component:
             ),
             rx.el.div(
                 rx.el.button(
-                    rx.icon("alert-triangle", size=16),
+                    rx.icon("triangle-alert", size=16),
                     rx.cond(InventarioState.solo_minimo, "Ver todos", "Stock bajo"),
                     on_click=InventarioState.toggle_minimo,
                     class_name=rx.cond(

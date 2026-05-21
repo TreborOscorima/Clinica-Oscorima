@@ -43,7 +43,7 @@ def _rol_badge(rol: str) -> rx.Component:
 
 
 def _alert(msg, color: str = "green") -> rx.Component:
-    icon = "check-circle" if color == "green" else "alert-circle"
+    icon = "circle-check" if color == "green" else "circle-alert"
     return rx.el.div(
         rx.icon(icon, size=14, class_name=f"shrink-0 text-{color}-600"),
         rx.el.span(msg, class_name=f"text-sm text-{color}-700 ml-2"),

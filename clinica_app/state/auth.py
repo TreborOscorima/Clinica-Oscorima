@@ -45,7 +45,8 @@ class AuthState(BaseState):
         yield
 
         # Rate limiting por IP
-        ip = self.router.headers.get("x-forwarded-for", "unknown").split(",")[0].strip()
+        raw_ip = getattr(self.router.headers, "x_forwarded_for", None) or getattr(self.router.headers, "host", "unknown")
+        ip = raw_ip.split(",")[0].strip()
         rate_key = f"login_attempts:{ip}"
         if not _check_rate_limit(rate_key):
             self.error_msg  = "Demasiados intentos. Espera 1 minuto."

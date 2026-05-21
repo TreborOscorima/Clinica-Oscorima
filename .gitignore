@@ -1,3 +1,6 @@
+.states
+assets/external/
+.web
 # -------- OS / Editor --------
 .DS_Store
 Thumbs.db
@@ -74,22 +77,3 @@ exports/
 .agents/
 .claude/
 
-# -------- Flask era (archivos locales, ya no en git) --------
-/app.py
-/config.py
-/database.py
-/extensions.py
-/error_trace.txt
-/inventario_old_block.txt
-/start_redis.bat
-/skills-lock.json
-/models/
-/routes/
-/services/
-/tasks/
-/utils/
-/templates/
-/static/
-/migrations/
-/tests/
-/exports/

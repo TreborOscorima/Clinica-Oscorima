@@ -52,7 +52,7 @@ def _modal_movimiento() -> rx.Component:
                         rx.el.div(
                             rx.el.span("$", class_name="text-gray-500 text-sm px-3"),
                             rx.el.input(
-                                type="number", step="0.01", min="0",
+                                type="text", input_mode="decimal",
                                 value=CajaState.form_monto,
                                 on_change=CajaState.set_form_monto,
                                 placeholder="0.00",

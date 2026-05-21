@@ -52,7 +52,7 @@ def _status_panel() -> rx.Component:
                 ReportesState.reporte_listo,
                 rx.el.div(
                     rx.el.div(
-                        rx.icon("check-circle", size=24, class_name="text-green-600"),
+                        rx.icon("circle-check", size=24, class_name="text-green-600"),
                         rx.el.div(
                             rx.el.p("¡Reporte generado!", class_name="font-medium text-gray-900"),
                             rx.el.p(ReportesState.job_result, class_name="text-xs text-gray-500 font-mono mt-0.5 break-all"),
@@ -67,7 +67,7 @@ def _status_panel() -> rx.Component:
                 ReportesState.reporte_fallido,
                 rx.el.div(
                     rx.el.div(
-                        rx.icon("x-circle", size=24, class_name="text-red-600"),
+                        rx.icon("circle-x", size=24, class_name="text-red-600"),
                         rx.el.div(
                             rx.el.p("Error al generar el reporte", class_name="font-medium text-gray-900"),
                             rx.el.p(ReportesState.job_error, class_name="text-xs text-red-600 mt-0.5"),
