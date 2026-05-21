@@ -1,12 +1,20 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+
+from datetime import datetime
 from enum import Enum
-from sqlalchemy import Enum as SAEnum, ForeignKey
+from typing import Any, ClassVar
+
+from sqlalchemy import Column, Enum as SAEnum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
+from sqlmodel import Field
+
 from extensions import db
-
-
-def _utcnow():
-    return datetime.now(timezone.utc)
+from models.base import TenantSQLModel
+from models.paciente import Paciente
+from models.profesional import Profesional
+from models.servicio import Servicio
+from models.user import User
+from models.turno_servicio import TurnoServicio
 
 
 class EstadoTurno(str, Enum):
@@ -16,45 +24,25 @@ class EstadoTurno(str, Enum):
     ATENDIDO = "atendido"
 
 
-class Turno(db.Model):
+class Turno(TenantSQLModel, table=True):
     __tablename__ = "turnos"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
-    paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"), nullable=False)
-    profesional_id = db.Column(db.Integer, ForeignKey("profesionales.id"))
+    metadata = db.metadata
 
-    # DEPRECADO: se mantiene para compat, pero la logica nueva usa items (TurnoServicio)
-    servicio_id = db.Column(db.Integer, ForeignKey("servicios.id"))
+    paciente_id: int = Field(foreign_key="pacientes.id", nullable=False)
+    profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)
+    # legacy: se mantiene para compat, la logica nueva usa items (TurnoServicio)
+    servicio_id: int | None = Field(default=None, foreign_key="servicios.id", nullable=True)
+    fecha_hora: datetime = Field(nullable=False)
+    created_by_id: int | None = Field(
+        sa_column=Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    )
+    estado: EstadoTurno | None = Field(
+        sa_column=Column(SAEnum(EstadoTurno), nullable=True, default=EstadoTurno.PENDIENTE)
+    )
+    motivo_cancelacion: str | None = Field(default=None, max_length=240, nullable=True)
 
-    fecha_hora = db.Column(db.DateTime, nullable=False)
-    created_by_id = db.Column(db.Integer, ForeignKey("usuarios.id"))
-    estado = db.Column(SAEnum(EstadoTurno), default=EstadoTurno.PENDIENTE)
-    motivo_cancelacion = db.Column(db.String(240))
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
-
-    def soft_delete(self) -> None:
-        self.is_active = False
-        self.deleted_at = _utcnow()
-
-    # Paciente y User son SQLModel (registro distinto al de Flask-SQLAlchemy).
-    # Se pasa un callable para evitar la busqueda por string en el registro incorrecto.
-    paciente = relationship(lambda: _get_paciente_cls(), lazy="joined")
-    profesional = relationship("Profesional", lazy="joined")
-    servicio = relationship("Servicio", lazy="joined")
-    created_by = relationship(lambda: _get_user_cls(), lazy="joined")
-
-    # NUEVO: items del turno (multiples servicios)
-    items = relationship("TurnoServicio", cascade="all, delete-orphan", backref="turno", lazy="joined")
-
-
-def _get_paciente_cls():
-    from models.paciente import Paciente
-    return Paciente
-
-
-def _get_user_cls():
-    from models.user import User
-    return User
+    paciente: ClassVar[Any] = relationship(Paciente, lazy="select")
+    profesional: ClassVar[Any] = relationship(Profesional, lazy="select")
+    servicio: ClassVar[Any] = relationship(Servicio, lazy="select")
+    created_by: ClassVar[Any] = relationship(User, lazy="select")
+    items: ClassVar[Any] = relationship("TurnoServicio", foreign_keys="[TurnoServicio.turno_id]", cascade="all, delete-orphan", lazy="select", uselist=True)

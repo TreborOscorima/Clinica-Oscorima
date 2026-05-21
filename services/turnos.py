@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
@@ -24,24 +25,26 @@ class TurnoService:
         self.schema_many = TurnoSchema(many=True)
 
     def obtener(self, turno_id: int) -> Turno:
-        turno = self._base_query().filter(Turno.id == turno_id).first()
+        turno = db.session.execute(
+            self._base_query().where(Turno.id == turno_id)
+        ).scalar_one_or_none()
         if turno is None:
             raise NotFoundError("Turno no encontrado")
         return turno
 
     def listar(self, estado: str = "", page: int = 1, per_page: int = 10) -> dict[str, Any]:
-        query = self._base_query()
+        stmt = self._base_query()
         if estado:
             try:
                 estado_enum = EstadoTurno(estado)
             except Exception as exc:
                 raise ServiceError("Estado invalido") from exc
-            query = query.filter(Turno.estado == estado_enum)
+            stmt = stmt.where(Turno.estado == estado_enum)
 
-        query = query.order_by(Turno.created_at.desc())
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        stmt = stmt.order_by(Turno.created_at.desc())
+        pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
         if pagination.pages and page > pagination.pages:
-            pagination = query.paginate(page=pagination.pages, per_page=per_page, error_out=False)
+            pagination = db.paginate(stmt, page=pagination.pages, per_page=per_page, error_out=False)
 
         return {
             "data": self.schema_many.dump(pagination.items),
@@ -163,9 +166,20 @@ class TurnoService:
         return self.schema.dump(turno)
 
     def _base_query(self):
-        return Turno.query.filter(
-            Turno.clinica_id == self.clinica_id,
-            Turno.is_active.is_(True),
+        from models.turno_servicio import TurnoServicio
+        return (
+            select(Turno)
+            .options(
+                selectinload(Turno.paciente),
+                selectinload(Turno.profesional),
+                selectinload(Turno.servicio),
+                selectinload(Turno.created_by),
+                selectinload(Turno.items).selectinload(TurnoServicio.servicio),
+            )
+            .where(
+                Turno.clinica_id == self.clinica_id,
+                Turno.is_active.is_(True),
+            )
         )
 
     def _validar_paciente(self, paciente_id: Any) -> None:

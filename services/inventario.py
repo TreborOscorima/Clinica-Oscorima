@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from extensions import db
 from models.inventario import Compra, CompraItem, MovimientoStock, Producto, ProductoPrecioHist, Proveedor
@@ -36,24 +36,27 @@ class InventarioService:
         page: int = 0,
         per_page: int = 10,
     ) -> dict[str, Any]:
-        query = self._productos_query()
+        stmt = self._productos_query()
         if q:
             like = f"%{q}%"
-            query = query.filter((Producto.nombre.ilike(like)) | (Producto.sku.ilike(like)))
+            stmt = stmt.where((Producto.nombre.ilike(like)) | (Producto.sku.ilike(like)))
         if activo is not None:
-            query = query.filter(Producto.activo == activo)
+            stmt = stmt.where(Producto.activo == activo)
 
-        query = query.order_by(Producto.nombre.asc())
         if page > 0:
-            total = query.count()
-            rows = query.offset((page - 1) * per_page).limit(per_page).all()
+            total = db.session.execute(select(func.count()).select_from(stmt.subquery())).scalar()
+            rows = db.session.execute(
+                stmt.order_by(Producto.nombre.asc()).offset((page - 1) * per_page).limit(per_page)
+            ).scalars().all()
             return {"data": [self.dump_producto(producto) for producto in rows], "total": total}
 
-        rows = query.limit(20).all()
+        rows = db.session.execute(stmt.order_by(Producto.nombre.asc()).limit(20)).scalars().all()
         return {"data": [self.dump_producto(producto) for producto in rows]}
 
     def obtener_producto(self, producto_id: int) -> Producto:
-        producto = self._productos_query().filter(Producto.id == producto_id).first()
+        producto = db.session.execute(
+            self._productos_query().where(Producto.id == producto_id)
+        ).scalar_one_or_none()
         if producto is None:
             raise NotFoundError("Producto no encontrado")
         return producto
@@ -62,7 +65,9 @@ class InventarioService:
         sku = (sku or "").strip()
         if not sku:
             return None
-        return self._productos_query().filter(func.upper(Producto.sku) == sku.upper()).first()
+        return db.session.execute(
+            self._productos_query().where(func.upper(Producto.sku) == sku.upper())
+        ).scalar_one_or_none()
 
     def crear_producto(self, payload: dict[str, Any], usuario_id: Any = None) -> Producto:
         sku = (payload.get("sku") or "").strip()
@@ -160,7 +165,7 @@ class InventarioService:
 
         movimiento = MovimientoStock(
             clinica_id=self.clinica_id,
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(timezone.utc),
             tipo=tipo.lower(),
             producto_id=producto.id,
             cantidad=cantidad,
@@ -203,21 +208,21 @@ class InventarioService:
         page: int = 1,
         per_page: int = 10,
     ) -> dict[str, Any]:
-        query = MovimientoStock.query.filter(
+        stmt = select(MovimientoStock).where(
             MovimientoStock.clinica_id == self.clinica_id,
             MovimientoStock.is_active.is_(True),
         )
         if tipo:
-            query = query.filter(func.lower(MovimientoStock.tipo) == tipo.lower())
+            stmt = stmt.where(func.lower(MovimientoStock.tipo) == tipo.lower())
         else:
-            query = query.filter(MovimientoStock.tipo.in_(["ingreso", "egreso", "ajuste"]))
+            stmt = stmt.where(MovimientoStock.tipo.in_(["ingreso", "egreso", "ajuste"]))
         if desde:
-            query = query.filter(MovimientoStock.fecha >= desde)
+            stmt = stmt.where(MovimientoStock.fecha >= desde)
         if hasta:
-            query = query.filter(MovimientoStock.fecha <= hasta)
+            stmt = stmt.where(MovimientoStock.fecha <= hasta)
 
         groups: dict[str, dict[str, Any]] = {}
-        for movimiento in query.order_by(MovimientoStock.fecha.desc()).all():
+        for movimiento in db.session.execute(stmt.order_by(MovimientoStock.fecha.desc())).scalars().all():
             key = self._group_key(movimiento)
             group = groups.get(key)
             if group is None:
@@ -260,15 +265,19 @@ class InventarioService:
         return {"data": rows[start:start + per_page], "total": total}
 
     def detalle_movimiento(self, movimiento_id: int) -> dict[str, Any]:
-        movimiento = MovimientoStock.query.filter_by(
-            id=movimiento_id,
-            clinica_id=self.clinica_id,
-            is_active=True,
-        ).first()
+        movimiento = db.session.execute(
+            select(MovimientoStock).where(
+                MovimientoStock.id == movimiento_id,
+                MovimientoStock.clinica_id == self.clinica_id,
+                MovimientoStock.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if movimiento is None:
             raise NotFoundError("Movimiento no encontrado")
 
-        producto = self._productos_query().filter(Producto.id == movimiento.producto_id).first()
+        producto = db.session.execute(
+            self._productos_query().where(Producto.id == movimiento.producto_id)
+        ).scalar_one_or_none()
         compra = self._try_fetch_compra_by_ref(movimiento.referencia)
         tipo = (str(movimiento.tipo) or "").upper()
         items: list[dict[str, Any]] = []
@@ -317,18 +326,18 @@ class InventarioService:
                 cliente_documento = comprobante.get("paciente_documento") or comprobante.get("cliente_documento") or ""
                 total_grupo = dec(comprobante.get("total", float(total_grupo)), DEC2)
             else:
-                movs = (
-                    MovimientoStock.query.filter(
+                movs = db.session.execute(
+                    select(MovimientoStock).where(
                         MovimientoStock.clinica_id == self.clinica_id,
                         MovimientoStock.is_active.is_(True),
-                    )
-                    .filter(func.lower(MovimientoStock.tipo) == func.lower(movimiento.tipo))
-                    .filter(func.lower(MovimientoStock.referencia) == func.lower(self.base_ref(movimiento.referencia)))
-                    .order_by(MovimientoStock.id.asc())
-                    .all()
-                )
+                        func.lower(MovimientoStock.tipo) == func.lower(movimiento.tipo),
+                        func.lower(MovimientoStock.referencia) == func.lower(self.base_ref(movimiento.referencia)),
+                    ).order_by(MovimientoStock.id.asc())
+                ).scalars().all()
                 for item_movimiento in movs:
-                    item_producto = self._productos_query().filter(Producto.id == item_movimiento.producto_id).first()
+                    item_producto = db.session.execute(
+                        self._productos_query().where(Producto.id == item_movimiento.producto_id)
+                    ).scalar_one_or_none()
                     costo = dec(getattr(item_producto, "precio_costo", 0), DEC2)
                     cantidad = dec(abs(item_movimiento.cantidad or 0), DEC3)
                     subtotal = (cantidad * costo).quantize(DEC2, rounding=ROUND_HALF_UP)
@@ -369,23 +378,44 @@ class InventarioService:
         if not nombre:
             return None
 
-        proveedor = Proveedor.query.filter_by(
-            clinica_id=self.clinica_id,
-            nombre=nombre,
-            is_active=True,
-        ).first()
+        proveedor = db.session.execute(
+            select(Proveedor).where(
+                Proveedor.clinica_id == self.clinica_id,
+                Proveedor.nombre == nombre,
+                Proveedor.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if proveedor is None:
             proveedor = Proveedor(clinica_id=self.clinica_id, nombre=nombre)
             db.session.add(proveedor)
             db.session.flush()
         return proveedor.id
 
+    def listar_compras(self, page: int = 1, per_page: int = 10, q: str = "") -> dict[str, Any]:
+        stmt = (
+            select(Compra)
+            .where(Compra.clinica_id == self.clinica_id, Compra.is_active.is_(True))
+        )
+        if q:
+            stmt = stmt.where(Compra.numero.ilike(f"%{q}%"))
+        stmt = stmt.order_by(Compra.fecha.desc())
+        pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
+        return {
+            "data": [self.dump_compra(c) for c in pagination.items],
+            "page": pagination.page,
+            "per_page": pagination.per_page,
+            "pages": pagination.pages,
+            "total": pagination.total,
+        }
+
     def fetch_compra(self, compra_id: int) -> dict[str, Any] | None:
-        compra = Compra.query.filter_by(
-            id=compra_id,
-            clinica_id=self.clinica_id,
-            is_active=True,
-        ).first()
+        compra = db.session.execute(
+            select(Compra).where(
+                Compra.id == compra_id,
+                Compra.clinica_id == self.clinica_id,
+                Compra.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if compra is None:
             return None
         return self.dump_compra(compra)
@@ -395,11 +425,13 @@ class InventarioService:
         if not numero:
             raise ServiceError("numero requerido")
 
-        compra = Compra.query.filter_by(
-            clinica_id=self.clinica_id,
-            numero=numero,
-            is_active=True,
-        ).first()
+        compra = db.session.execute(
+            select(Compra).where(
+                Compra.clinica_id == self.clinica_id,
+                Compra.numero == numero,
+                Compra.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         return self.dump_compra(compra) if compra else None
 
     def crear_compra(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -420,7 +452,7 @@ class InventarioService:
         try:
             compra = Compra(
                 clinica_id=self.clinica_id,
-                fecha=datetime.utcnow(),
+                fecha=datetime.now(timezone.utc),
                 proveedor_id=proveedor_id,
                 tipo_doc=tipo_doc,
                 numero=numero,
@@ -483,11 +515,13 @@ class InventarioService:
         self._validar_items_compra(nuevos)
         self._validar_factura_unica(tipo_doc, numero, exclude_id=compra_id)
 
-        compra = Compra.query.filter_by(
-            id=compra_id,
-            clinica_id=self.clinica_id,
-            is_active=True,
-        ).first()
+        compra = db.session.execute(
+            select(Compra).where(
+                Compra.id == compra_id,
+                Compra.clinica_id == self.clinica_id,
+                Compra.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if compra is None:
             raise NotFoundError("Compra no encontrada")
 
@@ -495,7 +529,9 @@ class InventarioService:
             proveedor_id = self.ensure_proveedor(proveedor_nombre)
 
         try:
-            actuales = CompraItem.query.filter_by(compra_id=compra_id).all()
+            actuales = db.session.execute(
+                select(CompraItem).where(CompraItem.compra_id == compra_id)
+            ).scalars().all()
             curr_qty: dict[int, Decimal] = {}
             for item in actuales:
                 curr_qty[item.producto_id] = curr_qty.get(item.producto_id, dec(0, DEC3)) + dec(item.cantidad, DEC3)
@@ -545,7 +581,7 @@ class InventarioService:
                         compra_id=compra_id,
                     )
 
-            CompraItem.query.filter_by(compra_id=compra_id).delete()
+            db.session.execute(delete(CompraItem).where(CompraItem.compra_id == compra_id))
 
             total = dec(0, DEC2)
             for item in nuevos:
@@ -577,14 +613,16 @@ class InventarioService:
 
     def kardex(self, producto_id: int, page: int = 1, per_page: int = 10, order: str = "desc") -> dict[str, Any]:
         self.obtener_producto(producto_id)
-        query = MovimientoStock.query.filter_by(
-            producto_id=producto_id,
-            clinica_id=self.clinica_id,
-            is_active=True,
+        base_stmt = select(MovimientoStock).where(
+            MovimientoStock.producto_id == producto_id,
+            MovimientoStock.clinica_id == self.clinica_id,
+            MovimientoStock.is_active.is_(True),
         )
-        total = query.count()
+        total = db.session.execute(select(func.count()).select_from(base_stmt.subquery())).scalar()
         order_column = MovimientoStock.fecha.asc() if order == "asc" else MovimientoStock.fecha.desc()
-        rows = query.order_by(order_column).offset((page - 1) * per_page).limit(per_page).all()
+        rows = db.session.execute(
+            base_stmt.order_by(order_column).offset((page - 1) * per_page).limit(per_page)
+        ).scalars().all()
         return {
             "data": [
                 {
@@ -603,18 +641,16 @@ class InventarioService:
 
     def listar_precios_hist(self, producto_id: int, tipo: str = "", limit: int = 100) -> dict[str, Any]:
         self.obtener_producto(producto_id)
-        query = ProductoPrecioHist.query.filter_by(
-            producto_id=producto_id,
-            clinica_id=self.clinica_id,
+        stmt = select(ProductoPrecioHist).where(
+            ProductoPrecioHist.producto_id == producto_id,
+            ProductoPrecioHist.clinica_id == self.clinica_id,
         )
         if tipo in ("costo", "venta"):
-            query = query.filter_by(tipo=tipo)
+            stmt = stmt.where(ProductoPrecioHist.tipo == tipo)
 
-        rows = (
-            query.order_by(ProductoPrecioHist.vigente_desde.desc())
-            .limit(max(1, min(1000, limit)))
-            .all()
-        )
+        rows = db.session.execute(
+            stmt.order_by(ProductoPrecioHist.vigente_desde.desc()).limit(max(1, min(1000, limit)))
+        ).scalars().all()
         data = [
             {
                 "id": row.id,
@@ -644,20 +680,26 @@ class InventarioService:
     def dump_compra(self, compra: Compra) -> dict[str, Any]:
         proveedor_nombre = None
         if compra.proveedor_id:
-            proveedor = Proveedor.query.filter_by(
-                id=compra.proveedor_id,
-                clinica_id=self.clinica_id,
-                is_active=True,
-            ).first()
+            proveedor = db.session.execute(
+                select(Proveedor).where(
+                    Proveedor.id == compra.proveedor_id,
+                    Proveedor.clinica_id == self.clinica_id,
+                    Proveedor.is_active.is_(True),
+                )
+            ).scalar_one_or_none()
             proveedor_nombre = proveedor.nombre if proveedor else None
 
-        items = CompraItem.query.filter_by(compra_id=compra.id).all()
+        items = db.session.execute(
+            select(CompraItem).where(CompraItem.compra_id == compra.id)
+        ).scalars().all()
         productos = {}
         producto_ids = [item.producto_id for item in items]
         if producto_ids:
             productos = {
                 producto.id: producto
-                for producto in self._productos_query().filter(Producto.id.in_(producto_ids)).all()
+                for producto in db.session.execute(
+                    self._productos_query().where(Producto.id.in_(producto_ids))
+                ).scalars().all()
             }
 
         return {
@@ -691,19 +733,19 @@ class InventarioService:
         }
 
     def ultimo_costo(self, producto_id: int) -> float:
-        row = (
-            ProductoPrecioHist.query.filter_by(
-                producto_id=producto_id,
-                clinica_id=self.clinica_id,
-                tipo="costo",
-            )
-            .order_by(ProductoPrecioHist.vigente_desde.desc())
-            .first()
-        )
+        row = db.session.execute(
+            select(ProductoPrecioHist).where(
+                ProductoPrecioHist.producto_id == producto_id,
+                ProductoPrecioHist.clinica_id == self.clinica_id,
+                ProductoPrecioHist.tipo == "costo",
+            ).order_by(ProductoPrecioHist.vigente_desde.desc()).limit(1)
+        ).scalar_one_or_none()
         if row and row.valor is not None:
             return float(row.valor or 0)
 
-        producto = self._productos_query().filter(Producto.id == producto_id).first()
+        producto = db.session.execute(
+            self._productos_query().where(Producto.id == producto_id)
+        ).scalar_one_or_none()
         if producto and getattr(producto, "precio_costo", None) is not None:
             return float(producto.precio_costo or 0)
         return 0.0
@@ -714,7 +756,7 @@ class InventarioService:
         return ref[:-4] if ref.endswith("-SRV") else ref
 
     def _productos_query(self):
-        return Producto.query.filter(
+        return select(Producto).where(
             Producto.clinica_id == self.clinica_id,
             Producto.is_active.is_(True),
         )
@@ -724,21 +766,25 @@ class InventarioService:
         if not ref:
             return None
 
-        compra = Compra.query.filter_by(
-            clinica_id=self.clinica_id,
-            numero=ref,
-            is_active=True,
-        ).first()
+        compra = db.session.execute(
+            select(Compra).where(
+                Compra.clinica_id == self.clinica_id,
+                Compra.numero == ref,
+                Compra.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if compra:
             return self.dump_compra(compra)
 
         digits = "".join(char for char in ref if char.isdigit())
         if digits:
-            compra = Compra.query.filter_by(
-                id=int(digits),
-                clinica_id=self.clinica_id,
-                is_active=True,
-            ).first()
+            compra = db.session.execute(
+                select(Compra).where(
+                    Compra.id == int(digits),
+                    Compra.clinica_id == self.clinica_id,
+                    Compra.is_active.is_(True),
+                )
+            ).scalar_one_or_none()
             if compra:
                 return self.dump_compra(compra)
         return None
@@ -759,29 +805,31 @@ class InventarioService:
 
         comprobante = None
         if hasattr(Comprobante, "numero"):
-            comprobante = (
-                Comprobante.query.filter(func.lower(Comprobante.numero) == numero.lower())
-                .filter(Comprobante.clinica_id == self.clinica_id, Comprobante.is_active.is_(True))
-                .first()
-            )
+            comprobante = db.session.execute(
+                select(Comprobante).where(
+                    func.lower(Comprobante.numero) == numero.lower(),
+                    Comprobante.clinica_id == self.clinica_id,
+                    Comprobante.is_active.is_(True),
+                )
+            ).scalar_one_or_none()
 
         if comprobante is None and "-" in numero:
             prefijo, sufijo = numero.split("-", 1)
-            query = Comprobante.query.filter(
+            stmt = select(Comprobante).where(
                 Comprobante.clinica_id == self.clinica_id,
                 Comprobante.is_active.is_(True),
             )
             if hasattr(Comprobante, "serie"):
-                query = query.filter(func.lower(Comprobante.serie) == prefijo.lower())
+                stmt = stmt.where(func.lower(Comprobante.serie) == prefijo.lower())
             if hasattr(Comprobante, "correlativo"):
-                query = query.filter(func.lower(Comprobante.correlativo) == sufijo.lower())
-            comprobante = query.first()
+                stmt = stmt.where(func.lower(Comprobante.correlativo) == sufijo.lower())
+            comprobante = db.session.execute(stmt).scalars().first()
 
         if comprobante is None:
             return None
 
         items = []
-        for item in ComprobanteItem.query.filter_by(comprobante_id=comprobante.id).all():
+        for item in db.session.execute(select(ComprobanteItem).where(ComprobanteItem.comprobante_id == comprobante.id)).scalars().all():
             item_tipo = str(getattr(item, "tipo", "") or "").lower()
             producto_id = getattr(item, "ref_id", None) or getattr(item, "producto_id", None)
             if item_tipo and item_tipo not in {"producto", "insumo"}:
@@ -864,7 +912,9 @@ class InventarioService:
     def _mov_monto(self, movimiento: MovimientoStock) -> float:
         tipo = (str(movimiento.tipo) or "").upper()
         producto = (
-            self._productos_query().filter(Producto.id == getattr(movimiento, "producto_id", None)).first()
+            db.session.execute(
+                self._productos_query().where(Producto.id == getattr(movimiento, "producto_id", None))
+            ).scalar_one_or_none()
             if getattr(movimiento, "producto_id", None)
             else None
         )
@@ -916,15 +966,15 @@ class InventarioService:
         if not numero:
             raise ServiceError("Para FACTURA el 'numero' es obligatorio")
 
-        query = Compra.query.filter(
+        stmt = select(Compra).where(
             Compra.clinica_id == self.clinica_id,
             Compra.is_active.is_(True),
             func.lower(Compra.tipo_doc) == "factura",
             func.lower(Compra.numero) == numero.lower(),
         )
         if exclude_id is not None:
-            query = query.filter(Compra.id != exclude_id)
-        if query.first():
+            stmt = stmt.where(Compra.id != exclude_id)
+        if db.session.execute(stmt).scalar_one_or_none():
             raise ConflictError(f"Ya existe una FACTURA con numero '{numero}'")
 
     @staticmethod

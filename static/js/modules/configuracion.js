@@ -249,81 +249,75 @@ window.ConfigModule = (function () {
   function render() {
     routeTitle.textContent = "Configuración";
     routeContent.innerHTML = `
-      <div class="page-shell config-page split-layout">
-        <aside class="split-layout__sidebar" style="display: flex; flex-direction: column; gap: var(--space-5);">
-          <article class="card form-card">
-            <header class="card__header">
-              <h2 class="card__title">Nuevo Usuario</h2>
-              <p class="card__subtitle">Cree cuentas y asigne roles.</p>
-            </header>
-            <div class="card__body config-users">
-              <form id="cfg-user-form" class="form config-user-form">
-                <div class="form-grid config-user-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
-                  <div class="form-field">
-                    <label class="form-field__label">Nombre</label>
-                    <input name="nombre" class="input" required placeholder="Nombre completo">
+      <div class="page-shell animate-in">
+        <div class="module-layout">
+
+          <!-- Formulario nuevo usuario -->
+          <aside class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Nuevo Usuario</h2>
+            </div>
+            <div class="panel-body">
+              <form id="cfg-user-form" novalidate>
+                <div class="field-group">
+                  <label class="field-label">Nombre completo</label>
+                  <input name="nombre" class="input" required placeholder="Ej: María López">
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Email</label>
+                  <input name="email" type="email" class="input" required placeholder="usuario@dominio.com">
+                </div>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label class="field-label">Rol</label>
+                    <select name="rol" class="input" required>
+                      ${Object.entries(roleLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
+                    </select>
                   </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Email</label>
-                    <input name="email" type="email" class="input" required placeholder="usuario@dominio.com">
-                  </div>
-                  <div class="form-grid form-grid--two">
-                      <div class="form-field">
-                        <label class="form-field__label">Rol</label>
-                        <select name="rol" class="input input--select" required>
-                          ${Object.entries(roleLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
-                        </select>
-                      </div>
-                      <div class="form-field">
-                        <label class="form-field__label">Contraseña</label>
-                        <input name="password" type="password" class="input" required placeholder="Inicial">
-                      </div>
+                  <div class="field-group">
+                    <label class="field-label">Contraseña inicial</label>
+                    <input name="password" type="password" class="input" required placeholder="••••••••">
                   </div>
                 </div>
-                <div class="form-actions" style="margin-top: var(--space-4);">
-                  <button type="submit" class="button button--primary" style="width: 100%;">Crear usuario</button>
-                </div>
+                <button type="submit" class="button button--primary button--full" style="margin-top:8px">Crear usuario</button>
               </form>
             </div>
-          </article>
-        </aside>
+          </aside>
 
-        <main class="split-layout__main" style="display: flex; flex-direction: column; gap: var(--space-5);">
-          
-          <article class="card list-card">
-            <header class="card__header">
-              <h2 class="card__title">Directorio de Usuarios</h2>
-            </header>
-            <div class="card__body">
-              <div class="table-shell" style="max-height: 250px;">
-                <table class="table table--compact">
+          <!-- Panel derecho -->
+          <section class="module-panel" style="display:flex;flex-direction:column;gap:16px;overflow:visible;border:none;background:none;padding:0">
+
+            <!-- Directorio de usuarios -->
+            <div class="module-panel" style="flex:0 0 auto">
+              <div class="panel-header">
+                <h2 class="panel-title">Directorio de Usuarios</h2>
+              </div>
+              <div class="panel-body panel-body--table">
+                <table class="table">
                   <thead>
-                    <tr>
-                      <th>Usuario</th>
-                      <th class="table-center">Rol</th>
-                      <th class="table-center">Activo</th>
-                      <th class="table-center">Acciones</th>
-                    </tr>
+                    <tr><th>Usuario</th><th>Rol</th><th>Activo</th><th></th></tr>
                   </thead>
                   <tbody id="cfg-users-body"></tbody>
                 </table>
               </div>
             </div>
-          </article>
 
-          <article class="card list-card">
-            <header class="card__header">
-              <h2 class="card__title">Accesos por módulos</h2>
-              <p class="card__subtitle" style="margin-top: 4px;">Controle qué puede ver o editar cada rol dentro del sistema.</p>
-            </header>
-            <div class="card__body">
-              <div id="cfg-perms-wrapper" class="config-perms-wrapper" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); background: var(--color-surface-soft); padding: 16px; border-radius: 8px;">
-                <div class="muted">Cargando permisos...</div>
+            <!-- Permisos por módulo -->
+            <div class="module-panel" style="flex:1">
+              <div class="panel-header">
+                <h2 class="panel-title">Accesos por módulo</h2>
+                <span class="muted" style="font-size:.85rem">Qué puede ver o editar cada rol</span>
+              </div>
+              <div class="panel-body">
+                <div id="cfg-perms-wrapper" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+                  <div class="muted">Cargando permisos…</div>
+                </div>
               </div>
             </div>
-          </article>
 
-        </main>
+          </section>
+
+        </div>
       </div>
     `;
 

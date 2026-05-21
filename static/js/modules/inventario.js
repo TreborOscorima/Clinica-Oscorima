@@ -259,38 +259,6 @@ window.InventarioModule = (function(){
             </div>
           </article>
 
-          <article class="card inv-card inv-card--purchase">
-            <header class="card__header">
-              <h2 class="card__title">Registro de Compra</h2>
-            </header>
-            <div class="card__body">
-              <div class="form-grid inv-compra-grid" style="grid-template-columns: 1fr; gap: var(--space-3);">
-                <div class="form-field"><label class="form-field__label" for="cp-prov-nombre">Proveedor</label><input id="cp-prov-nombre" placeholder="Nombre" class="input"></div>
-                <div class="form-grid form-grid--two">
-                  <div class="form-field"><label class="form-field__label" for="cp-tipo">Tipo doc</label>
-                    <select id="cp-tipo" class="input input--select"><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="otro">Otro</option></select>
-                  </div>
-                  <div class="form-field"><label class="form-field__label" for="cp-numero">Num.</label><input id="cp-numero" placeholder="000-00" class="input"></div>
-                </div>
-                <div class="form-field"><label class="form-field__label" for="cp-registro">Nro registro</label><input id="cp-registro" placeholder="(opcional)" class="input"></div>
-              </div>
-              <div class="table-shell" style="max-height: 250px;">
-                <table class="table table--compact" id="cp-tabla" style="font-size: 0.8rem;">
-                  <thead><tr><th>Prod</th><th>Cant</th><th>Cost</th><th>Sub</th><th></th></tr></thead>
-                  <tbody id="cp-tbody"></tbody>
-                </table>
-              </div>
-              <div style="text-align: right; font-weight: bold; font-size: 0.95rem; margin-top: 8px;" id="cp-total">S/ 0.00</div>
-              <div class="form-actions inv-compra-actions" style="margin-top: var(--space-3); justify-content: space-between;">
-                <button id="cp-add-row" type="button" class="button button--ghost" style="padding: 0 10px; font-size: 0.8rem;">+ Item</button>
-                <div class="inv-compra-actions__right">
-                  <div id="cp-cancelar-wrap" style="display:none"><button id="cp-cancelar-ed" type="button" class="button button--ghost">Cancelar</button></div>
-                  <button id="cp-guardar" type="button" class="button button--primary">Guardar compra</button>
-                </div>
-              </div>
-              <div id="cp-compra-msg" class="form-feedback"></div>
-            </div>
-          </article>
         </aside>
 
         <main class="split-layout__main" style="display: flex; flex-direction: column; gap: var(--space-5);">
@@ -632,130 +600,6 @@ window.InventarioModule = (function(){
       }
     });
 
-    // ===== Registrar compra (CREAR/EDITAR) =====
-    const cpCard      = document.getElementById("card-compra");
-    const cpTbody     = document.getElementById("cp-tbody");
-    const cpTotalEl   = document.getElementById("cp-total");
-    const cpMsg       = document.getElementById("cp-compra-msg");
-    const btnGuardar  = document.getElementById("cp-guardar");
-    const btnCancelEdWrap = document.getElementById("cp-cancelar-wrap");
-    const btnCancelEd = document.getElementById("cp-cancelar-ed");
-    let cpEditingId = null;
-
-    function recalcCompra(){
-      let total=0;
-      cpTbody.querySelectorAll("tr").forEach(tr=>{
-        const cant=Number(tr.querySelector(".cp-cant").value||"0");
-        const costo=Number(tr.querySelector(".cp-costo").value||"0");
-        const sub=cant*costo;
-        tr.querySelector(".cp-subtotal").textContent=money(sub);
-        total+=sub;
-      });
-      cpTotalEl.textContent = money(total);
-    }
-    function makeSuggestionNavigatorRow(inputEl, listEl, onChoose){
-      makeSuggestionNavigator({
-        inputEl, listEl,
-        fetcher: buscarProductos,
-        tpl: items=>items.slice(0,8).map((p,i)=>`<div class="sug" data-idx="${i}">${(p.sku||"")} a ${p.nombre||""}</div>`).join(""),
-        onChoose
-      });
-    }
-
-    // makeCompraRow (async para prefill)
-    async function makeCompraRow(prefill){
-      const idx=Date.now()+Math.floor(Math.random()*1000);
-      cpTbody.insertAdjacentHTML("beforeend", filaCompraTpl(idx));
-      const tr = cpTbody.querySelector(`tr[data-row="${idx}"]`);
-      const inp=tr.querySelector(".cp-prod-buscar"), sug=tr.querySelector(".cp-sug");
-      const hid=tr.querySelector(".cp-prod-id"), chosen=tr.querySelector(".cp-prod-chosen");
-      makeSuggestionNavigatorRow(inp, sug, p=>{ hid.value=p.id; chosen.textContent=`${p.sku||""} a ${p.nombre||""}`; inp.value=""; });
-      tr.querySelector(".cp-cant").addEventListener("input", recalcCompra);
-      tr.querySelector(".cp-costo").addEventListener("input", recalcCompra);
-
-      if(prefill){
-        hid.value = prefill.producto_id;
-        tr.querySelector(".cp-cant").value = prefill.cantidad;
-        tr.querySelector(".cp-costo").value = prefill.costo_unitario;
-
-        try {
-          const p = prefill.producto ? prefill.producto : await getProducto(prefill.producto_id);
-          chosen.textContent = `${p.sku||""} a ${p.nombre||""}`;
-        } catch {
-          chosen.textContent = `ID ${prefill.producto_id}`;
-        }
-        recalcCompra();
-      }
-    }
-
-    function clearCompraForm(){
-      document.getElementById("cp-prov-nombre").value="";
-      document.getElementById("cp-tipo").value="boleta";
-      document.getElementById("cp-numero").value="";
-      document.getElementById("cp-registro").value="";
-      cpTbody.innerHTML="";
-      cpTotalEl.textContent=money(0);
-      makeCompraRow();
-    }
-    function enterCompraEditMode(compra){
-      cpEditingId = compra.id;
-      document.getElementById("cp-prov-nombre").value = compra.proveedor?.nombre || "";
-      document.getElementById("cp-tipo").value      = compra.tipo_doc || "boleta";
-      document.getElementById("cp-numero").value    = compra.numero || "";
-      document.getElementById("cp-registro").value  = compra.nro_registro || "";
-
-      cpTbody.innerHTML="";
-      (compra.items||[]).forEach(it=> makeCompraRow(it));
-      recalcCompra();
-
-      btnGuardar.textContent = "Actualizar compra";
-      btnCancelEdWrap.style.display = "block";
-      cpMsg.textContent = `Editando compra #${compra.id}`;
-      cpCard.scrollIntoView({ behavior:"smooth", block:"start" });
-    }
-    function exitCompraEditMode(){
-      cpEditingId = null;
-      btnGuardar.textContent = "Guardar compra";
-      btnCancelEdWrap.style.display = "none";
-      cpMsg.textContent = "";
-      clearCompraForm();
-    }
-
-    document.getElementById("cp-add-row").addEventListener("click", ()=> makeCompraRow());
-    cpTbody.addEventListener("click",(e)=>{ const b=e.target.closest(".cp-eliminar"); if(b){ b.closest("tr").remove(); recalcCompra(); }});
-    if(btnCancelEd) btnCancelEd.addEventListener("click", ()=> exitCompraEditMode());
-    makeCompraRow();
-
-    btnGuardar.addEventListener("click", async ()=>{
-      cpMsg.textContent="";
-      const proveedor_nombre=(document.getElementById("cp-prov-nombre").value||"").trim();
-      const tipo_doc=document.getElementById("cp-tipo").value;
-      const numero=(document.getElementById("cp-numero").value||"").trim();
-      const nro_registro=(document.getElementById("cp-registro").value||"").trim();
-      const items=[];
-      cpTbody.querySelectorAll("tr").forEach(tr=>{
-        const pid=Number(tr.querySelector(".cp-prod-id").value||"0");
-        const cant=Number(tr.querySelector(".cp-cant").value||"0");
-        const costo=Number(tr.querySelector(".cp-costo").value||"0");
-        if(pid && cant>0 && costo>0) items.push({ producto_id: pid, cantidad: cant, costo_unitario: costo });
-      });
-      if(!items.length){ cpMsg.textContent="AgregA al menos un Atem vAlido."; return; }
-
-      try{
-        let r;
-        if(cpEditingId){
-          r = await updateCompra(cpEditingId, { proveedor_nombre, tipo_doc, numero, nro_registro, items });
-          cpMsg.innerHTML=`Compra <b>#${r.id}</b> actualizada. Total ${money(r.total)}`;
-        }else{
-          r = await crearCompra({ proveedor_nombre, tipo_doc, numero, nro_registro, items });
-          cpMsg.innerHTML=`Compra <b>#${r.id}</b> guardada. Total ${money(r.total)}`;
-        }
-        exitCompraEditMode();
-        mvLoad();
-        plLoad();
-      }catch(e){ cpMsg.textContent=e.message||"No se pudo guardar la compra."; }
-    });
-
     // ===== Movimientos (listado) =====
     const mvTbody = document.getElementById("mv-tbody");
     const mvInfo  = document.getElementById("mv-info");
@@ -901,24 +745,7 @@ window.InventarioModule = (function(){
       }
 
       if (btnEd) {
-        const id = btnEd.dataset.id;
-        const m = await getMov(id);
-        let compra = null;
-
-        if (m.compra && m.compra.id) {
-          compra = m.compra;
-        } else if (m.compra_id) {
-          compra = await getCompra(m.compra_id);
-        } else if ((m.referencia||"").trim()) {
-          const byRef = await findCompraByNumero(m.referencia.trim());
-          if (byRef && byRef.id) compra = byRef;
-        }
-
-        if (!compra) {
-          openModal(`<div class="inv-modal-body"><p>No pude ubicar la compra de este movimiento.</p><p>Motivo: ${m.motivo||"-"} a Ref: ${m.referencia||"-"}</p></div>`);
-          return;
-        }
-        enterCompraEditMode(compra);
+        if (typeof navigate === "function") navigate("compras");
       }
     });
 

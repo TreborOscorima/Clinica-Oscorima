@@ -1,17 +1,28 @@
-# models/turno_servicio.py
-from extensions import db
-from sqlalchemy import ForeignKey
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any, ClassVar
+
+from sqlalchemy import Column, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
+from sqlmodel import Field, SQLModel
 
-class TurnoServicio(db.Model):
+from extensions import db
+from models.servicio import Servicio
+
+
+class TurnoServicio(SQLModel, table=True):
     __tablename__ = "turno_servicios"
-    id = db.Column(db.Integer, primary_key=True)
-    turno_id = db.Column(db.Integer, ForeignKey("turnos.id", ondelete="CASCADE"), nullable=False)
-    servicio_id = db.Column(db.Integer, ForeignKey("servicios.id"), nullable=False)
+    metadata = db.metadata
 
-    precio = db.Column(db.Numeric(10,2), nullable=True)     # si es None, usar precio de Servicio al atender
-    cantidad = db.Column(db.Numeric(10,2), default=1)
-    descuento = db.Column(db.Numeric(10,2), default=0)
-    nota = db.Column(db.String(240))
+    id: int | None = Field(default=None, primary_key=True)
+    turno_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("turnos.id", ondelete="CASCADE"), nullable=False)
+    )
+    servicio_id: int = Field(foreign_key="servicios.id", nullable=False)
+    precio: Decimal | None = Field(default=None, sa_column=Column(Numeric(10, 2), nullable=True))
+    cantidad: Decimal | None = Field(default=None, sa_column=Column(Numeric(10, 2), nullable=True))
+    descuento: Decimal | None = Field(default=None, sa_column=Column(Numeric(10, 2), nullable=True))
+    nota: str | None = Field(default=None, sa_column=Column(String(240), nullable=True))
 
-    servicio = relationship("Servicio", lazy="joined")
+    servicio: ClassVar[Any] = relationship(Servicio, lazy="select")

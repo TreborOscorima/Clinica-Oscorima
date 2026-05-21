@@ -69,86 +69,75 @@ window.ReportesModule = (function(){
   function render(){
     routeTitle.textContent = "Reportes";
     routeContent.innerHTML = `
-      <div class="page-shell reportes-page">
-        <header class="page-header" style="margin-bottom: var(--space-5);">
-          <div>
-            <p class="page-header__eyebrow">Analítica</p>
-            <h1 class="page-header__title">Reportes y Exportaciones</h1>
+      <div class="page-shell animate-in">
+
+        <!-- Facturación — full width -->
+        <div class="module-panel" style="margin-bottom:16px">
+          <div class="panel-header">
+            <h2 class="panel-title">Facturación / Caja</h2>
+            <span class="muted" style="font-size:.85rem">Ingresos, egresos y exportaciones</span>
           </div>
-        </header>
-
-        <section class="section-block" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: var(--space-5);">
-          
-          <article class="card" style="grid-column: 1 / -1;">
-            <header class="card__header">
-              <h2 class="card__title">Facturación / Caja</h2>
-              <p class="card__subtitle">Calcula ingresos, egresos y exporta datos.</p>
-            </header>
-            <div class="card__body">
-              <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3);">
-                <div class="form-field"><label class="form-field__label">Desde</label><input id="rf-desde" type="datetime-local" class="input"></div>
-                <div class="form-field"><label class="form-field__label">Hasta</label><input id="rf-hasta" type="datetime-local" class="input"></div>
-                <div class="form-field"><label class="form-field__label">Agrupar por</label>
-                  <select id="rf-group" class="input input--select">
-                    <option value="metodo">Método de pago</option>
-                    <option value="dia">Día</option>
-                    <option value="servicio">Servicio</option>
-                    <option value="profesional">Profesional</option>
-                    <option value="paciente">Paciente</option>
-                    <option value="producto">Producto</option>
-                  </select>
-                </div>
-                <div class="form-field"><label class="form-field__label">Tipo</label>
-                  <select id="rf-tipo" class="input input--select">
-                    <option value="">Ambos</option>
-                    <option value="ingreso">Ingreso</option>
-                    <option value="egreso">Egreso</option>
-                  </select>
-                </div>
-                <div class="form-field"><label class="form-field__label">Método de pago</label>
-                  <select id="rf-metodo" class="input input--select">
-                    <option value="">Todos</option>
-                    <option value="efectivo">Efectivo</option>
-                    <option value="tarjeta">Tarjeta</option>
-                    <option value="transferencia">Transferencia</option>
-                    <option value="otro">Otro</option>
-                  </select>
-                </div>
+          <div class="panel-body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+              <div class="field-group"><label class="field-label">Desde</label><input id="rf-desde" type="datetime-local" class="input"></div>
+              <div class="field-group"><label class="field-label">Hasta</label><input id="rf-hasta" type="datetime-local" class="input"></div>
+              <div class="field-group"><label class="field-label">Agrupar por</label>
+                <select id="rf-group" class="input">
+                  <option value="metodo">Método de pago</option>
+                  <option value="dia">Día</option>
+                  <option value="servicio">Servicio</option>
+                  <option value="profesional">Profesional</option>
+                  <option value="paciente">Paciente</option>
+                  <option value="producto">Producto</option>
+                </select>
               </div>
-
-              <div class="form-actions" style="margin-top: var(--space-4); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; border-bottom: 1px dashed var(--color-border); padding-bottom: var(--space-4);">
-                <button id="rf-run" class="button button--primary button--lg">Calcular en pantalla</button>
-                <div style="display: flex; gap: 8px;">
-                  <button id="rf-excel" class="button button--ghost">Exportar Excel</button>
-                  <button id="rf-pdf" class="button button--ghost">Exportar PDF</button>
-                  <a id="rf-csv" class="button button--ghost" target="_blank" rel="noopener" style="display:flex;align-items:center;">Exportar CSV</a>
-                </div>
+              <div class="field-group"><label class="field-label">Tipo</label>
+                <select id="rf-tipo" class="input">
+                  <option value="">Ambos</option>
+                  <option value="ingreso">Ingreso</option>
+                  <option value="egreso">Egreso</option>
+                </select>
               </div>
-
-              <div style="margin-top: var(--space-4);">
-                <div id="rf-total" style="font-weight: 500; font-size: 1.1rem; margin-bottom: 12px; color: var(--color-text);"></div>
-                <div class="table-shell" style="max-height: 250px;">
-                  <table class="table">
-                    <thead><tr><th>Clave (Agrupación)</th><th>Monto Total</th></tr></thead>
-                    <tbody id="rf-tbody"><tr><td colspan="2" class="table__empty muted">Sin datos</td></tr></tbody>
-                  </table>
-                </div>
+              <div class="field-group"><label class="field-label">Método de pago</label>
+                <select id="rf-metodo" class="input">
+                  <option value="">Todos</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="otro">Otro</option>
+                </select>
               </div>
             </div>
-          </article>
-
-          <article class="card">
-            <header class="card__header">
-              <h2 class="card__title">Agenda y Turnos</h2>
-            </header>
-            <div class="card__body" style="display: flex; flex-direction: column; gap: var(--space-3); height: 100%;">
-              <div class="form-grid form-grid--two">
-                <div class="form-field"><label class="form-field__label">Desde</label><input id="rt-desde" type="datetime-local" class="input"></div>
-                <div class="form-field"><label class="form-field__label">Hasta</label><input id="rt-hasta" type="datetime-local" class="input"></div>
+            <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;border-bottom:1px dashed var(--color-border);padding-bottom:12px">
+              <button id="rf-run" class="button button--primary">Calcular en pantalla</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button id="rf-excel" class="button button--ghost button--sm">Exportar Excel</button>
+                <button id="rf-pdf" class="button button--ghost button--sm">Exportar PDF</button>
+                <a id="rf-csv" class="button button--ghost button--sm" target="_blank" rel="noopener" style="display:flex;align-items:center">CSV</a>
               </div>
-              <div class="form-grid form-grid--two">
-                <div class="form-field"><label class="form-field__label">Estado</label>
-                  <select id="rt-estado" class="input input--select">
+            </div>
+            <div id="rf-total" style="font-weight:600;font-size:1rem;margin:10px 0;color:var(--color-text)"></div>
+            <table class="table">
+              <thead><tr><th>Clave (agrupación)</th><th>Monto Total</th></tr></thead>
+              <tbody id="rf-tbody"><tr><td colspan="2" class="muted" style="padding:12px">Sin datos</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 3 cards de exportación -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+
+          <!-- Turnos -->
+          <div class="module-panel">
+            <div class="panel-header"><h2 class="panel-title">Agenda y Turnos</h2></div>
+            <div class="panel-body">
+              <div class="field-row">
+                <div class="field-group"><label class="field-label">Desde</label><input id="rt-desde" type="datetime-local" class="input"></div>
+                <div class="field-group"><label class="field-label">Hasta</label><input id="rt-hasta" type="datetime-local" class="input"></div>
+              </div>
+              <div class="field-row">
+                <div class="field-group"><label class="field-label">Estado</label>
+                  <select id="rt-estado" class="input">
                     <option value="">Todos</option>
                     <option value="pendiente">Pendiente</option>
                     <option value="confirmado">Confirmado</option>
@@ -156,65 +145,59 @@ window.ReportesModule = (function(){
                     <option value="atendido">Atendido</option>
                   </select>
                 </div>
-                <div class="form-field"><label class="form-field__label">Profesional ID</label><input id="rt-profesional" type="number" min="1" placeholder="(Opcional)" class="input"></div>
+                <div class="field-group"><label class="field-label">Profesional ID</label><input id="rt-profesional" type="number" min="1" placeholder="Opcional" class="input"></div>
               </div>
-              <div class="form-field"><label class="form-field__label">Servicio ID</label><input id="rt-servicio" type="number" min="1" placeholder="(Opcional)" class="input"></div>
-              
-              <div class="form-actions" style="margin-top: auto; padding-top: var(--space-4); display: flex; gap: 8px;">
-                <button id="rt-excel" class="button button--ghost" style="flex:1;">Exportar Excel</button>
-                <button id="rt-pdf" class="button button--ghost" style="flex:1;">Exportar PDF</button>
+              <div class="field-group"><label class="field-label">Servicio ID</label><input id="rt-servicio" type="number" min="1" placeholder="Opcional" class="input"></div>
+              <div class="field-row" style="margin-top:12px">
+                <button id="rt-excel" class="button button--ghost button--full">Excel</button>
+                <button id="rt-pdf" class="button button--ghost button--full">PDF</button>
               </div>
             </div>
-          </article>
+          </div>
 
-          <article class="card">
-            <header class="card__header">
-              <h2 class="card__title">Movimientos de Inventario</h2>
-            </header>
-            <div class="card__body" style="display: flex; flex-direction: column; gap: var(--space-3); height: 100%;">
-              <div class="form-grid form-grid--two">
-                <div class="form-field"><label class="form-field__label">Desde</label><input id="ri-desde" type="datetime-local" class="input"></div>
-                <div class="form-field"><label class="form-field__label">Hasta</label><input id="ri-hasta" type="datetime-local" class="input"></div>
+          <!-- Inventario -->
+          <div class="module-panel">
+            <div class="panel-header"><h2 class="panel-title">Movimientos de Inventario</h2></div>
+            <div class="panel-body">
+              <div class="field-row">
+                <div class="field-group"><label class="field-label">Desde</label><input id="ri-desde" type="datetime-local" class="input"></div>
+                <div class="field-group"><label class="field-label">Hasta</label><input id="ri-hasta" type="datetime-local" class="input"></div>
               </div>
-              <div class="form-grid form-grid--two">
-                <div class="form-field"><label class="form-field__label">Tipo</label>
-                  <select id="ri-tipo" class="input input--select">
+              <div class="field-row">
+                <div class="field-group"><label class="field-label">Tipo</label>
+                  <select id="ri-tipo" class="input">
                     <option value="">Todos</option>
                     <option value="ingreso">Ingreso</option>
                     <option value="egreso">Egreso</option>
                     <option value="ajuste">Ajuste</option>
                   </select>
                 </div>
-                <div class="form-field"><label class="form-field__label">Producto ID</label><input id="ri-producto" type="number" min="1" placeholder="(Opcional)" class="input"></div>
+                <div class="field-group"><label class="field-label">Producto ID</label><input id="ri-producto" type="number" min="1" placeholder="Opcional" class="input"></div>
               </div>
-              
-              <div class="form-actions" style="margin-top: auto; padding-top: var(--space-4); display: flex; gap: 8px;">
-                <button id="ri-excel" class="button button--ghost" style="flex:1;">Exportar Excel</button>
-                <button id="ri-pdf" class="button button--ghost" style="flex:1;">Exportar PDF</button>
-              </div>
-            </div>
-          </article>
-
-          <article class="card">
-            <header class="card__header">
-              <h2 class="card__title">Crecimiento de Pacientes</h2>
-            </header>
-            <div class="card__body" style="display: flex; flex-direction: column; gap: var(--space-3); height: 100%;">
-              <div class="form-grid form-grid--two">
-                <div class="form-field"><label class="form-field__label">Alta Desde</label><input id="rp-desde" type="date" class="input"></div>
-                <div class="form-field"><label class="form-field__label">Alta Hasta</label><input id="rp-hasta" type="date" class="input"></div>
-              </div>
-              
-              <p class="muted" style="margin-top: var(--space-2); font-size: 0.9rem;">Exporta el listado según su fecha de registro en el sistema.</p>
-
-              <div class="form-actions" style="margin-top: auto; padding-top: var(--space-4); display: flex; gap: 8px;">
-                <button id="rp-excel" class="button button--ghost" style="flex:1;">Exportar Excel</button>
-                <button id="rp-pdf" class="button button--ghost" style="flex:1;">Exportar PDF</button>
+              <div class="field-row" style="margin-top:12px">
+                <button id="ri-excel" class="button button--ghost button--full">Excel</button>
+                <button id="ri-pdf" class="button button--ghost button--full">PDF</button>
               </div>
             </div>
-          </article>
+          </div>
 
-        </section>
+          <!-- Pacientes -->
+          <div class="module-panel">
+            <div class="panel-header"><h2 class="panel-title">Crecimiento de Pacientes</h2></div>
+            <div class="panel-body">
+              <div class="field-row">
+                <div class="field-group"><label class="field-label">Alta Desde</label><input id="rp-desde" type="date" class="input"></div>
+                <div class="field-group"><label class="field-label">Alta Hasta</label><input id="rp-hasta" type="date" class="input"></div>
+              </div>
+              <p class="muted" style="margin:8px 0;font-size:.85rem">Exporta el listado según la fecha de registro en el sistema.</p>
+              <div class="field-row" style="margin-top:12px">
+                <button id="rp-excel" class="button button--ghost button--full">Excel</button>
+                <button id="rp-pdf" class="button button--ghost button--full">PDF</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     `;
 

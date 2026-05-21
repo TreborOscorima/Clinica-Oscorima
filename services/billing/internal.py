@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 
@@ -82,7 +82,7 @@ class InternalBillingStrategy(BillingStrategy):
             cursor_y -= 16
 
         cursor_y -= 4
-        fecha_segura = getattr(comprobante, "fecha", None) or datetime.utcnow()
+        fecha_segura = getattr(comprobante, "fecha", None) or datetime.now(timezone.utc)
         lienzo.drawString(50, cursor_y, f"Fecha: {fecha_segura.strftime('%Y-%m-%d %H:%M')}")
         cursor_y -= 16
         lienzo.drawString(50, cursor_y, f"Paciente: {paciente_nombre}")

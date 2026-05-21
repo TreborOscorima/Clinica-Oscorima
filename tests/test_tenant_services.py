@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.pool import StaticPool
 
 from app import create_app
@@ -126,7 +127,7 @@ def test_caja_service_filters_summary_and_soft_deletes_by_clinica(app_context):
     svc_a.eliminar_movimiento(mov_a.id)
 
     assert svc_a.listar_movimientos({})["data"] == []
-    assert CajaMovimiento.query.filter_by(clinica_id=1, id=mov_a.id).first().is_active is False
+    assert db.session.execute(select(CajaMovimiento).where(CajaMovimiento.clinica_id == 1, CajaMovimiento.id == mov_a.id)).scalar_one_or_none().is_active is False
     assert len(svc_b.listar_movimientos({})["data"]) == 1
 
 
@@ -174,8 +175,8 @@ def test_caja_service_abona_deudas_solo_de_su_clinica(app_context):
 
     assert result == {"ok": True, "abonado": 30.0, "saldo": 70.0}
     assert svc_a.deudas_por_paciente(paciente_a.id)["saldo_total"] == 70.0
-    assert CajaMovimiento.query.filter_by(clinica_id=1, paciente_id=paciente_a.id).count() == 1
-    assert DeudaPaciente.query.filter_by(clinica_id=2, paciente_id=paciente_b.id).first().saldo == 80
+    assert db.session.execute(select(func.count()).select_from(CajaMovimiento).where(CajaMovimiento.clinica_id == 1, CajaMovimiento.paciente_id == paciente_a.id)).scalar() == 1
+    assert db.session.execute(select(DeudaPaciente).where(DeudaPaciente.clinica_id == 2, DeudaPaciente.paciente_id == paciente_b.id)).scalar_one_or_none().saldo == 80
 
     with pytest.raises(NotFoundError):
         svc_a.abonar_deudas({"paciente_id": paciente_b.id, "monto": "10"})
@@ -241,14 +242,14 @@ def test_inventario_service_creates_purchase_with_tenant_stock_and_provider(app_
     )
 
     compra = svc_a.fetch_compra(result["id"])
-    proveedor = Proveedor.query.filter_by(clinica_id=1, nombre="Proveedor A").first()
+    proveedor = db.session.execute(select(Proveedor).where(Proveedor.clinica_id == 1, Proveedor.nombre == "Proveedor A")).scalar_one_or_none()
 
     assert result["total"] == 37.5
     assert compra["proveedor"]["nombre"] == "Proveedor A"
     assert proveedor is not None
     assert float(producto_a.stock_actual) == 3
     assert float(producto_a.precio_costo) == 12.5
-    assert MovimientoStock.query.filter_by(clinica_id=1, producto_id=producto_a.id).count() == 1
+    assert db.session.execute(select(func.count(MovimientoStock.id)).where(MovimientoStock.clinica_id == 1, MovimientoStock.producto_id == producto_a.id)).scalar() == 1
 
     movimientos = svc_a.listar_movimientos()
     assert movimientos["total"] == 1

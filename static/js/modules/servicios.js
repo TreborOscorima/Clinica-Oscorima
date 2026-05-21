@@ -55,81 +55,69 @@ window.ServiciosModule = (function(){
   }
 
   function render(){
-    routeTitle.textContent = "Servicios / Tratamientos";
+    routeTitle.textContent = "Servicios";
     routeContent.innerHTML = `
-      <div class="page-shell servicios-page split-layout">
-        <aside class="split-layout__sidebar">
-          <article class="card form-card servicios-card">
-            <header class="card__header">
-              <h2 class="card__title" id="srv-form-title">Registrar servicio</h2>
-            </header>
-            <div class="card__body">
-              <div class="form-grid servicios-form-grid" style="grid-template-columns: 1fr;">
-                <div class="form-field">
-                  <label class="form-field__label" for="srv-nombre">Nombre</label>
-                  <input id="srv-nombre" class="input" autocomplete="off">
+      <div class="page-shell animate-in">
+        <div class="module-layout">
+
+          <!-- Formulario -->
+          <aside class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title" id="srv-form-title">Registrar servicio</h2>
+            </div>
+            <div class="panel-body">
+              <div class="field-group">
+                <label class="field-label" for="srv-nombre">Nombre del servicio</label>
+                <input id="srv-nombre" class="input" autocomplete="off" placeholder="Ej: Limpieza facial">
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label class="field-label" for="srv-precio">Precio (S/)</label>
+                  <input id="srv-precio" class="input" type="number" step="0.01" min="0" placeholder="0.00">
                 </div>
-                <div class="form-grid form-grid--two">
-                    <div class="form-field">
-                    <label class="form-field__label" for="srv-precio">Precio</label>
-                    <input id="srv-precio" class="input" type="number" step="0.01" min="0">
-                    </div>
-                    <div class="form-field">
-                    <label class="form-field__label" for="srv-duracion">Dura. (min)</label>
-                    <input id="srv-duracion" class="input" type="number" step="5" min="0" value="30">
-                    </div>
-                </div>
-                <div class="form-field form-field--full">
-                  <label class="form-field__label" for="srv-desc">Descripción</label>
-                  <input id="srv-desc" class="input" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="srv-insumos">Insumos</label>
-                  <input id="srv-insumos" class="input" placeholder="ej: crema X, aguja 32G" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="srv-protocolo">Protocolo</label>
-                  <input id="srv-protocolo" class="input" placeholder="pasos..." autocomplete="off">
+                <div class="field-group">
+                  <label class="field-label" for="srv-duracion">Duración (min)</label>
+                  <input id="srv-duracion" class="input" type="number" step="5" min="0" value="30">
                 </div>
               </div>
-              <div class="servicios-form-actions" style="margin-top: var(--space-4);">
-                <div id="srv-msg" class="form-feedback"></div>
-                <div class="servicios-buttons" style="display: flex; gap: 8px;">
-                  <button id="srv-cancelar" type="button" class="button button--ghost" style="width: 100%;">Cancelar</button>
-                  <button id="srv-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar</button>
-                </div>
+              <div class="field-group">
+                <label class="field-label" for="srv-desc">Descripción</label>
+                <input id="srv-desc" class="input" autocomplete="off" placeholder="Descripción breve">
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="srv-insumos">Insumos</label>
+                <input id="srv-insumos" class="input" placeholder="ej: crema X, aguja 32G" autocomplete="off">
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="srv-protocolo">Protocolo</label>
+                <input id="srv-protocolo" class="input" placeholder="Pasos del procedimiento…" autocomplete="off">
+              </div>
+              <p id="srv-msg" class="field-feedback--err" style="min-height:18px"></p>
+              <div class="field-row" style="margin-top:4px">
+                <button id="srv-cancelar" type="button" class="button button--ghost button--full" style="display:none">Cancelar</button>
+                <button id="srv-guardar" type="button" class="button button--primary button--full">Guardar</button>
               </div>
             </div>
-          </article>
-        </aside>
+          </aside>
 
-        <main class="split-layout__main">
-          <article class="card list-card servicios-list-card" style="height: 100%;">
-            <header class="card__header">
-              <h2 class="card__title">Catálogo de servicios</h2>
-            </header>
-            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
-              <div class="card-section servicios-search">
-                <div class="card-section__body">
-                  <div class="form-field" style="max-width: 320px;">
-                    <label class="form-field__label" for="srv-buscar">Buscar</label>
-                    <input id="srv-buscar" class="input" placeholder="Nombre de servicio" autocomplete="off">
-                  </div>
-                </div>
-              </div>
-
-              <div class="table-shell servicios-table grow">
-                <table class="table table--full">
-                  <thead>
-                    <tr><th>Nombre</th><th>Precio</th><th>Duración</th><th>Descripción</th><th>Insumos</th><th>Protocolo</th><th>Acciones</th></tr>
-                  </thead>
-                  <tbody id="srv-tbody"></tbody>
-                </table>
-              </div>
-              <div id="srv-pagination" class="table-pagination"></div>
+          <!-- Listado -->
+          <section class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Catálogo</h2>
+              <input id="srv-buscar" class="input input--sm" type="search" placeholder="Buscar servicio…" autocomplete="off" style="width:200px">
             </div>
-          </article>
-        </main>
+            <div class="panel-body panel-body--table">
+              <table class="table">
+                <thead>
+                  <tr><th>Nombre</th><th>Precio</th><th>Duración</th><th>Descripción</th><th></th></tr>
+                </thead>
+                <tbody id="srv-tbody"></tbody>
+              </table>
+              <div id="srv-pagination" class="pagination-bar" style="display:none"></div>
+            </div>
+          </section>
+
+        </div>
       </div>
     `;
 
@@ -149,55 +137,29 @@ window.ServiciosModule = (function(){
         timer = setTimeout(() => fn(...args), delay);
       };
     };
-    const clearMessage = () => {
-      msg.textContent = "";
-      msg.classList.remove("form-feedback--success", "form-feedback--error");
-    };
+    const clearMessage = () => { msg.textContent = ""; msg.className = "field-feedback--err"; };
     const showMessage = (text = "", type = "info") => {
+      msg.className = type === "success" ? "field-feedback--ok" : "field-feedback--err";
       msg.textContent = text;
-      msg.classList.remove("form-feedback--success", "form-feedback--error");
-      if (!text) return;
-      if (type === "success") msg.classList.add("form-feedback--success");
-      if (type === "error") msg.classList.add("form-feedback--error");
     };
 
     function renderPagination(){
-      if (!state.totalItems){
-        paginationEl.innerHTML = `<div class="table-pagination__controls"><span class="table-pagination__info">Sin servicios registrados</span></div>`;
-        return;
-      }
+      paginationEl.style.display = (state.totalPages > 1) ? "" : "none";
+      if (state.totalPages <= 1) return;
       const start = (state.currentPage - 1) * state.perPage + 1;
       const end = Math.min(state.currentPage * state.perPage, state.totalItems);
-      const info = `<span class="table-pagination__info">Mostrando ${start}-${end} de ${state.totalItems}</span>`;
-      if (state.totalPages <= 1){
-        paginationEl.innerHTML = `<div class="table-pagination__controls">${info}</div>`;
-        return;
-      }
-      const windowSize = 5;
-      let first = Math.max(1, state.currentPage - Math.floor(windowSize / 2));
-      let last = Math.min(state.totalPages, first + windowSize - 1);
-      if (last - first + 1 < windowSize) first = Math.max(1, last - windowSize + 1);
-      const buttons = [];
-      for (let p = first; p <= last; p++){
-        buttons.push(`<button type="button" class="button ${p === state.currentPage ? "is-current" : ""}" data-page="${p}">${p}</button>`);
-      }
       paginationEl.innerHTML = `
-        <div class="table-pagination__controls">
-          ${info}
-          <div class="table-pagination__buttons">
-            <button type="button" class="button" data-page="first" ${state.currentPage === 1 ? "disabled" : ""}>&laquo;</button>
-            <button type="button" class="button" data-page="prev" ${state.currentPage === 1 ? "disabled" : ""}>&lsaquo;</button>
-            ${buttons.join("")}
-            <button type="button" class="button" data-page="next" ${state.currentPage === state.totalPages ? "disabled" : ""}>&rsaquo;</button>
-            <button type="button" class="button" data-page="last" ${state.currentPage === state.totalPages ? "disabled" : ""}>&raquo;</button>
-          </div>
+        <span class="pagination-info">Mostrando ${start}–${end} de ${state.totalItems}</span>
+        <div class="pagination-btns">
+          <button type="button" class="button button--ghost button--sm" data-page="prev" ${state.currentPage === 1 ? "disabled" : ""}>Anterior</button>
+          <button type="button" class="button button--ghost button--sm" data-page="next" ${state.currentPage === state.totalPages ? "disabled" : ""}>Siguiente</button>
         </div>
       `;
     }
 
     function renderTable(){
       if (!state.rows.length){
-        tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Sin servicios</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:14px">Sin servicios registrados</td></tr>`;
         renderPagination();
         return;
       }
@@ -206,14 +168,12 @@ window.ServiciosModule = (function(){
         .map((r) => `
           <tr>
             <td>${formatCell(r.nombre)}</td>
-            <td>${formatCell(Number(r.precio || 0).toFixed(2))}</td>
+            <td>S/ ${Number(r.precio || 0).toFixed(2)}</td>
             <td>${formatCell(r.duracion_min ? `${r.duracion_min} min` : "")}</td>
             <td>${formatCell(r.descripcion)}</td>
-            <td>${formatCell(r.insumos)}</td>
-            <td>${formatCell(r.protocolo)}</td>
-            <td class="table__actions">
-              <button type="button" class="button button--ghost" data-editar="${r.id}">Editar</button>
-              <button type="button" class="button button--danger" data-eliminar="${r.id}">Borrar</button>
+            <td style="white-space:nowrap">
+              <button type="button" class="button button--ghost button--sm" data-editar="${r.id}">Editar</button>
+              <button type="button" class="button button--danger button--sm" data-eliminar="${r.id}">Borrar</button>
             </td>
           </tr>
         `).join("");
@@ -222,7 +182,7 @@ window.ServiciosModule = (function(){
 
     async function loadServicios(page = state.currentPage){
       const query = buscar.value.trim();
-      tbody.innerHTML = `<tr><td colspan="7" class="table__empty muted">Cargando...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:14px">Cargando…</td></tr>`;
       try {
         const rows = await list({ q: query });
         state.rows = Array.isArray(rows) ? rows : [];
@@ -231,7 +191,7 @@ window.ServiciosModule = (function(){
         state.currentPage = Math.min(Math.max(1, page), state.totalPages);
         renderTable();
       } catch (error){
-        tbody.innerHTML = `<tr><td colspan="7" class="table__empty">Error: ${escHtml(error.message || error)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:14px">Error: ${escHtml(error.message || error)}</td></tr>`;
         paginationEl.innerHTML = "";
       }
     }
@@ -311,10 +271,8 @@ window.ServiciosModule = (function(){
       if (!btn || btn.disabled) return;
       const action = btn.getAttribute("data-page");
       let target = state.currentPage;
-      if (action === "first") target = 1;
-      else if (action === "prev") target = Math.max(1, state.currentPage - 1);
+      if (action === "prev") target = Math.max(1, state.currentPage - 1);
       else if (action === "next") target = Math.min(state.totalPages, state.currentPage + 1);
-      else if (action === "last") target = state.totalPages;
       else target = Number(action) || 1;
       if (target === state.currentPage) return;
       state.currentPage = target;

@@ -136,7 +136,12 @@ def crear_comprobante():
 
     idem = _get_idem_key()
     if idem and hasattr(Comprobante, "idempotency_key"):
-        previo = Comprobante.query.filter_by(clinica_id=clinica_id, idempotency_key=idem).first()
+        previo = db.session.execute(
+            select(Comprobante).where(
+                Comprobante.clinica_id == clinica_id,
+                Comprobante.idempotency_key == idem,
+            )
+        ).scalar_one_or_none()
         if previo:
             return comp_schema.dump(previo), 200
 
@@ -176,7 +181,12 @@ def crear_comprobante():
     except IntegrityError:
         db.session.rollback()
         if idem and hasattr(Comprobante, "idempotency_key"):
-            previo = Comprobante.query.filter_by(clinica_id=clinica_id, idempotency_key=idem).first()
+            previo = db.session.execute(
+                select(Comprobante).where(
+                    Comprobante.clinica_id == clinica_id,
+                    Comprobante.idempotency_key == idem,
+                )
+            ).scalar_one_or_none()
             if previo:
                 return comp_schema.dump(previo), 200
         raise
@@ -198,11 +208,15 @@ def crear_comprobante():
 def comprobante_pdf(cid: int):
     clinica_id = _clinica_id()
 
-    comprobante = Comprobante.query.filter(
-        Comprobante.id == cid,
-        Comprobante.clinica_id == clinica_id,
-        Comprobante.is_active.is_(True),
-    ).first_or_404()
+    comprobante = db.session.execute(
+        select(Comprobante).where(
+            Comprobante.id == cid,
+            Comprobante.clinica_id == clinica_id,
+            Comprobante.is_active.is_(True),
+        )
+    ).scalar_one_or_none()
+    if comprobante is None:
+        return {"message": "Comprobante no encontrado"}, 404
 
     paciente = None
     if getattr(comprobante, "paciente_id", None):
@@ -288,12 +302,14 @@ def deudas_abonar():
 def _preview_for_date(fecha: date, clinica_id: int):
     inicio = datetime.combine(fecha, time.min)
     fin = datetime.combine(fecha, time.max)
-    movimientos = CajaMovimiento.query.filter(
-        CajaMovimiento.clinica_id == clinica_id,
-        CajaMovimiento.is_active.is_(True),
-        CajaMovimiento.fecha >= inicio,
-        CajaMovimiento.fecha <= fin,
-    ).all()
+    movimientos = db.session.execute(
+        select(CajaMovimiento).where(
+            CajaMovimiento.clinica_id == clinica_id,
+            CajaMovimiento.is_active.is_(True),
+            CajaMovimiento.fecha >= inicio,
+            CajaMovimiento.fecha <= fin,
+        )
+    ).scalars().all()
 
     total = Decimal("0")
     por_metodo: dict[str, Decimal] = {k: Decimal("0") for k in ("efectivo", "tarjeta", "transferencia", "otro")}
@@ -339,7 +355,13 @@ def cierre_confirmar():
     except Exception:
         return {"message": "fecha invalida"}, 400
 
-    existente = CierreCaja.query.filter_by(clinica_id=clinica_id, fecha=fecha, is_active=True).first()
+    existente = db.session.execute(
+        select(CierreCaja).where(
+            CierreCaja.clinica_id == clinica_id,
+            CierreCaja.fecha == fecha,
+            CierreCaja.is_active.is_(True),
+        )
+    ).scalar_one_or_none()
     if existente:
         return cier_schema.dump(existente), 200
 

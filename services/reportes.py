@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import desc, func, or_
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from extensions import db
@@ -154,7 +154,7 @@ class ReportesService:
         frecuentes_subquery = frecuentes_query.having(func.count(Turno.id) >= n_frec).subquery()
         frecuentes = db.session.query(func.count()).select_from(frecuentes_subquery).scalar() or 0
 
-        limite = datetime.utcnow() - timedelta(days=inact_dias)
+        limite = datetime.now(timezone.utc) - timedelta(days=inact_dias)
         ultimos_turnos = (
             db.session.query(Turno.paciente_id, func.max(Turno.fecha_hora).label("ult"))
             .filter(Turno.clinica_id == self.clinica_id, Turno.is_active.is_(True))
@@ -276,25 +276,26 @@ class ReportesService:
         if estado_cobrado:
             estados_historial.append(estado_cobrado.value)
 
-        turnos_query = (
-            Turno.query.options(
+        turnos_stmt = (
+            select(Turno)
+            .options(
                 joinedload(Turno.paciente),
                 joinedload(Turno.profesional),
                 joinedload(Turno.items).joinedload(TurnoServicio.servicio),
                 joinedload(Turno.servicio),
             )
-            .filter(
+            .where(
                 Turno.clinica_id == self.clinica_id,
                 Turno.is_active.is_(True),
                 Turno.estado.in_(estados_historial),
             )
         )
         if desde_dt:
-            turnos_query = turnos_query.filter(Turno.fecha_hora >= desde_dt)
+            turnos_stmt = turnos_stmt.where(Turno.fecha_hora >= desde_dt)
         if hasta_dt:
-            turnos_query = turnos_query.filter(Turno.fecha_hora <= hasta_dt)
+            turnos_stmt = turnos_stmt.where(Turno.fecha_hora <= hasta_dt)
 
-        turnos = turnos_query.all()
+        turnos = db.session.execute(turnos_stmt).unique().scalars().all()
         if not turnos:
             return [{
                 "Paciente ID": "-",
@@ -316,13 +317,13 @@ class ReportesService:
             ]
 
         turno_ids = [turno.id for turno in turnos]
-        movimientos = (
-            CajaMovimiento.query.filter(
+        movimientos = db.session.execute(
+            select(CajaMovimiento).where(
                 CajaMovimiento.clinica_id == self.clinica_id,
                 CajaMovimiento.is_active.is_(True),
                 CajaMovimiento.turno_id.in_(turno_ids),
-            ).all()
-        )
+            )
+        ).scalars().all()
 
         mov_map: dict[int, dict[str, Any]] = {}
         for mov in movimientos:
@@ -363,7 +364,7 @@ class ReportesService:
             monto_unit = monto_total_turno / partes
             total_facturado += monto_total_turno
 
-            fecha_hora = turno.fecha_hora or datetime.utcnow()
+            fecha_hora = turno.fecha_hora or datetime.now(timezone.utc)
             profesional_nombre = ""
             if profesional:
                 profesional_nombre = f"{getattr(profesional, 'nombres', '')} {getattr(profesional, 'apellidos', '')}".strip()
@@ -434,7 +435,7 @@ class ReportesService:
             else:
                 total_egresos += abs(cantidad)
             saldo_anterior = float(mov.saldo or 0) - cantidad
-            fecha = mov.fecha or datetime.utcnow()
+            fecha = mov.fecha or datetime.now(timezone.utc)
             rows.append({
                 "Codigo producto": producto.sku or producto.id,
                 "Descripcion": producto.nombre,
@@ -489,34 +490,35 @@ class ReportesService:
         serv_id = int(servicio_id) if servicio_id and str(servicio_id).isdigit() else None
 
         query = (
-            Turno.query.options(
+            select(Turno)
+            .options(
                 joinedload(Turno.paciente),
                 joinedload(Turno.profesional),
                 joinedload(Turno.items).joinedload(TurnoServicio.servicio),
                 joinedload(Turno.servicio),
                 joinedload(Turno.created_by),
             )
-            .filter(Turno.clinica_id == self.clinica_id, Turno.is_active.is_(True))
+            .where(Turno.clinica_id == self.clinica_id, Turno.is_active.is_(True))
         )
         if desde_dt:
-            query = query.filter(Turno.fecha_hora >= desde_dt)
+            query = query.where(Turno.fecha_hora >= desde_dt)
         if hasta_dt:
-            query = query.filter(Turno.fecha_hora <= hasta_dt)
+            query = query.where(Turno.fecha_hora <= hasta_dt)
         if estado:
             try:
-                query = query.filter(Turno.estado == EstadoTurno(estado))
+                query = query.where(Turno.estado == EstadoTurno(estado))
             except Exception:
                 pass
         if prof_id:
-            query = query.filter(Turno.profesional_id == prof_id)
+            query = query.where(Turno.profesional_id == prof_id)
         if serv_id:
-            query = query.filter(or_(Turno.servicio_id == serv_id, Turno.items.any(TurnoServicio.servicio_id == serv_id)))
+            query = query.where(or_(Turno.servicio_id == serv_id, Turno.items.any(TurnoServicio.servicio_id == serv_id)))
 
         rows: list[dict[str, Any]] = []
         total_facturado_estimado = 0.0
         total_atendidos = 0
         total_cancelados = 0
-        for turno in query.order_by(Turno.fecha_hora.asc()).all():
+        for turno in db.session.execute(query.order_by(Turno.fecha_hora.asc())).unique().scalars():
             paciente = turno.paciente
             profesional = turno.profesional
             estado_txt = (turno.estado.value if turno.estado else "pendiente").upper()
@@ -545,7 +547,7 @@ class ReportesService:
             monto_estimado = sum(servicio[1] for servicio in servicios)
             total_facturado_estimado += monto_estimado
             duracion_total = sum(servicio[2] for servicio in servicios)
-            fecha = turno.fecha_hora or datetime.utcnow()
+            fecha = turno.fecha_hora or datetime.now(timezone.utc)
             profesional_nombre = ""
             if profesional:
                 profesional_nombre = f"{getattr(profesional, 'nombres', '')} {getattr(profesional, 'apellidos', '')}".strip()
@@ -636,7 +638,7 @@ class ReportesService:
         total_ingresos = 0.0
         total_egresos = 0.0
         for mov, paciente, profesional, servicio, comprobante in movimientos:
-            fecha = mov.fecha or datetime.utcnow()
+            fecha = mov.fecha or datetime.now(timezone.utc)
             tipo_txt = mov.tipo.value.upper() if isinstance(mov.tipo, TipoMovimiento) else str(mov.tipo or "").upper()
             metodo_txt = mov.metodo_pago.value.upper() if hasattr(mov.metodo_pago, "value") else str(mov.metodo_pago or "").upper()
             monto_raw = float(mov.monto or 0)
@@ -819,7 +821,7 @@ def build_export_meta(
     meta = {
         "title": base_title,
         "generated_by": generated_by,
-        "generated_at": datetime.utcnow().strftime("%d/%m/%Y %H:%M"),
+        "generated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
         "total_records": total,
         "date_range": date_range,
         "filters": filtros,

@@ -14,7 +14,7 @@ def listar_insumos(sid):
     items = ServicioInsumo.query.filter_by(servicio_id=sid).all()
     out = []
     for it in items:
-        prod = Producto.query.get(it.producto_id)
+        prod = db.session.get(Producto, it.producto_id)
         out.append({
             "id": it.id,
             "servicio_id": it.servicio_id,

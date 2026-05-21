@@ -1,13 +1,18 @@
-from datetime import datetime, date, timezone
-from enum import Enum
+from __future__ import annotations
 
-from sqlalchemy import Enum as SAEnum, ForeignKey
+from datetime import date, datetime, timezone
+from decimal import Decimal
+from enum import Enum
+from typing import Any, ClassVar
+
+from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, ForeignKey, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlmodel import Field, SQLModel
 
 from extensions import db
 
 
-def _utcnow():
+def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
@@ -23,69 +28,35 @@ class MetodoPago(str, Enum):
     OTRO = "otro"
 
 
-class Comprobante(db.Model):
+class Comprobante(SQLModel, table=True):
     __tablename__ = "comprobantes"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
-    tipo = db.Column(db.String(20), default="recibo")
-    numero = db.Column(db.String(40), unique=True)
-    fecha = db.Column(db.DateTime, default=_utcnow)
-    paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"))
-    # Totales
-    total = db.Column(db.Numeric(10, 2), default=0)              # total neto (después de descuento)
-    total_bruto = db.Column(db.Numeric(10, 2), default=0)         # suma de subtotales de items
-    descuento_global = db.Column(db.Numeric(10, 2), default=0)    # monto descontado globalmente
-    # Otros
-    forma_pago = db.Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO)
-    observacion = db.Column(db.String(240))
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    metadata = db.metadata
 
-    # Idempotencia (nuevo)
-    idempotency_key = db.Column(db.String(64), unique=True, index=True, nullable=True)
-
-    def soft_delete(self) -> None:
-        self.is_active = False
-        self.deleted_at = _utcnow()
-
-
-class CajaMovimiento(db.Model):
-    __tablename__ = "caja_movimientos"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    tipo = db.Column(SAEnum(TipoMovimiento), nullable=False, default=TipoMovimiento.INGRESO)
-    monto = db.Column(db.Numeric(10, 2), nullable=False)
-    metodo_pago = db.Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO)
-    paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"), nullable=True)
-    profesional_id = db.Column(db.Integer, ForeignKey("profesionales.id"), nullable=True)
-    servicio_id = db.Column(db.Integer, ForeignKey("servicios.id"), nullable=True)
-    comprobante_id = db.Column(db.Integer, ForeignKey("comprobantes.id"), nullable=True)
-    turno_id = db.Column(db.Integer, db.ForeignKey("turnos.id"), nullable=True)
-    observacion = db.Column(db.String(240))
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-
-    def soft_delete(self) -> None:
-        self.is_active = False
-        self.deleted_at = _utcnow()
-
-
-class CierreCaja(db.Model):
-    __tablename__ = "cierres_caja"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
-    fecha = db.Column(db.Date, default=date.today)
-    total_ingresos = db.Column(db.Numeric(10, 2), default=0)
-    total_egresos = db.Column(db.Numeric(10, 2), default=0)
-    saldo = db.Column(db.Numeric(10, 2), default=0)
-    usuario_id = db.Column(db.Integer, ForeignKey("usuarios.id"), nullable=True)
-    creado_en = db.Column(db.DateTime, default=_utcnow)
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-
-    __table_args__ = (
-        db.UniqueConstraint("clinica_id", "fecha", name="uq_cierres_caja_clinica_fecha"),
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    tipo: str | None = Field(default="recibo", max_length=20, nullable=True)
+    numero: str | None = Field(default=None, max_length=40, nullable=True, unique=True)
+    fecha: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, default=_utcnow, nullable=True)
+    )
+    paciente_id: int | None = Field(default=None, foreign_key="pacientes.id", nullable=True)
+    total: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    total_bruto: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    descuento_global: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    forma_pago: MetodoPago | None = Field(
+        sa_column=Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO, nullable=True)
+    )
+    observacion: str | None = Field(default=None, max_length=240, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, nullable=True, index=True)
+    idempotency_key: str | None = Field(
+        default=None, max_length=64, nullable=True, unique=True, index=True
     )
 
     def soft_delete(self) -> None:
@@ -93,35 +64,114 @@ class CierreCaja(db.Model):
         self.deleted_at = _utcnow()
 
 
-class ComprobanteItem(db.Model):
+class CajaMovimiento(SQLModel, table=True):
+    __tablename__ = "caja_movimientos"
+    metadata = db.metadata
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    fecha: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, default=_utcnow, index=True, nullable=True)
+    )
+    tipo: TipoMovimiento = Field(
+        sa_column=Column(SAEnum(TipoMovimiento), nullable=False, default=TipoMovimiento.INGRESO)
+    )
+    monto: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    metodo_pago: MetodoPago | None = Field(
+        sa_column=Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO, nullable=True)
+    )
+    paciente_id: int | None = Field(default=None, foreign_key="pacientes.id", nullable=True)
+    profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)
+    servicio_id: int | None = Field(default=None, foreign_key="servicios.id", nullable=True)
+    comprobante_id: int | None = Field(default=None, foreign_key="comprobantes.id", nullable=True)
+    turno_id: int | None = Field(default=None, foreign_key="turnos.id", nullable=True)
+    observacion: str | None = Field(default=None, max_length=240, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, nullable=True, index=True)
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
+
+
+class CierreCaja(SQLModel, table=True):
+    __tablename__ = "cierres_caja"
+    metadata = db.metadata
+    __table_args__ = (
+        UniqueConstraint("clinica_id", "fecha", name="uq_cierres_caja_clinica_fecha"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    fecha: date | None = Field(
+        default=None, sa_column=Column(Date, default=date.today, nullable=True)
+    )
+    total_ingresos: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    total_egresos: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    saldo: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    usuario_id: int | None = Field(default=None, foreign_key="usuarios.id", nullable=True)
+    creado_en: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, default=_utcnow, nullable=True)
+    )
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, nullable=True, index=True)
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
+
+
+class ComprobanteItem(SQLModel, table=True):
     __tablename__ = "comprobante_items"
-    id = db.Column(db.Integer, primary_key=True)
-    comprobante_id = db.Column(db.Integer, ForeignKey("comprobantes.id"), nullable=False, index=True)
-    # tipo del ítem: 'producto' o 'servicio'
-    tipo = db.Column(db.String(20), nullable=False)
-    ref_id = db.Column(db.Integer, nullable=False)  # producto_id o servicio_id
-    nombre = db.Column(db.String(200), nullable=False)
-    cantidad = db.Column(db.Numeric(10, 3), default=0)
-    precio_unit = db.Column(db.Numeric(10, 2), default=0)
-    subtotal = db.Column(db.Numeric(10, 2), default=0)
+    metadata = db.metadata
 
-    comprobante = relationship("Comprobante", backref="items")
+    id: int | None = Field(default=None, primary_key=True)
+    comprobante_id: int = Field(foreign_key="comprobantes.id", nullable=False, index=True)
+    tipo: str = Field(max_length=20, nullable=False)
+    ref_id: int = Field(nullable=False)
+    nombre: str = Field(max_length=200, nullable=False)
+    cantidad: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 3), default=0, nullable=True)
+    )
+    precio_unit: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    subtotal: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+
+    comprobante: ClassVar[Any] = relationship("Comprobante", backref="items")
 
 
-class DeudaPaciente(db.Model):
+class DeudaPaciente(SQLModel, table=True):
     __tablename__ = "deudas_paciente"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, ForeignKey("clinicas.id"), nullable=False, index=True)
-    paciente_id = db.Column(db.Integer, ForeignKey("pacientes.id"), nullable=False, index=True)
-    comprobante_id = db.Column(db.Integer, ForeignKey("comprobantes.id"), nullable=False, index=True)
-    total = db.Column(db.Numeric(10, 2), nullable=False)  # total del comprobante (neto)
-    pagado = db.Column(db.Numeric(10, 2), default=0)      # suma de pagos registrados
-    saldo = db.Column(db.Numeric(10, 2), nullable=False)  # total - pagado
-    estado = db.Column(db.String(20), default="pendiente")  # pendiente / cancelada
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-    creado_en = db.Column(db.DateTime, default=_utcnow)
-    actualizado_en = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+    metadata = db.metadata
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    paciente_id: int = Field(foreign_key="pacientes.id", nullable=False, index=True)
+    comprobante_id: int = Field(foreign_key="comprobantes.id", nullable=False, index=True)
+    total: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    pagado: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
+    saldo: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    estado: str | None = Field(default="pendiente", max_length=20, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, nullable=True, index=True)
+    creado_en: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, default=_utcnow, nullable=True)
+    )
+    actualizado_en: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=True),
+    )
 
     def soft_delete(self) -> None:
         self.is_active = False

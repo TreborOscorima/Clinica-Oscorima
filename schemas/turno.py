@@ -6,6 +6,16 @@ from models.turno import Turno, EstadoTurno
 from models.turno_servicio import TurnoServicio
 from models.servicio import Servicio
 
+
+class _SafeList(fields.List):
+    """List field that wraps a scalar ORM relationship value into a list before serializing.
+    Needed because SQLModel's metaclass can ignore uselist=True on ClassVar relationships,
+    causing SQLAlchemy to return a single instance instead of a list."""
+    def _serialize(self, value, attr, obj, **kwargs):
+        if value is not None and not isinstance(value, (list, tuple)):
+            value = [value]
+        return super()._serialize(value, attr, obj, **kwargs)
+
 class TurnoServicioSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = TurnoServicio
@@ -54,7 +64,7 @@ class TurnoSchema(SQLAlchemyAutoSchema):
     updated_at = auto_field(dump_only=True)
 
     # NUEVO: items múltiples del turno
-    items = fields.List(fields.Nested(TurnoServicioSchema), required=False)
+    items = _SafeList(fields.Nested(TurnoServicioSchema), required=False)
 
     # legibles para las grillas
     paciente_nombre = fields.Function(lambda o: getattr(o.paciente, "nombre", None))

@@ -5,7 +5,7 @@ Punto de entrada principal — WaykiSAC Sistema de Gestión para Clínicas
 Comandos:
     python app.py run          — Inicia el servidor de desarrollo
     python app.py db_create    — Crea tablas (solo para desarrollo inicial)
-    python app.py seed_admin   — Crea el usuario admin por defecto
+    python app.py seed_admin   — Crea/actualiza el usuario admin (admin@clinica.local / admin123)
 
 Para migraciones de producción (Flask-Migrate):
     flask --app app:create_app db init      # Solo la primera vez
@@ -113,27 +113,35 @@ def seed_default_clinica() -> Clinica:
 
 
 def seed_admin() -> None:
-    """Crea el usuario administrador por defecto si no existe."""
+    """Crea o actualiza el usuario administrador por defecto."""
     app = create_app()
     with app.app_context():
-        existing = db.session.execute(
-            select(User).where(User.email == "admin@clinic.local")
+        NEW_EMAIL = "admin@clinica.local"
+        NEW_PASS = "admin123"
+
+        # Buscar por email nuevo o el email legacy
+        user: User | None = db.session.execute(
+            select(User).where(User.email.in_([NEW_EMAIL, "admin@clinic.local"]))
         ).scalar_one_or_none()
-        if not existing:
+
+        if not user:
             clinica = seed_default_clinica()
-            u = User(
+            user = User(
                 clinica_id=clinica.id,
-                email="admin@clinic.local",
+                email=NEW_EMAIL,
                 nombre="Admin",
                 rol=RoleEnum.ADMIN,
             )
-            u.set_password("Admin123!")
-            db.session.add(u)
-            db.session.commit()
-            print("✔ Admin creado: admin@clinic.local / Admin123!")
-            print("⚠  Cambia esta contraseña inmediatamente en producción.")
-        else:
-            print("ℹ Admin ya existe")
+            db.session.add(user)
+
+        # Actualizar siempre email, password y activar cuenta
+        user.email = NEW_EMAIL
+        user.nombre = "Admin"
+        user.is_active = True
+        user.set_password(NEW_PASS)
+        db.session.commit()
+        print(f"[OK] Admin listo: {NEW_EMAIL} / {NEW_PASS}")
+        print("[!]  Cambia esta contraseña en produccion.")
 
 
 def run() -> None:

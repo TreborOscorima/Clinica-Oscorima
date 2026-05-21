@@ -1,7 +1,7 @@
 # utils/inventario_ops.py
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -120,7 +120,7 @@ def consumir_insumos_por_servicios_en_lote(
             saldo=nuevo,
             motivo=motivo,
             referencia=referencia,
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(timezone.utc),
         )
         session.add(mov)
 

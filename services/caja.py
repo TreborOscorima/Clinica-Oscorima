@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
@@ -67,28 +67,30 @@ class CajaService:
     # ------------------------------------------------------------------
 
     def listar_movimientos(self, params: dict[str, Any]) -> dict[str, Any]:
-        query = CajaMovimiento.query.filter(
+        stmt = select(CajaMovimiento).where(
             CajaMovimiento.clinica_id == self.clinica_id,
             CajaMovimiento.is_active.is_(True),
         )
 
         desde = parse_datetime(params.get("desde"), "desde")
         if desde:
-            query = query.filter(CajaMovimiento.fecha >= desde)
+            stmt = stmt.where(CajaMovimiento.fecha >= desde)
 
         hasta = parse_datetime(params.get("hasta"), "hasta")
         if hasta:
-            query = query.filter(CajaMovimiento.fecha <= hasta)
+            stmt = stmt.where(CajaMovimiento.fecha <= hasta)
 
         tipo = params.get("tipo")
         if tipo:
-            query = query.filter(CajaMovimiento.tipo == tipo)
+            stmt = stmt.where(CajaMovimiento.tipo == tipo)
 
         metodo = params.get("metodo")
         if metodo:
-            query = query.filter(CajaMovimiento.metodo_pago == metodo)
+            stmt = stmt.where(CajaMovimiento.metodo_pago == metodo)
 
-        movimientos = query.order_by(CajaMovimiento.fecha.desc()).limit(500).all()
+        movimientos = db.session.execute(
+            stmt.order_by(CajaMovimiento.fecha.desc()).limit(500)
+        ).scalars().all()
         return {"data": mov_many.dump(movimientos)}
 
     def crear_movimiento(self, payload: dict[str, Any]) -> CajaMovimiento:
@@ -104,11 +106,13 @@ class CajaService:
         return movimiento
 
     def eliminar_movimiento(self, movimiento_id: int) -> None:
-        movimiento = CajaMovimiento.query.filter(
-            CajaMovimiento.id == movimiento_id,
-            CajaMovimiento.clinica_id == self.clinica_id,
-            CajaMovimiento.is_active.is_(True),
-        ).first()
+        movimiento = db.session.execute(
+            select(CajaMovimiento).where(
+                CajaMovimiento.id == movimiento_id,
+                CajaMovimiento.clinica_id == self.clinica_id,
+                CajaMovimiento.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
         if not movimiento:
             raise NotFoundError("Movimiento no encontrado")
         movimiento.soft_delete()
@@ -137,9 +141,12 @@ class CajaService:
 
         # Idempotencia — devuelve el comprobante previo si la clave ya existe
         if idem_key and hasattr(Comprobante, "idempotency_key"):
-            previo = Comprobante.query.filter_by(
-                clinica_id=clinica_id, idempotency_key=idem_key
-            ).first()
+            previo = db.session.execute(
+                select(Comprobante).where(
+                    Comprobante.clinica_id == clinica_id,
+                    Comprobante.idempotency_key == idem_key,
+                )
+            ).scalar_one_or_none()
             if previo:
                 return self._build_pos_response(previo, ZERO, None, [], idempotent=True)
 
@@ -252,11 +259,13 @@ class CajaService:
 
             # 9) Marcar turno como ATENDIDO (sin re-disparar consumo de inventario)
             if turno_id:
-                turno = Turno.query.filter(
-                    Turno.id == turno_id,
-                    Turno.clinica_id == clinica_id,
-                    Turno.is_active.is_(True),
-                ).first()
+                turno = db.session.execute(
+                    select(Turno).where(
+                        Turno.id == turno_id,
+                        Turno.clinica_id == clinica_id,
+                        Turno.is_active.is_(True),
+                    )
+                ).scalar_one_or_none()
                 if turno and turno.estado != EstadoTurno.ATENDIDO:
                     turno.estado = EstadoTurno.ATENDIDO
 
@@ -266,9 +275,12 @@ class CajaService:
         except IntegrityError:
             db.session.rollback()
             if idem_key and hasattr(Comprobante, "idempotency_key"):
-                previo = Comprobante.query.filter_by(
-                    clinica_id=clinica_id, idempotency_key=idem_key
-                ).first()
+                previo = db.session.execute(
+                    select(Comprobante).where(
+                        Comprobante.clinica_id == clinica_id,
+                        Comprobante.idempotency_key == idem_key,
+                    )
+                ).scalar_one_or_none()
                 if previo:
                     return self._build_pos_response(previo, ZERO, None, [], idempotent=True)
             raise
@@ -288,16 +300,14 @@ class CajaService:
     # ------------------------------------------------------------------
 
     def deudas_por_paciente(self, paciente_id: int) -> dict[str, Any]:
-        items = (
-            DeudaPaciente.query.filter(
+        items = db.session.execute(
+            select(DeudaPaciente).where(
                 DeudaPaciente.clinica_id == self.clinica_id,
                 DeudaPaciente.paciente_id == paciente_id,
                 DeudaPaciente.estado == "pendiente",
                 DeudaPaciente.is_active.is_(True),
-            )
-            .order_by(DeudaPaciente.creado_en.desc())
-            .all()
-        )
+            ).order_by(DeudaPaciente.creado_en.desc())
+        ).scalars().all()
         total_saldo = sum((deuda.saldo or 0) for deuda in items)
         return {
             "data": deuda_many.dump(items),
@@ -323,8 +333,9 @@ class CajaService:
 
         # Row-level locking: previene race conditions y saldos negativos
         # cuando múltiples peticiones simultáneas intentan abonar la misma deuda.
-        deudas = (
-            DeudaPaciente.query.filter(
+        deudas = db.session.execute(
+            select(DeudaPaciente)
+            .where(
                 DeudaPaciente.clinica_id == self.clinica_id,
                 DeudaPaciente.paciente_id == paciente_id,
                 DeudaPaciente.estado == "pendiente",
@@ -333,8 +344,7 @@ class CajaService:
             )
             .order_by(DeudaPaciente.creado_en.asc())
             .with_for_update()
-            .all()
-        )
+        ).scalars().all()
         if not deudas:
             raise NotFoundError("El paciente no tiene deudas pendientes.")
 
@@ -379,15 +389,15 @@ class CajaService:
             raise ServiceError(f"Error al abonar deuda: {exc}", 500) from exc
 
         saldo_pendiente = (
-            db.session.query(func.coalesce(func.sum(DeudaPaciente.saldo), 0))
-            .filter(
-                DeudaPaciente.clinica_id == self.clinica_id,
-                DeudaPaciente.paciente_id == paciente_id,
-                DeudaPaciente.estado == "pendiente",
-                DeudaPaciente.is_active.is_(True),
-                DeudaPaciente.saldo > ZERO,
-            )
-            .scalar()
+            db.session.execute(
+                select(func.coalesce(func.sum(DeudaPaciente.saldo), 0)).where(
+                    DeudaPaciente.clinica_id == self.clinica_id,
+                    DeudaPaciente.paciente_id == paciente_id,
+                    DeudaPaciente.estado == "pendiente",
+                    DeudaPaciente.is_active.is_(True),
+                    DeudaPaciente.saldo > ZERO,
+                )
+            ).scalar()
             or ZERO
         )
         return {
@@ -403,24 +413,24 @@ class CajaService:
     def resumen(self, params: dict[str, Any]) -> dict[str, Any]:
         start = parse_datetime(params.get("desde"), "desde")
         if not start:
-            start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
         end = parse_datetime(params.get("hasta"), "hasta")
         if not end:
-            end = datetime.utcnow()
+            end = datetime.now(timezone.utc)
 
-        query = (
-            db.session.query(CajaMovimiento.tipo, func.coalesce(func.sum(CajaMovimiento.monto), 0))
-            .filter(
+        rows = db.session.execute(
+            select(CajaMovimiento.tipo, func.coalesce(func.sum(CajaMovimiento.monto), 0))
+            .where(
                 CajaMovimiento.clinica_id == self.clinica_id,
                 CajaMovimiento.is_active.is_(True),
                 CajaMovimiento.fecha >= start,
                 CajaMovimiento.fecha <= end,
             )
             .group_by(CajaMovimiento.tipo)
-        )
+        ).all()
         totales = {}
-        for tipo, total in query.all():
+        for tipo, total in rows:
             key = tipo.value if hasattr(tipo, "value") else str(tipo)
             totales[key] = float(total)
         return {"desde": start.isoformat(), "hasta": end.isoformat(), "totales": totales}
@@ -456,9 +466,13 @@ class CajaService:
                     precio = servicio.precio or 0
                 nombre = item.get("nombre") or servicio.nombre or ""
             else:
-                producto = Producto.query.filter_by(
-                    id=ref_id, clinica_id=clinica_id, is_active=True
-                ).first()
+                producto = db.session.execute(
+                    select(Producto).where(
+                        Producto.id == ref_id,
+                        Producto.clinica_id == clinica_id,
+                        Producto.is_active.is_(True),
+                    )
+                ).scalar_one_or_none()
                 if not producto:
                     raise ServiceError(f"producto {ref_id} no existe", 404)
                 if precio is None:
@@ -519,9 +533,13 @@ class CajaService:
             if item["tipo"] != "producto":
                 continue
 
-            producto = Producto.query.filter_by(
-                id=item["ref_id"], clinica_id=clinica_id, is_active=True
-            ).first()
+            producto = db.session.execute(
+                select(Producto).where(
+                    Producto.id == item["ref_id"],
+                    Producto.clinica_id == clinica_id,
+                    Producto.is_active.is_(True),
+                )
+            ).scalar_one_or_none()
             if not producto:
                 raise ServiceError(f"Producto {item['ref_id']} no encontrado durante el commit", 404)
 
@@ -545,7 +563,7 @@ class CajaService:
         items_norm: list[dict] | None = None,
         idempotent: bool = False,
     ) -> dict[str, Any]:
-        fecha = getattr(comprobante, "fecha", datetime.utcnow())
+        fecha = getattr(comprobante, "fecha", datetime.now(timezone.utc))
         return {
             "comprobante": {
                 "id": comprobante.id,

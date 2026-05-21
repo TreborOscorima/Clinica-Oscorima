@@ -58,73 +58,61 @@ window.ProfesionalesModule = (function(){
   function render(){
     routeTitle.textContent = "Profesionales";
     routeContent.innerHTML = `
-      <div class="page-shell profesionales-page split-layout">
-        <aside class="split-layout__sidebar">
-          <article class="card form-card profesionales-card">
-            <header class="card__header">
-              <h2 class="card__title" id="pro-form-title">Registrar profesional</h2>
-            </header>
-            <div class="card__body">
-              <div class="form-grid profesionales-form-grid" style="grid-template-columns: 1fr;">
-                <div class="form-field">
-                  <label class="form-field__label" for="pro-dni">DNI</label>
-                  <input id="pro-dni" class="input" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="pro-nombres">Nombres</label>
-                  <input id="pro-nombres" class="input" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="pro-apellidos">Apellidos</label>
-                  <input id="pro-apellidos" class="input" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="pro-esp">Especialidad</label>
-                  <input id="pro-esp" class="input" autocomplete="off">
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label" for="pro-mat">Matrícula</label>
-                  <input id="pro-mat" class="input" autocomplete="off">
-                </div>
+      <div class="page-shell animate-in">
+        <div class="module-layout">
+
+          <!-- Formulario -->
+          <aside class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title" id="pro-form-title">Registrar profesional</h2>
+            </div>
+            <div class="panel-body">
+              <div class="field-group">
+                <label class="field-label" for="pro-dni">DNI</label>
+                <input id="pro-dni" class="input" autocomplete="off" placeholder="Ej: 12345678">
               </div>
-              <div class="profesionales-form-actions" style="margin-top: var(--space-4);">
-                <div id="pro-msg" class="form-feedback"></div>
-                <div class="profesionales-buttons" style="display: flex; gap: 8px;">
-                  <button id="pro-cancel" type="button" class="button button--ghost" style="width: 100%;">Cancelar</button>
-                  <button id="pro-guardar" type="button" class="button button--primary" style="width: 100%;">Guardar</button>
-                </div>
+              <div class="field-group">
+                <label class="field-label" for="pro-nombres">Nombres</label>
+                <input id="pro-nombres" class="input" autocomplete="off" placeholder="Ej: Carlos">
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="pro-apellidos">Apellidos</label>
+                <input id="pro-apellidos" class="input" autocomplete="off" placeholder="Ej: López Torres">
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="pro-esp">Especialidad</label>
+                <input id="pro-esp" class="input" autocomplete="off" placeholder="Ej: Dermatología">
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="pro-mat">Matrícula</label>
+                <input id="pro-mat" class="input" autocomplete="off" placeholder="Ej: CMP-12345">
+              </div>
+              <p id="pro-msg" class="field-feedback--err" style="min-height:18px"></p>
+              <div class="field-row" style="margin-top:4px">
+                <button id="pro-cancel" type="button" class="button button--ghost button--full" style="display:none">Cancelar</button>
+                <button id="pro-guardar" type="button" class="button button--primary button--full">Guardar</button>
               </div>
             </div>
-          </article>
-        </aside>
+          </aside>
 
-        <main class="split-layout__main">
-          <article class="card list-card profesionales-list-card" style="height: 100%;">
-            <header class="card__header">
-              <h2 class="card__title">Catálogo de Profesionales</h2>
-            </header>
-            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
-              <div class="card-section profesionales-search">
-                <div class="card-section__body">
-                  <div class="form-field" style="max-width: 320px;">
-                    <label class="form-field__label" for="pro-buscar">Buscar</label>
-                    <input id="pro-buscar" class="input" placeholder="Nombre, apellido o DNI" autocomplete="off">
-                  </div>
-                </div>
-              </div>
-
-              <div class="table-shell profesionales-table grow">
-                <table class="table table--full" id="pro-tabla">
-                  <thead>
-                    <tr><th>DNI</th><th>Nombre</th><th>Especialidad</th><th>Matrícula</th><th>Acciones</th></tr>
-                  </thead>
-                  <tbody id="pro-tbody"></tbody>
-                </table>
-              </div>
-              <div id="pro-pagination" class="table-pagination"></div>
+          <!-- Listado -->
+          <section class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Profesionales</h2>
+              <input id="pro-buscar" class="input input--sm" type="search" placeholder="Nombre, apellido o DNI…" autocomplete="off" style="width:220px">
             </div>
-          </article>
-        </main>
+            <div class="panel-body panel-body--table">
+              <table class="table">
+                <thead>
+                  <tr><th>DNI</th><th>Nombre</th><th>Especialidad</th><th>Matrícula</th><th></th></tr>
+                </thead>
+                <tbody id="pro-tbody"></tbody>
+              </table>
+              <div id="pro-pagination" class="pagination-bar" style="display:none"></div>
+            </div>
+          </section>
+
+        </div>
       </div>
     `;
 
@@ -144,48 +132,22 @@ window.ProfesionalesModule = (function(){
         timer = setTimeout(() => fn(...args), delay);
       };
     };
-    const clearMessage = () => {
-      msg.textContent = "";
-      msg.classList.remove("form-feedback--success", "form-feedback--error");
-    };
+    const clearMessage = () => { msg.textContent = ""; msg.className = "field-feedback--err"; };
     const showMessage = (text = "", type = "info") => {
+      msg.className = type === "success" ? "field-feedback--ok" : "field-feedback--err";
       msg.textContent = text;
-      msg.classList.remove("form-feedback--success", "form-feedback--error");
-      if (!text) return;
-      if (type === "success") msg.classList.add("form-feedback--success");
-      if (type === "error") msg.classList.add("form-feedback--error");
     };
 
     function renderPagination(){
-      if (!state.totalItems){
-        paginationEl.innerHTML = `<div class="table-pagination__controls"><span class="table-pagination__info">Sin profesionales registrados</span></div>`;
-        return;
-      }
+      paginationEl.style.display = (state.totalPages > 1) ? "" : "none";
+      if (state.totalPages <= 1) return;
       const start = (state.currentPage - 1) * state.perPage + 1;
       const end = Math.min(state.currentPage * state.perPage, state.totalItems);
-      const info = `<span class="table-pagination__info">Mostrando ${start}-${end} de ${state.totalItems}</span>`;
-      if (state.totalPages <= 1){
-        paginationEl.innerHTML = `<div class="table-pagination__controls">${info}</div>`;
-        return;
-      }
-      const win = 5;
-      let first = Math.max(1, state.currentPage - Math.floor(win / 2));
-      let last = Math.min(state.totalPages, first + win - 1);
-      if (last - first + 1 < win) first = Math.max(1, last - win + 1);
-      const numBtns = [];
-      for (let p = first; p <= last; p++){
-        numBtns.push(`<button type="button" class="button ${p === state.currentPage ? "is-current" : ""}" data-page="${p}">${p}</button>`);
-      }
       paginationEl.innerHTML = `
-        <div class="table-pagination__controls">
-          ${info}
-          <div class="table-pagination__buttons">
-            <button type="button" class="button" data-page="first" ${state.currentPage === 1 ? "disabled" : ""}>&laquo;</button>
-            <button type="button" class="button" data-page="prev" ${state.currentPage === 1 ? "disabled" : ""}>&lsaquo;</button>
-            ${numBtns.join("")}
-            <button type="button" class="button" data-page="next" ${state.currentPage === state.totalPages ? "disabled" : ""}>&rsaquo;</button>
-            <button type="button" class="button" data-page="last" ${state.currentPage === state.totalPages ? "disabled" : ""}>&raquo;</button>
-          </div>
+        <span class="pagination-info">Mostrando ${start}–${end} de ${state.totalItems}</span>
+        <div class="pagination-btns">
+          <button type="button" class="button button--ghost button--sm" data-page="prev" ${state.currentPage === 1 ? "disabled" : ""}>Anterior</button>
+          <button type="button" class="button button--ghost button--sm" data-page="next" ${state.currentPage === state.totalPages ? "disabled" : ""}>Siguiente</button>
         </div>
       `;
     }
@@ -204,9 +166,9 @@ window.ProfesionalesModule = (function(){
             <td>${formatCell(nombreCompleto)}</td>
             <td>${formatCell(r.especialidad)}</td>
             <td>${formatCell(r.matricula)}</td>
-            <td class="table__actions">
-              <button type="button" class="button button--ghost" data-editar="${r.id}">Editar</button>
-              <button type="button" class="button button--danger" data-eliminar="${r.id}">Borrar</button>
+            <td style="white-space:nowrap">
+              <button type="button" class="button button--ghost button--sm" data-editar="${r.id}">Editar</button>
+              <button type="button" class="button button--danger button--sm" data-eliminar="${r.id}">Borrar</button>
             </td>
           </tr>
         `;
@@ -316,10 +278,8 @@ window.ProfesionalesModule = (function(){
       if (!btn || btn.disabled) return;
       const action = btn.getAttribute("data-page");
       let target = state.currentPage;
-      if (action === "first") target = 1;
-      else if (action === "prev") target = Math.max(1, state.currentPage - 1);
+      if (action === "prev") target = Math.max(1, state.currentPage - 1);
       else if (action === "next") target = Math.min(state.totalPages, state.currentPage + 1);
-      else if (action === "last") target = state.totalPages;
       else target = Number(action) || 1;
       if (target === state.currentPage) return;
       loadProfesionales(target);

@@ -1,14 +1,23 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
+
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Enum as SAEnum
+from sqlmodel import Field, SQLModel
+
 from extensions import db
 
 
 def _utcnow():
     return datetime.now(timezone.utc)
 
+
 # ========= Helpers =========
 DEC4 = Decimal("0.0001")
+
 
 def to_dec(v, q="0.000"):
     if v is None or v == "":
@@ -16,9 +25,11 @@ def to_dec(v, q="0.000"):
     d = Decimal(str(v))
     return d.quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
+
 def to_dec2(v):
     d = Decimal(str(v or "0"))
     return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
 
 # ========= Enums =========
 class TipoMov(str, Enum):
@@ -26,126 +37,137 @@ class TipoMov(str, Enum):
     EGRESO  = "egreso"
     AJUSTE  = "ajuste"
 
+
 # ========= Producto / Movimientos =========
-class Producto(db.Model):
+class Producto(SQLModel, table=True):
     __tablename__ = "inv_productos"
     __table_args__ = (
-        db.UniqueConstraint("clinica_id", "sku", name="uq_inv_productos_clinica_sku"),
+        UniqueConstraint("clinica_id", "sku", name="uq_inv_productos_clinica_sku"),
     )
+    metadata = db.metadata
 
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, db.ForeignKey("clinicas.id"), nullable=False, index=True)
-    sku = db.Column(db.String(60), index=True)
-    nombre = db.Column(db.String(180), nullable=False, index=True)
-    precio_costo = db.Column(db.Numeric(12,2), default=0)    # costo promedio
-    precio_venta = db.Column(db.Numeric(12,2), default=0)    # <-- NUEVO
-    stock_actual = db.Column(db.Numeric(12,3), default=0)
-    stock_minimo = db.Column(db.Numeric(12,3), default=0)
-    activo = db.Column(db.Boolean, default=True)
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sku: str | None = Field(default=None, max_length=60, index=True, nullable=True)
+    nombre: str = Field(max_length=180, nullable=False, index=True)
+    precio_costo: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    precio_venta: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    stock_actual: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 3), nullable=True))
+    stock_minimo: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 3), nullable=True))
+    activo: bool | None = Field(default=True, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
+    created_at: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True))
 
     def soft_delete(self) -> None:
         self.is_active = False
         self.deleted_at = _utcnow()
         self.activo = False
 
-class MovimientoStock(db.Model):
+
+class MovimientoStock(SQLModel, table=True):
     __tablename__ = "inv_movimientos"
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, db.ForeignKey("clinicas.id"), nullable=False, index=True)
-    fecha = db.Column(db.DateTime, default=_utcnow, index=True)
-    producto_id = db.Column(db.Integer, db.ForeignKey("inv_productos.id"), nullable=False, index=True)
-    tipo = db.Column(db.String(12), nullable=False)                  # ingreso/egreso/ajuste
-    cantidad = db.Column(db.Numeric(12,3), nullable=False)           # (+/-)
-    costo_unitario = db.Column(db.Numeric(12,2))
-    saldo = db.Column(db.Numeric(12,3), nullable=False)              # stock luego del mov
-    motivo = db.Column(db.String(120))
-    referencia = db.Column(db.String(120))
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    metadata = db.metadata
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    fecha: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True))
+    producto_id: int = Field(foreign_key="inv_productos.id", nullable=False, index=True)
+    tipo: str = Field(max_length=12, nullable=False)
+    cantidad: Decimal = Field(sa_column=Column(Numeric(12, 3), nullable=False))
+    costo_unitario: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    saldo: Decimal = Field(sa_column=Column(Numeric(12, 3), nullable=False))
+    motivo: str | None = Field(default=None, max_length=120, nullable=True)
+    referencia: str | None = Field(default=None, max_length=120, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
 
     def soft_delete(self) -> None:
         self.is_active = False
         self.deleted_at = _utcnow()
+
 
 # ========= Proveedores / Compras =========
-class Proveedor(db.Model):
+class Proveedor(SQLModel, table=True):
     __tablename__ = "inv_proveedores"
     __table_args__ = (
-        db.UniqueConstraint("clinica_id", "nombre", name="uq_inv_proveedores_clinica_nombre"),
+        UniqueConstraint("clinica_id", "nombre", name="uq_inv_proveedores_clinica_nombre"),
     )
+    metadata = db.metadata
 
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, db.ForeignKey("clinicas.id"), nullable=False, index=True)
-    nombre = db.Column(db.String(180), nullable=False, index=True)
-    documento = db.Column(db.String(30))
-    email = db.Column(db.String(120))
-    telefono = db.Column(db.String(60))
-    direccion = db.Column(db.String(240))
-    activo = db.Column(db.Boolean, default=True)
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
-    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    nombre: str = Field(max_length=180, nullable=False, index=True)
+    documento: str | None = Field(default=None, max_length=30, nullable=True)
+    email: str | None = Field(default=None, max_length=120, nullable=True)
+    telefono: str | None = Field(default=None, max_length=60, nullable=True)
+    direccion: str | None = Field(default=None, max_length=240, nullable=True)
+    activo: bool | None = Field(default=True, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
+    created_at: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True))
 
     def soft_delete(self) -> None:
         self.is_active = False
         self.deleted_at = _utcnow()
         self.activo = False
 
-class Compra(db.Model):
+
+class Compra(SQLModel, table=True):
     __tablename__ = "inv_compras"
     __table_args__ = (
-        db.UniqueConstraint("clinica_id", "tipo_doc", "numero", name="uq_inv_compras_clinica_doc_numero"),
+        UniqueConstraint("clinica_id", "tipo_doc", "numero", name="uq_inv_compras_clinica_doc_numero"),
     )
+    metadata = db.metadata
 
-    id = db.Column(db.Integer, primary_key=True)
-    clinica_id = db.Column(db.Integer, db.ForeignKey("clinicas.id"), nullable=False, index=True)
-    fecha = db.Column(db.DateTime, default=_utcnow, index=True)
-    proveedor_id = db.Column(db.Integer, db.ForeignKey("inv_proveedores.id"), nullable=True, index=True)
-    tipo_doc = db.Column(db.String(20))                              # boleta/factura/otro
-    numero = db.Column(db.String(60))                                # serie-numero
-    nro_registro = db.Column(db.String(60))                          # nro de registro (si aplica)
-    total = db.Column(db.Numeric(12,2), default=0)
-    observacion = db.Column(db.String(240))
-    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    fecha: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True))
+    proveedor_id: int | None = Field(default=None, sa_column=Column(Integer, ForeignKey("inv_proveedores.id"), nullable=True, index=True))
+    tipo_doc: str | None = Field(default=None, max_length=20, nullable=True)
+    numero: str | None = Field(default=None, max_length=60, nullable=True)
+    nro_registro: str | None = Field(default=None, max_length=60, nullable=True)
+    total: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    observacion: str | None = Field(default=None, max_length=240, nullable=True)
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(default=None, sa_column=Column(DateTime, nullable=True, index=True))
 
     def soft_delete(self) -> None:
         self.is_active = False
         self.deleted_at = _utcnow()
 
-class CompraItem(db.Model):
+
+class CompraItem(SQLModel, table=True):
     __tablename__ = "inv_compra_items"
-    id = db.Column(db.Integer, primary_key=True)
-    compra_id = db.Column(db.Integer, db.ForeignKey("inv_compras.id"), nullable=False, index=True)
-    producto_id = db.Column(db.Integer, db.ForeignKey("inv_productos.id"), nullable=False, index=True)
-    cantidad = db.Column(db.Numeric(12,3), nullable=False)
-    costo_unitario = db.Column(db.Numeric(12,2), nullable=False)
-    subtotal = db.Column(db.Numeric(12,2), nullable=False)
-    
+    metadata = db.metadata
+
+    id: int | None = Field(default=None, primary_key=True)
+    compra_id: int = Field(sa_column=Column(Integer, ForeignKey("inv_compras.id"), nullable=False, index=True))
+    producto_id: int = Field(foreign_key="inv_productos.id", nullable=False, index=True)
+    cantidad: Decimal = Field(sa_column=Column(Numeric(12, 3), nullable=False))
+    costo_unitario: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    subtotal: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+
+
 # ========= Historial de precios/costos =========
-class ProductoPrecioHist(db.Model):
+class ProductoPrecioHist(SQLModel, table=True):
     __tablename__ = "inv_producto_precios_hist"
-    id = db.Column(db.BigInteger().with_variant(db.Integer, "sqlite"), primary_key=True)
-    clinica_id = db.Column(db.Integer, db.ForeignKey("clinicas.id"), nullable=False, index=True)
-    producto_id = db.Column(db.Integer, db.ForeignKey("inv_productos.id"), nullable=False, index=True)
-    tipo = db.Column(db.Enum("costo", "venta"), nullable=False)
-    valor = db.Column(db.Numeric(12,2), nullable=False)
-    vigente_desde = db.Column(db.DateTime, nullable=False, default=_utcnow)
-    vigente_hasta = db.Column(db.DateTime, nullable=True)
-    motivo = db.Column(db.String(255))
-    usuario_id = db.Column(db.Integer)
-    creado_en = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    metadata = db.metadata
+
+    id: int | None = Field(default=None, sa_column=Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True))
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    producto_id: int = Field(foreign_key="inv_productos.id", nullable=False, index=True)
+    tipo: str = Field(sa_column=Column(SAEnum("costo", "venta"), nullable=False))
+    valor: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    vigente_desde: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=False))
+    vigente_hasta: datetime | None = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    motivo: str | None = Field(default=None, max_length=255, nullable=True)
+    usuario_id: int | None = Field(default=None, nullable=True)
+    creado_en: datetime | None = Field(default_factory=_utcnow, sa_column=Column(DateTime, default=_utcnow, nullable=False))
+
 
 # ========= Operaciones =========
 def aplicar_movimiento(producto: Producto, tipo: str, cantidad, motivo="", ref=""):
-    """
-    Aplica un movimiento (sin commit).
-    - EGRESO valida stock suficiente.
-    - AJUSTE aplica la cantidad como viene (puede ser +/-).
-    """
     cant = to_dec(cantidad)
     if tipo == TipoMov.INGRESO.value:
         delta = cant
@@ -164,7 +186,7 @@ def aplicar_movimiento(producto: Producto, tipo: str, cantidad, motivo="", ref="
     mov = MovimientoStock(
         clinica_id=producto.clinica_id, producto_id=producto.id, tipo=tipo, cantidad=delta,
         saldo=nuevo_saldo, motivo=motivo, referencia=ref,
-        costo_unitario=to_dec2(producto.precio_costo) if tipo != TipoMov.AJUSTE.value else None
+        costo_unitario=to_dec2(producto.precio_costo) if tipo != TipoMov.AJUSTE.value else None,
     )
     db.session.add(mov)
     return mov

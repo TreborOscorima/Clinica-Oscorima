@@ -66,143 +66,116 @@ window.CajaModule = (function () {
     routeTitle.textContent = "Caja & Facturacion";
 
     routeContent.innerHTML = `
-      <div class="page-shell caja-page split-layout">
-        
-        <aside class="split-layout__sidebar" style="display: flex; flex-direction: column; gap: var(--space-5);">
-          <article class="card form-card pos-card">
-            <header class="card__header">
-              <h2 class="card__title">Proceso de Cobro</h2>
-            </header>
-            <div class="card__body">
-              
-              <div class="card-section">
-                <h3 class="card-section__title" style="font-size: 0.95rem;">Comprobante & Paciente</h3>
-                <div class="form-field" style="margin-top: 8px;">
-                  <label class="form-field__label">Paciente</label>
-                  <div class="auto-complete">
-                    <input id="pos-pac-q" class="input" placeholder="Buscar por nombre/DNI" autocomplete="off">
-                    <div id="pos-pac-suggest" class="ac-list" style="display:none"></div>
-                  </div>
-                  <input type="hidden" id="pos-paciente-id">
+      <div class="page-shell animate-in">
+        <div class="module-layout">
+
+          <!-- Panel izquierdo: Cobro -->
+          <aside class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Cobro</h2>
+            </div>
+            <div class="panel-body">
+
+              <div class="section-divider"><span class="section-divider__label">Paciente</span></div>
+              <div class="field-group" style="position:relative">
+                <label class="field-label">Nombre / DNI</label>
+                <input id="pos-pac-q" class="input" placeholder="Buscar paciente…" autocomplete="off">
+                <div id="pos-pac-suggest" class="ac-dropdown" style="display:none"></div>
+                <input type="hidden" id="pos-paciente-id">
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label class="field-label">Documento</label>
+                  <input id="pos-pac-doc" class="input" placeholder="DNI" autocomplete="off">
                 </div>
-                <div class="form-grid form-grid--two" style="margin-top: var(--space-3);">
-                    <div class="form-field">
-                    <label class="form-field__label">Documento</label>
-                    <input id="pos-pac-doc" class="input" placeholder="DNI" autocomplete="off">
-                    </div>
-                    <div class="form-field">
-                    <label class="form-field__label">Tipo comprobante</label>
-                    <select id="pos-tipo" class="input input--select">
-                        <option value="boleta">Boleta</option>
-                        <option value="factura">Factura</option>
-                        <option value="recibo">Recibo</option>
-                    </select>
-                    </div>
-                </div>
-                <div class="form-field form-field--cta" style="margin-top: var(--space-3);">
-                  <button id="pos-check-deuda" type="button" class="button button--ghost" style="width: 100%;">Ver deuda pendiente</button>
+                <div class="field-group">
+                  <label class="field-label">Comprobante</label>
+                  <select id="pos-tipo" class="input">
+                    <option value="boleta">Boleta</option>
+                    <option value="factura">Factura</option>
+                    <option value="recibo">Recibo</option>
+                  </select>
                 </div>
               </div>
+              <button id="pos-check-deuda" type="button" class="button button--ghost button--full" style="margin-bottom:8px">Ver deuda pendiente</button>
 
-              <hr class="section-divider" style="margin: var(--space-2) 0" />
-
-              <div class="card-section">
-                <h3 class="card-section__title" style="font-size: 0.95rem;">Descuento global</h3>
-                <div class="form-grid form-grid--two" style="margin-top: 8px;">
-                  <div class="form-field">
-                    <label class="form-field__label">Tipo</label>
-                    <select id="pos-dsc-tipo" class="input input--select">
-                      <option value="none">Ninguno</option>
-                      <option value="porcentaje">% Porcentaje</option>
-                      <option value="monto">Monto fijo</option>
-                    </select>
-                  </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Valor</label>
-                    <input id="pos-dsc-valor" class="input" type="number" step="0.01" min="0" value="0">
-                  </div>
+              <div class="section-divider"><span class="section-divider__label">Descuento</span></div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label class="field-label">Tipo</label>
+                  <select id="pos-dsc-tipo" class="input">
+                    <option value="none">Ninguno</option>
+                    <option value="porcentaje">% Porcentaje</option>
+                    <option value="monto">Monto fijo</option>
+                  </select>
                 </div>
-                <div class="form-field" style="margin-top: var(--space-2);">
-                  <div id="pos-dsc-res" class="pos-discount-summary" style="font-size: 0.8rem; color: var(--color-muted);">S/ 0.00 a Desc S/ 0.00</div>
+                <div class="field-group">
+                  <label class="field-label">Valor</label>
+                  <input id="pos-dsc-valor" class="input" type="number" step="0.01" min="0" value="0">
                 </div>
               </div>
+              <p id="pos-dsc-res" class="field-hint">S/ 0.00 → Desc S/ 0.00</p>
 
-              <hr class="section-divider" style="margin: var(--space-2) 0" />
+              <div class="section-divider"><span class="section-divider__label">Pagos</span></div>
+              <div id="pos-pagos" class="pos-payments__list"></div>
+              <button id="pos-add-pago" type="button" class="button button--ghost button--full" style="border-style:dashed;margin-top:6px">+ Agregar pago</button>
 
-              <div class="card-section">
-                <h3 class="card-section__title" style="font-size: 0.95rem;">Resumen & Pagos</h3>
-                <div class="card-section__body pos-payments" style="margin-top: 8px;">
-                  <div id="pos-pagos" class="pos-payments__list"></div>
-                  <div class="pos-payments__footer" style="margin-top: var(--space-3);">
-                    <button id="pos-add-pago" type="button" class="button button--ghost" style="width: 100%; border-style: dashed;">+ Agregar pago</button>
-                    <div class="pos-payments__totals" style="margin-top: var(--space-4); background: var(--color-surface-soft); padding: 12px; border-radius: 8px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Subtotal:</span> <span id="lbl-sub">S/ 0.00</span></div>
-                        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; border-top: 1px solid #ddd; padding-top: 4px;"><span>Total:</span> <span id="pos-total">S/ 0.00</span></div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.9rem;"><span>Pagado:</span> <span id="pos-pagado">S/ 0.00</span></div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--color-danger);"><span>Falta:</span> <span id="pos-saldo">S/ 0.00</span></div>
-                    </div>
-                  </div>
-                </div>
+              <div style="background:var(--color-surface-soft);padding:12px;border-radius:8px;margin-top:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="muted">Subtotal:</span> <span id="lbl-sub">S/ 0.00</span></div>
+                <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem;border-top:1px solid var(--color-border);padding-top:6px"><span>Total:</span> <span id="pos-total">S/ 0.00</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:.9rem;margin-top:6px"><span class="muted">Pagado:</span> <span id="pos-pagado">S/ 0.00</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:.9rem;color:var(--color-danger)"><span>Falta:</span> <span id="pos-saldo">S/ 0.00</span></div>
               </div>
 
-              <div class="card-section" style="margin-top: var(--space-4);">
-                <div class="pos-observaciones">
-                  <input id="pos-obs" class="input" placeholder="Observaciones (opcional)">
-                  <div id="pos-res" class="form-feedback" style="margin: 8px 0;"></div>
-                  <button id="pos-emitir" type="button" class="button button--primary button--lg" style="width: 100%;">Emitir comprobante</button>
-                </div>
-              </div>
+              <input id="pos-obs" class="input" placeholder="Observaciones (opcional)" style="margin-top:12px">
+              <p id="pos-res" class="field-feedback--err" style="min-height:18px;margin:6px 0"></p>
+              <button id="pos-emitir" type="button" class="button button--primary button--full">Emitir comprobante</button>
 
             </div>
-          </article>
-        </aside>
+          </aside>
 
-        <main class="split-layout__main">
-          <article class="card form-card pos-card" style="height: 100%;">
-            <header class="card__header">
-              <h2 class="card__title">Lista de Items</h2>
-            </header>
-            
-            <div class="card__body" style="flex: 1; display: flex; flex-direction: column;">
-              <div class="card-section">
-                <div class="form-grid form-grid--pos-items pos-grid" style="grid-template-columns: 1fr 2fr 80px 100px 100px; align-items: end; background: var(--color-surface-soft); padding: 12px; border-radius: 8px;">
-                  <div class="form-field">
-                    <label class="form-field__label">Tipo</label>
-                    <select id="pos-item-tipo" class="input input--select"><option value="producto">Producto</option><option value="servicio">Servicio</option></select>
-                  </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Buscar</label>
-                    <div class="auto-complete">
-                      <input id="pos-item-q" class="input" autocomplete="off" placeholder="Nombre o SKU">
-                      <div id="pos-suggest" class="ac-list" style="display:none"></div>
-                    </div>
-                  </div>
-                  <div class="form-field">
-                    <label class="form-field__label">Cant.</label>
-                    <input id="pos-item-cant" class="input" type="number" step="0.01" min="0.01" value="1">
-                  </div>
-                  <div class="form-field">
-                    <label class="form-field__label">P. Unit</label>
-                    <input id="pos-item-precio" class="input" type="number" step="0.01" min="0" placeholder="auto">
-                  </div>
-                  <div class="form-field form-field--cta">
-                    <button id="pos-item-add" type="button" class="button button--primary">Agregar</button>
-                  </div>
+          <!-- Panel derecho: Ítems -->
+          <section class="module-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Ítems</h2>
+            </div>
+            <div class="panel-body">
+
+              <div class="field-row" style="align-items:flex-end;background:var(--color-surface-soft);padding:12px;border-radius:8px;gap:8px;flex-wrap:wrap">
+                <div class="field-group" style="min-width:100px;flex:0 0 auto">
+                  <label class="field-label">Tipo</label>
+                  <select id="pos-item-tipo" class="input"><option value="producto">Producto</option><option value="servicio">Servicio</option></select>
+                </div>
+                <div class="field-group" style="flex:1 1 180px;position:relative">
+                  <label class="field-label">Buscar ítem</label>
+                  <input id="pos-item-q" class="input" autocomplete="off" placeholder="Nombre o SKU">
+                  <div id="pos-suggest" class="ac-dropdown" style="display:none"></div>
+                </div>
+                <div class="field-group" style="width:80px;flex:0 0 auto">
+                  <label class="field-label">Cant.</label>
+                  <input id="pos-item-cant" class="input" type="number" step="0.01" min="0.01" value="1">
+                </div>
+                <div class="field-group" style="width:100px;flex:0 0 auto">
+                  <label class="field-label">P. Unit</label>
+                  <input id="pos-item-precio" class="input" type="number" step="0.01" min="0" placeholder="auto">
+                </div>
+                <div class="field-group" style="flex:0 0 auto;align-self:flex-end">
+                  <button id="pos-item-add" type="button" class="button button--primary">Agregar</button>
                 </div>
               </div>
 
-              <div class="table-shell pos-items-table grow" style="margin-top: var(--space-4); max-height: calc(100vh - 280px);">
+              <div class="panel-body--table" style="margin-top:12px">
                 <table class="table" id="pos-tabla">
                   <thead>
-                    <tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>P. Unit</th><th class="right">Subtotal</th><th></th></tr>
+                    <tr><th>Tipo</th><th>Descripción</th><th>Cant.</th><th>P. Unit</th><th>Subtotal</th><th></th></tr>
                   </thead>
                   <tbody></tbody>
                 </table>
               </div>
             </div>
-          </article>
-        </main>
+          </section>
 
+        </div>
       </div>
     `;
     refs = {

@@ -109,22 +109,22 @@ class PacienteService:
         estados_historial.append(estado_cobrado.value if estado_cobrado else "cobrado")
         estados_historial = list(dict.fromkeys(estados_historial))
 
-        # Turno sigue siendo db.Model hasta su migración — .query sigue siendo válido
-        turnos = (
-            Turno.query.options(
+        stmt = (
+            select(Turno)
+            .options(
                 joinedload(Turno.profesional),
                 joinedload(Turno.items).joinedload(TurnoServicio.servicio),
                 joinedload(Turno.servicio),
             )
-            .filter(
+            .where(
                 Turno.clinica_id == self.clinica_id,
                 Turno.is_active.is_(True),
                 Turno.paciente_id == paciente.id,
                 Turno.estado.in_(estados_historial),
             )
             .order_by(Turno.fecha_hora.desc())
-            .all()
         )
+        turnos = db.session.execute(stmt).unique().scalars().all()
 
         registros: list[dict[str, str | int | None]] = []
         for turno in turnos:

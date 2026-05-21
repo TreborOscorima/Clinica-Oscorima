@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -51,7 +51,7 @@ def _ensure_export_dir() -> Path:
 
 
 def _timestamp_path(prefix: str, ext: str) -> Path:
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     safe_prefix = prefix.replace(" ", "_").lower()
     return _ensure_export_dir() / f"reporte_{safe_prefix}_{timestamp}{ext}"
 
@@ -59,7 +59,7 @@ def _timestamp_path(prefix: str, ext: str) -> Path:
 def _normalize_filters(filters: Dict[str, Any] | None) -> Dict[str, Any]:
     filters = filters.copy() if isinstance(filters, dict) else {}
     meta = {
-        "generated_at": filters.pop("generated_at", datetime.utcnow().strftime(DATE_FMT)),
+        "generated_at": filters.pop("generated_at", datetime.now(timezone.utc).strftime(DATE_FMT)),
         "generated_by": filters.pop("generated_by", "Sin usuario"),
         "date_range": filters.pop("date_range", "Sin rango"),
         "total_records": filters.pop("total_records", None),

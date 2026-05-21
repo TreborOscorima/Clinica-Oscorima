@@ -117,6 +117,15 @@ def toggle_producto_activo(pid: int):
 # -----------------------------
 # Compras
 # -----------------------------
+@bp.get("/compras")
+@jwt_required()
+def listar_compras():
+    q = (request.args.get("q") or "").strip()
+    page = int(request.args.get("page") or 1)
+    per_page = int(request.args.get("per_page") or 10)
+    return _service().listar_compras(page=page, per_page=per_page, q=q)
+
+
 def _fetch_compra(cid: int):
     return _service().fetch_compra(cid)
 

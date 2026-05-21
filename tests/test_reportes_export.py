@@ -1,7 +1,7 @@
 import csv
 import io
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from flask_jwt_extended import create_access_token
@@ -84,7 +84,7 @@ class ReportesExportCSVTestCase(unittest.TestCase):
             paciente_id=paciente.id,
             profesional_id=profesional.id,
             servicio_id=servicio.id,
-            fecha_hora=datetime.utcnow(),
+            fecha_hora=datetime.now(timezone.utc),
             estado=EstadoTurno.ATENDIDO,
         )
 
