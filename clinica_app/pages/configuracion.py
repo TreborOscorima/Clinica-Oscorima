@@ -376,6 +376,104 @@ def _seccion_usuarios() -> rx.Component:
     )
 
 
+# ── Sección: permisos por módulo ──────────────────────────────────────────────
+
+_ROL_LABELS = {
+    "administracion": "Admin",
+    "recepcionista":  "Recep.",
+    "profesional":    "Prof.",
+    "contador":       "Cont.",
+}
+_ROLES_ORDER = ["administracion", "recepcionista", "profesional", "contador"]
+
+
+def _permiso_toggle(activo: bool, on_click, title: str, icon: str) -> rx.Component:
+    return rx.el.button(
+        rx.icon(icon, size=13),
+        on_click=on_click,
+        title=title,
+        class_name=rx.cond(
+            activo,
+            "p-1.5 rounded text-white bg-sky-600 hover:bg-sky-700 cursor-pointer transition",
+            "p-1.5 rounded text-gray-400 bg-gray-100 hover:bg-gray-200 cursor-pointer transition",
+        ),
+    )
+
+
+def _fila_permiso(row: dict) -> rx.Component:
+    return rx.el.tr(
+        # Módulo
+        rx.el.td(
+            rx.el.span(row["module_label"], class_name="text-sm font-medium text-gray-800"),
+            class_name="px-4 py-3 border-b border-gray-100",
+        ),
+        # Una celda por rol
+        *[
+            rx.el.td(
+                rx.el.div(
+                    _permiso_toggle(
+                        row[f"{role}_read"],
+                        lambda: ConfiguracionState.toggle_permiso(row["module"], role, "read"),
+                        "Leer",
+                        "eye",
+                    ),
+                    _permiso_toggle(
+                        row[f"{role}_write"],
+                        lambda: ConfiguracionState.toggle_permiso(row["module"], role, "write"),
+                        "Escribir",
+                        "pencil",
+                    ),
+                    class_name="flex gap-1 justify-center",
+                ),
+                class_name="px-4 py-3 border-b border-gray-100 text-center",
+            )
+            for role in _ROLES_ORDER
+        ],
+        class_name="hover:bg-gray-50 transition-colors",
+    )
+
+
+def _seccion_permisos() -> rx.Component:
+    return rx.el.div(
+        rx.el.p(
+            "Define qué módulos puede leer (👁) y escribir (✏) cada rol.",
+            class_name="text-sm text-gray-500 mb-5",
+        ),
+        rx.el.div(
+            rx.el.div(
+                rx.el.table(
+                    rx.el.thead(
+                        rx.el.tr(
+                            rx.el.th("Módulo", class_name="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase"),
+                            *[
+                                rx.el.th(
+                                    label,
+                                    class_name="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase w-28",
+                                )
+                                for label in _ROL_LABELS.values()
+                            ],
+                        ),
+                        class_name="bg-gray-50 border-b border-gray-200",
+                    ),
+                    rx.el.tbody(
+                        rx.foreach(
+                            ConfiguracionState.permisos_matrix.to(list[dict]),
+                            _fila_permiso,
+                        ),
+                    ),
+                    class_name="w-full border-collapse",
+                ),
+                class_name="overflow-x-auto",
+            ),
+            class_name="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden",
+        ),
+        rx.el.p(
+            "Los cambios se guardan al instante. El rol Administrador siempre tiene acceso completo.",
+            class_name="text-xs text-gray-400 mt-3",
+        ),
+    )
+
+
 # ── Página principal ───────────────────────────────────────────────────────────
 
 def configuracion_page() -> rx.Component:
@@ -402,9 +500,10 @@ def configuracion_page() -> rx.Component:
             rx.el.div(
                 # Selector de tabs
                 rx.el.div(
-                    _tab_btn("Clínica",  "clinica",  "building-2"),
-                    _tab_btn("Usuarios", "usuarios", "users"),
-                    class_name="flex gap-2 mb-6",
+                    _tab_btn("Clínica",   "clinica",   "building-2"),
+                    _tab_btn("Usuarios",  "usuarios",  "users"),
+                    _tab_btn("Permisos",  "permisos",  "shield"),
+                    class_name="flex gap-2 mb-6 flex-wrap",
                 ),
                 # Panel de contenido
                 rx.el.div(
@@ -420,6 +519,11 @@ def configuracion_page() -> rx.Component:
                     rx.cond(
                         ConfiguracionState.tab_activo == "usuarios",
                         _seccion_usuarios(),
+                    ),
+                    # Tab: Permisos
+                    rx.cond(
+                        ConfiguracionState.tab_activo == "permisos",
+                        _seccion_permisos(),
                     ),
                 ),
             ),

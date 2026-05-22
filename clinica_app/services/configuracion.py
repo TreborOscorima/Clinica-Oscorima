@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from clinica_app.models.clinica import Clinica
 from clinica_app.models.user import RoleEnum, User

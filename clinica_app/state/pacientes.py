@@ -34,6 +34,16 @@ class PacientesState(BaseState):
     form_error:      str  = ""
     is_saving:       bool = False
 
+    # ── Panel de detalle / historial ───────────────────────────────────────────
+    panel_detalle: bool = False
+    paciente_sel: dict = {
+        "id": 0, "nombre": "", "documento": "", "email": "",
+        "telefono": "", "direccion": "", "contacto_emergencia": "", "edad": 0,
+    }
+    historial_turnos:       list[dict] = []
+    historial_comprobantes: list[dict] = []
+    historial_deudas:       list[dict] = []
+
     # ── Carga ─────────────────────────────────────────────────────────────────
 
     def on_mount(self):
@@ -148,6 +158,77 @@ class PacientesState(BaseState):
         self.is_saving     = False
         self.modal_abierto = False
         self.cargar()
+
+    # ── Panel de detalle ───────────────────────────────────────────────────────
+
+    def abrir_detalle(self, p: dict):
+        from clinica_app.models.caja import Comprobante, DeudaPaciente
+        from clinica_app.models.turno import Turno
+        from sqlmodel import select
+
+        self.paciente_sel = p
+        pac_id = p.get("id") or 0
+
+        with get_session() as session:
+            turnos = session.exec(
+                select(Turno)
+                .where(Turno.paciente_id == pac_id, Turno.is_active.is_(True))
+                .order_by(Turno.fecha_hora.desc())
+                .limit(10)
+            ).all()
+            self.historial_turnos = [
+                {
+                    "fecha_hora":        t.fecha_hora.strftime("%d/%m/%Y %H:%M") if t.fecha_hora else "",
+                    "profesional_nombre": t.profesional.nombres + " " + t.profesional.apellidos if t.profesional else "—",
+                    "servicio_nombre":   t.servicio.nombre if t.servicio else "—",
+                    "estado":            t.estado.value if t.estado else "",
+                }
+                for t in turnos
+            ]
+
+            comprobantes = session.exec(
+                select(Comprobante)
+                .where(
+                    Comprobante.paciente_id == pac_id,
+                    Comprobante.clinica_id == self.clinica_id,
+                    Comprobante.is_active.is_(True),
+                )
+                .order_by(Comprobante.fecha.desc())
+                .limit(10)
+            ).all()
+            self.historial_comprobantes = [
+                {
+                    "numero":     c.numero or f"#{c.id}",
+                    "fecha":      c.fecha.strftime("%d/%m/%Y") if c.fecha else "",
+                    "total":      f"{float(c.total or 0):.2f}",
+                    "forma_pago": c.forma_pago.value if c.forma_pago else "",
+                }
+                for c in comprobantes
+            ]
+
+            deudas = session.exec(
+                select(DeudaPaciente)
+                .where(
+                    DeudaPaciente.paciente_id == pac_id,
+                    DeudaPaciente.clinica_id == self.clinica_id,
+                    DeudaPaciente.estado != "saldado",
+                    DeudaPaciente.is_active.is_(True),
+                )
+                .order_by(DeudaPaciente.creado_en.desc())
+            ).all()
+            self.historial_deudas = [
+                {
+                    "saldo":  f"{float(d.saldo or 0):.2f}",
+                    "total":  f"{float(d.total or 0):.2f}",
+                    "estado": d.estado or "",
+                }
+                for d in deudas
+            ]
+
+        self.panel_detalle = True
+
+    def cerrar_detalle(self):
+        self.panel_detalle = False
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 

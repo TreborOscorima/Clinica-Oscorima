@@ -3,7 +3,8 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func
+from sqlmodel import select
 from sqlmodel import Session
 
 from clinica_app.models.inventario import (

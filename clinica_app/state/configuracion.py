@@ -50,6 +50,11 @@ class ConfiguracionState(BaseState):
     form_pw_success:   str  = ""
     is_saving_pw:      bool = False
 
+    # ── Permisos por módulo ────────────────────────────────────────────────────
+    # Lista de dicts con keys: module, module_label,
+    # administracion_read, administracion_write, recepcionista_read, ...
+    permisos_matrix: list[dict] = []
+
     # ── Carga ─────────────────────────────────────────────────────────────────
 
     def on_mount(self):
@@ -71,6 +76,8 @@ class ConfiguracionState(BaseState):
 
     def set_tab(self, tab: str):
         self.tab_activo = tab
+        if tab == "permisos":
+            return self._cargar_permisos()
 
     # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
     def set_form_nombre(self, v: str):           self.form_nombre = v
@@ -211,3 +218,61 @@ class ConfiguracionState(BaseState):
     def _recargar_usuarios(self):
         with get_session() as session:
             self.usuarios = svc.listar_usuarios(session, self.clinica_id)
+
+    # ── Permisos ────────────────────────────────────────────────────────────────
+
+    _MODULOS = [
+        ("pacientes",     "Pacientes"),
+        ("turnos",        "Turnos"),
+        ("cobro",         "Cobro / POS"),
+        ("inventario",    "Inventario"),
+        ("compras",       "Compras"),
+        ("cuentas",       "Cuentas"),
+        ("reportes",      "Reportes"),
+        ("configuracion", "Configuración"),
+    ]
+    _ROLES = ["administracion", "recepcionista", "profesional", "contador"]
+
+    def _cargar_permisos(self):
+        from clinica_app.models.user import PermisoRol, RoleEnum
+        from sqlmodel import select
+
+        with get_session() as session:
+            registros = session.exec(select(PermisoRol)).all()
+
+        idx = {(r.role.value, r.module): r for r in registros}
+        matrix = []
+        for mod_key, mod_label in self._MODULOS:
+            row: dict = {"module": mod_key, "module_label": mod_label}
+            for role in self._ROLES:
+                p = idx.get((role, mod_key))
+                row[f"{role}_read"]  = p.can_read  if p else (role == "administracion")
+                row[f"{role}_write"] = p.can_write if p else (role == "administracion")
+            matrix.append(row)
+        self.permisos_matrix = matrix
+
+    def toggle_permiso(self, module: str, role: str, tipo: str):
+        from clinica_app.models.user import PermisoRol, RoleEnum
+        from sqlmodel import select
+
+        with get_session() as session:
+            p = session.exec(
+                select(PermisoRol).where(
+                    PermisoRol.role == RoleEnum(role),
+                    PermisoRol.module == module,
+                )
+            ).first()
+            if p is None:
+                p = PermisoRol(
+                    role=RoleEnum(role),
+                    module=module,
+                    can_read=True,
+                    can_write=(role == "administracion"),
+                )
+                session.add(p)
+                session.flush()
+            if tipo == "read":
+                p.can_read = not p.can_read
+            else:
+                p.can_write = not p.can_write
+        return self._cargar_permisos()

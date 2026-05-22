@@ -11,7 +11,7 @@ from clinica_app.state.dashboard import DashboardState
 def _fila_turno_reciente(t: dict) -> rx.Component:
     return rx.el.tr(
         rx.el.td(rx.el.span("#", t["id"]), class_name="px-4 py-3 text-xs font-mono text-gray-400"),
-        rx.el.td(rx.el.span("Pac. #", t["paciente_id"]), class_name="px-4 py-3 text-sm text-gray-700"),
+        rx.el.td(t["paciente_nombre"], class_name="px-4 py-3 text-sm text-gray-700"),
         rx.el.td(t["fecha_hora"], class_name="px-4 py-3 text-sm text-gray-600 font-mono"),
         rx.el.td(estado_badge(t["estado"]), class_name="px-4 py-3"),
         class_name="border-t border-gray-100 hover:bg-gray-50",
@@ -42,11 +42,71 @@ def dashboard_page() -> rx.Component:
         rx.el.div(
             rx.el.p("Acceso rápido", class_name="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4"),
             rx.el.div(
-                _quick_link("/pacientes", "users",    "Pacientes"),
-                _quick_link("/turnos",    "calendar", "Turnos"),
-                _quick_link("/caja",      "wallet",   "Caja"),
-                _quick_link("/inventario","package",  "Inventario"),
-                class_name="grid grid-cols-2 sm:grid-cols-4 gap-3",
+                _quick_link("/pacientes", "users",          "Pacientes"),
+                _quick_link("/turnos",    "calendar",       "Turnos"),
+                _quick_link("/cobro",     "shopping-cart",  "Cobro"),
+                _quick_link("/caja",      "wallet",         "Caja"),
+                _quick_link("/compras",   "truck",          "Compras"),
+                _quick_link("/inventario","package",        "Inventario"),
+                class_name="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3",
+            ),
+            class_name="mb-8",
+        ),
+        # Gráfico ingresos últimos 7 días
+        rx.el.div(
+            rx.el.p("Ingresos últimos 7 días", class_name="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4"),
+            rx.el.div(
+                rx.foreach(
+                    DashboardState.ingresos_7dias,
+                    lambda d: rx.el.div(
+                        rx.el.div(
+                            rx.el.div(
+                                class_name="w-full bg-sky-500 rounded-t-sm",
+                                style={"height": d["pct"]},
+                            ),
+                            class_name="w-full flex flex-col justify-end",
+                            style={"height": "80px"},
+                        ),
+                        rx.el.p(d["fecha"], class_name="text-xs text-gray-400 mt-1 text-center"),
+                        rx.el.p(d["monto"], class_name="text-xs text-gray-500 text-center font-mono"),
+                        class_name="flex flex-col items-center flex-1",
+                    ),
+                ),
+                class_name="flex gap-2 items-end p-4 bg-white rounded-xl shadow-sm border border-gray-100",
+            ),
+            class_name="mb-8",
+        ),
+        # Top 5 servicios del mes
+        rx.el.div(
+            rx.el.p("Top servicios del mes", class_name="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4"),
+            rx.cond(
+                DashboardState.top_servicios,
+                rx.el.div(
+                    rx.foreach(
+                        DashboardState.top_servicios.to(list[dict]),
+                        lambda s: rx.el.div(
+                            rx.el.div(
+                                rx.el.span(s["nombre"], class_name="text-sm font-medium text-gray-800 truncate flex-1"),
+                                rx.el.span(
+                                    s["count"], " sesiones",
+                                    class_name="text-xs text-gray-400 ml-2 shrink-0",
+                                ),
+                                class_name="flex items-center justify-between mb-1",
+                            ),
+                            rx.el.div(
+                                rx.el.span("$", s["total"], class_name="text-xs font-semibold text-sky-600"),
+                                class_name="text-right",
+                            ),
+                            class_name="px-4 py-3 border-b border-gray-100 last:border-0",
+                        ),
+                    ),
+                    class_name="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden",
+                ),
+                rx.el.div(
+                    rx.icon("bar-chart-2", size=28, class_name="text-gray-200 mb-2"),
+                    rx.el.p("Sin cobros este mes", class_name="text-sm text-gray-400"),
+                    class_name="flex flex-col items-center py-8 bg-white rounded-xl shadow-sm border border-gray-100",
+                ),
             ),
             class_name="mb-8",
         ),

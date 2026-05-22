@@ -4,7 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func
+from sqlmodel import select
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session
 
@@ -66,6 +67,8 @@ def listar(
     session: Session,
     clinica_id: int,
     estado: str = "",
+    fecha_desde: str = "",
+    fecha_hasta: str = "",
     page: int = 1,
     per_page: int = 20,
 ) -> dict[str, Any]:
@@ -75,12 +78,22 @@ def listar(
             stmt = stmt.where(Turno.estado == EstadoTurno(estado))
         except ValueError as exc:
             raise ServiceError("Estado inválido") from exc
+    if fecha_desde:
+        try:
+            stmt = stmt.where(Turno.fecha_hora >= datetime.fromisoformat(fecha_desde))
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            stmt = stmt.where(Turno.fecha_hora <= datetime.fromisoformat(fecha_hasta + "T23:59:59"))
+        except ValueError:
+            pass
 
-    total: int = session.exec(
+    total: int = session.execute(
         select(func.count()).select_from(
             select(Turno).where(Turno.clinica_id == clinica_id, Turno.is_active.is_(True)).subquery()
         )
-    ).one()
+    ).scalar_one()
     items = session.exec(
         stmt.order_by(Turno.fecha_hora.desc())
         .offset((page - 1) * per_page)

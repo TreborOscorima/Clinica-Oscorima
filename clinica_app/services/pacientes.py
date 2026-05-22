@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import String, cast, func, or_, select
-from sqlmodel import Session
+from sqlalchemy import String, cast, func, or_
+from sqlmodel import Session, select
 
 from clinica_app.models.paciente import Paciente
 from clinica_app.services.exceptions import ConflictError, NotFoundError
@@ -58,9 +58,9 @@ def listar(
             hasta = hasta + timedelta(days=1)
         stmt = stmt.where(Paciente.created_at < hasta)
 
-    total: int = session.exec(
+    total: int = session.execute(
         select(func.count()).select_from(stmt.subquery())
-    ).one()
+    ).scalar_one()
     items = session.exec(
         stmt.order_by(Paciente.created_at.desc())
         .offset((page - 1) * per_page)

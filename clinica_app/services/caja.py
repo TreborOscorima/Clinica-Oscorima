@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func
+from sqlmodel import select
 from sqlmodel import Session
 
 from clinica_app.models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
@@ -61,9 +62,9 @@ def listar_movimientos(
         except ValueError as exc:
             raise ServiceError("Tipo inválido") from exc
 
-    total: int = session.exec(
+    total: int = session.execute(
         select(func.count()).select_from(stmt.subquery())
-    ).one()
+    ).scalar_one()
     items = session.exec(
         stmt.order_by(CajaMovimiento.fecha.desc())
         .offset((page - 1) * per_page)

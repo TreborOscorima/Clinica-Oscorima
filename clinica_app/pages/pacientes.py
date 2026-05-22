@@ -7,6 +7,140 @@ from clinica_app.components.layout import shell
 from clinica_app.state.pacientes import PacientesState
 
 
+def _panel_detalle() -> rx.Component:
+    """Slide-over lateral con historial del paciente."""
+    return rx.cond(
+        PacientesState.panel_detalle,
+        rx.el.div(
+            # Overlay
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/30 z-40",
+                on_click=PacientesState.cerrar_detalle,
+            ),
+            # Panel lateral
+            rx.el.div(
+                # Header
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.h2(
+                            PacientesState.paciente_sel["nombre"],
+                            class_name="text-lg font-semibold text-gray-900",
+                        ),
+                        rx.el.p(
+                            PacientesState.paciente_sel["documento"],
+                            class_name="text-sm text-gray-500",
+                        ),
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=PacientesState.cerrar_detalle,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-start justify-between mb-6",
+                ),
+                # Datos rápidos
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.span("Email", class_name="text-xs text-gray-500 uppercase"),
+                        rx.el.p(PacientesState.paciente_sel["email"], class_name="text-sm text-gray-700"),
+                        class_name="flex flex-col",
+                    ),
+                    rx.el.div(
+                        rx.el.span("Teléfono", class_name="text-xs text-gray-500 uppercase"),
+                        rx.el.p(PacientesState.paciente_sel["telefono"], class_name="text-sm text-gray-700"),
+                        class_name="flex flex-col",
+                    ),
+                    rx.el.div(
+                        rx.el.span("Emergencia", class_name="text-xs text-gray-500 uppercase"),
+                        rx.el.p(PacientesState.paciente_sel["contacto_emergencia"], class_name="text-sm text-gray-700"),
+                        class_name="flex flex-col",
+                    ),
+                    class_name="grid grid-cols-3 gap-3 mb-6 p-3 bg-gray-50 rounded-xl",
+                ),
+                # Turnos recientes
+                rx.el.div(
+                    rx.el.p("Últimos turnos", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"),
+                    rx.cond(
+                        PacientesState.historial_turnos.length() == 0,
+                        rx.el.p("Sin turnos", class_name="text-sm text-gray-400 italic"),
+                        rx.el.div(
+                            rx.foreach(
+                                PacientesState.historial_turnos,
+                                lambda t: rx.el.div(
+                                    rx.el.div(
+                                        rx.el.span(t["fecha_hora"], class_name="text-xs font-mono text-gray-500"),
+                                        estado_badge(t["estado"]),
+                                        class_name="flex items-center justify-between",
+                                    ),
+                                    rx.el.p(
+                                        t["servicio_nombre"], " · ", t["profesional_nombre"],
+                                        class_name="text-xs text-gray-500 mt-0.5",
+                                    ),
+                                    class_name="py-2 border-b border-gray-100 last:border-0",
+                                ),
+                            ),
+                        ),
+                    ),
+                    class_name="mb-6",
+                ),
+                # Comprobantes
+                rx.el.div(
+                    rx.el.p("Últimos comprobantes", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"),
+                    rx.cond(
+                        PacientesState.historial_comprobantes.length() == 0,
+                        rx.el.p("Sin comprobantes", class_name="text-sm text-gray-400 italic"),
+                        rx.el.div(
+                            rx.foreach(
+                                PacientesState.historial_comprobantes,
+                                lambda c: rx.el.div(
+                                    rx.el.span(c["numero"], class_name="text-xs font-mono text-gray-500"),
+                                    rx.el.div(
+                                        rx.el.span(c["fecha"], class_name="text-xs text-gray-500"),
+                                        rx.el.span(
+                                            "$ ", c["total"],
+                                            class_name="text-xs font-semibold text-green-700",
+                                        ),
+                                        class_name="flex items-center gap-3",
+                                    ),
+                                    class_name="flex items-center justify-between py-2 border-b border-gray-100 last:border-0",
+                                ),
+                            ),
+                        ),
+                    ),
+                    class_name="mb-6",
+                ),
+                # Deudas activas
+                rx.cond(
+                    PacientesState.historial_deudas.length() > 0,
+                    rx.el.div(
+                        rx.el.p("Deudas activas", class_name="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2"),
+                        rx.el.div(
+                            rx.foreach(
+                                PacientesState.historial_deudas,
+                                lambda d: rx.el.div(
+                                    rx.el.span(
+                                        rx.el.span("Estado: ", class_name="text-gray-500"),
+                                        d["estado"],
+                                        class_name="text-xs capitalize",
+                                    ),
+                                    rx.el.span(
+                                        "Saldo: $ ", d["saldo"],
+                                        class_name="text-xs font-semibold text-red-600",
+                                    ),
+                                    class_name="flex items-center justify-between py-2 border-b border-red-50 last:border-0",
+                                ),
+                            ),
+                        ),
+                        class_name="p-3 bg-red-50 rounded-xl",
+                    ),
+                ),
+                class_name="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl p-6 overflow-y-auto z-50",
+            ),
+            class_name="fixed inset-0 z-40 flex justify-end",
+        ),
+    )
+
+
 def _modal_paciente() -> rx.Component:
     titulo = rx.cond(PacientesState.editando_id, "Editar paciente", "Nuevo paciente")
     return rx.cond(
@@ -103,6 +237,12 @@ def _fila_paciente(p: dict) -> rx.Component:
         rx.el.td(
             rx.el.div(
                 rx.el.button(
+                    rx.icon("eye", size=15),
+                    on_click=lambda: PacientesState.abrir_detalle(p),
+                    class_name="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition cursor-pointer",
+                    title="Ver detalle",
+                ),
+                rx.el.button(
                     rx.icon("pencil", size=15),
                     on_click=lambda: PacientesState.abrir_editar(p),
                     class_name="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition cursor-pointer",
@@ -125,6 +265,7 @@ def _fila_paciente(p: dict) -> rx.Component:
 def pacientes_page() -> rx.Component:
     return shell(
         _modal_paciente(),
+        _panel_detalle(),
         # Encabezado
         rx.el.div(
             rx.el.div(

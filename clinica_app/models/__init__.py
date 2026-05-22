@@ -14,6 +14,8 @@ from clinica_app.models.inventario import (
     Producto, MovimientoStock, Proveedor,
     Compra, CompraItem, ProductoPrecioHist, TipoMov,
 )
+from clinica_app.models.promocion import Promocion
+from clinica_app.models.login_intento import LoginIntento
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol",
@@ -23,4 +25,6 @@ __all__ = [
     "ComprobanteItem", "DeudaPaciente", "TipoMovimiento", "MetodoPago",
     "Producto", "MovimientoStock", "Proveedor",
     "Compra", "CompraItem", "ProductoPrecioHist", "TipoMov",
+    "Promocion",
+    "LoginIntento",
 ]

@@ -1,44 +1,62 @@
 from __future__ import annotations
 
-import asyncio
-
 import reflex as rx
 
-from clinica_app.services.reportes import encolar_reporte, estado_job
+from clinica_app.database import get_session
+from clinica_app.services import reportes as svc
 from clinica_app.state.base import BaseState
 
 
 class ReportesState(BaseState):
 
-    tipo_reporte: str  = "pacientes"
-    fecha_desde:  str  = ""
-    fecha_hasta:  str  = ""
+    # ── Selector ───────────────────────────────────────────────────────────────
+    tipo_reporte: str = "pacientes"
+    fecha_desde:  str = ""
+    fecha_hasta:  str = ""
 
-    job_id:       str  = ""
-    job_status:   str  = ""     # "queued" | "started" | "finished" | "failed"
-    job_result:   str  = ""
-    job_error:    str  = ""
-    is_enqueuing: bool = False
+    # ── KPIs del mes ──────────────────────────────────────────────────────────
+    kpi_ingresos:         str = "0.00"
+    kpi_egresos:          str = "0.00"
+    kpi_turnos:           str = "0"
+    kpi_pacientes_nuevos: str = "0"
+
+    # ── Estado de generación ──────────────────────────────────────────────────
+    is_generating: bool = False
+    archivo:       str  = ""
+    gen_error:     str  = ""
+
+    # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
     def on_mount(self):
-        return self.require_auth()
+        return self.require_auth() or self._cargar_kpis()
+
+    def _cargar_kpis(self):
+        try:
+            with get_session() as session:
+                kpis = svc.kpis_mes(session, self.clinica_id)
+            self.kpi_ingresos         = kpis["ingresos"]
+            self.kpi_egresos          = kpis["egresos"]
+            self.kpi_turnos           = str(kpis["turnos"])
+            self.kpi_pacientes_nuevos = str(kpis["pacientes_nuevos"])
+        except Exception:
+            pass
+
+    # ── Setters ────────────────────────────────────────────────────────────────
 
     def set_tipo(self, v: str):
         self.tipo_reporte = v
-        self.job_id       = ""
-        self.job_status   = ""
-        self.job_result   = ""
-        self.job_error    = ""
+        self.archivo      = ""
+        self.gen_error    = ""
 
-    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
     def set_fecha_desde(self, v: str): self.fecha_desde = v
     def set_fecha_hasta(self, v: str): self.fecha_hasta = v
 
+    # ── Generar ────────────────────────────────────────────────────────────────
+
     async def generar_reporte(self):
-        self.is_enqueuing = True
-        self.job_id       = ""
-        self.job_status   = "queued"
-        self.job_error    = ""
+        self.is_generating = True
+        self.archivo       = ""
+        self.gen_error     = ""
         yield
 
         params: dict = {}
@@ -48,37 +66,27 @@ class ReportesState(BaseState):
             params["hasta"] = self.fecha_hasta
 
         try:
-            job_id = encolar_reporte(self.clinica_id, self.tipo_reporte, params)
+            filename = svc.generar_reporte(self.clinica_id, self.tipo_reporte, params)
+            self.archivo = filename
         except Exception as exc:
-            self.job_error    = f"Error al encolar: {exc}"
-            self.job_status   = "failed"
-            self.is_enqueuing = False
-            return
+            self.gen_error = str(exc)
+        finally:
+            self.is_generating = False
 
-        self.job_id       = job_id
-        self.is_enqueuing = False
+    # ── Computed vars ──────────────────────────────────────────────────────────
 
-        # Polling hasta que el job termine (máx. 2 min, tick 3 seg)
-        for _ in range(40):
-            await asyncio.sleep(3)
-            info = estado_job(self.job_id)
-            self.job_status = info["status"]
-            if info["status"] == "finished":
-                self.job_result = info["result"] or ""
-                break
-            if info["status"] in ("failed", "not_found"):
-                self.job_error = info["error"] or "Error desconocido"
-                break
-            yield
+    @rx.var
+    def archivo_url(self) -> str:
+        return "/api/reportes/descargar/" + self.archivo
 
     @rx.var
     def reporte_listo(self) -> bool:
-        return self.job_status == "finished"
+        return self.archivo != ""
 
     @rx.var
     def reporte_fallido(self) -> bool:
-        return self.job_status == "failed"
+        return self.gen_error != ""
 
     @rx.var
-    def procesando(self) -> bool:
-        return self.job_status in ("queued", "started")
+    def mostrar_fechas(self) -> bool:
+        return (self.tipo_reporte == "caja") | (self.tipo_reporte == "turnos") | (self.tipo_reporte == "compras")

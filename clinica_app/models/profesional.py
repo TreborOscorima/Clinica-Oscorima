@@ -1,32 +1,25 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from sqlalchemy import UniqueConstraint
+from sqlmodel import Field
 
-from sqlalchemy import Column, DateTime
-from sqlmodel import Field, SQLModel
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from clinica_app.models.base import TenantSQLModel
 
 
-class Profesional(SQLModel, table=True):
+class Profesional(TenantSQLModel, table=True):
     __tablename__ = "profesionales"
+    __table_args__ = (
+        UniqueConstraint("clinica_id", "dni",      name="uq_prof_clinica_dni"),
+        UniqueConstraint("clinica_id", "matricula", name="uq_prof_clinica_matricula"),
+    )
 
-    id: int | None = Field(default=None, primary_key=True)
-    dni: str | None = Field(default=None, max_length=40, nullable=True, unique=True, index=True)
-    matricula: str | None = Field(default=None, max_length=60, nullable=True, unique=True, index=True)
-    nombres: str = Field(max_length=120, nullable=False)
-    apellidos: str = Field(max_length=120, nullable=False)
-    especialidad: str | None = Field(default=None, max_length=120, nullable=True)
-    created_at: datetime | None = Field(
-        default_factory=_utcnow,
-        sa_column=Column(DateTime, default=_utcnow, nullable=True),
-    )
-    updated_at: datetime | None = Field(
-        default_factory=_utcnow,
-        sa_column=Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=True),
-    )
+    nombres:     str           = Field(max_length=120, nullable=False)
+    apellidos:   str           = Field(max_length=120, nullable=False)
+    dni:         str | None    = Field(default=None, max_length=40,  nullable=True, index=True)
+    matricula:   str | None    = Field(default=None, max_length=60,  nullable=True, index=True)
+    especialidad: str | None   = Field(default=None, max_length=120, nullable=True)
+    telefono:    str | None    = Field(default=None, max_length=60,  nullable=True)
+    email:       str | None    = Field(default=None, max_length=120, nullable=True)
 
     @property
     def nombre_completo(self) -> str:
