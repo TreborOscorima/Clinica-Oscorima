@@ -14,6 +14,7 @@ from clinica_app.models.paciente import Paciente
 from clinica_app.models.turno import EstadoTurno, Turno
 from clinica_app.models.turno_servicio import TurnoServicio
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
+from clinica_app.services import notificaciones as notif
 
 
 def _dump(t: Turno) -> dict[str, Any]:
@@ -166,7 +167,19 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any], created_by
 
     session.flush()
     session.refresh(turno)
-    return _dump(turno)
+    turno_dict = _dump(turno)
+
+    # Notificar al paciente de forma no bloqueante
+    try:
+        notif.notificar_turno_nuevo(
+            turno_dict,
+            paciente_email=getattr(paciente, "email", "") or "",
+            paciente_tel=getattr(paciente, "telefono", "") or "",
+        )
+    except Exception:
+        pass  # Las notificaciones nunca deben interrumpir la operación
+
+    return turno_dict
 
 
 def cambiar_estado(session: Session, clinica_id: int, turno_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -188,7 +201,21 @@ def cambiar_estado(session: Session, clinica_id: int, turno_id: int, payload: di
         _registrar_cobro(session, turno, payload)
 
     session.flush()
-    return _dump(turno)
+    turno_dict = _dump(turno)
+
+    # Notificaciones por cambio de estado
+    try:
+        pac = turno.paciente
+        p_email = getattr(pac, "email", "") or ""
+        p_tel   = getattr(pac, "telefono", "") or ""
+        if nuevo_estado == EstadoTurno.CONFIRMADO:
+            notif.notificar_turno_confirmado(turno_dict, p_email, p_tel)
+        elif nuevo_estado == EstadoTurno.CANCELADO:
+            notif.notificar_turno_cancelado(turno_dict, p_email, p_tel)
+    except Exception:
+        pass
+
+    return turno_dict
 
 
 def reprogramar(session: Session, clinica_id: int, turno_id: int, payload: dict[str, Any]) -> dict[str, Any]:

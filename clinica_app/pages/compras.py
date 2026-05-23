@@ -91,12 +91,15 @@ def _modal_nueva() -> rx.Component:
                         ),
                         rx.el.div(
                             rx.el.label("Número", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="text",
-                                placeholder="Ej: F001-00123",
-                                value=ComprasState.form_numero,
-                                on_change=ComprasState.set_form_numero,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="text",
+                                    placeholder="Ej: F001-00123",
+                                    value=ComprasState.form_numero,
+                                    on_change=ComprasState.set_form_numero,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                ),
+                                debounce_timeout=300,
                             ),
                         ),
                         class_name="grid grid-cols-2 gap-3",
@@ -105,22 +108,28 @@ def _modal_nueva() -> rx.Component:
                     rx.el.div(
                         rx.el.div(
                             rx.el.label("Nro. registro", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="text",
-                                placeholder="Opcional",
-                                value=ComprasState.form_nro_registro,
-                                on_change=ComprasState.set_form_nro_registro,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="text",
+                                    placeholder="Opcional",
+                                    value=ComprasState.form_nro_registro,
+                                    on_change=ComprasState.set_form_nro_registro,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                ),
+                                debounce_timeout=300,
                             ),
                         ),
                         rx.el.div(
                             rx.el.label("Observación", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="text",
-                                placeholder="Opcional",
-                                value=ComprasState.form_observacion,
-                                on_change=ComprasState.set_form_observacion,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="text",
+                                    placeholder="Opcional",
+                                    value=ComprasState.form_observacion,
+                                    on_change=ComprasState.set_form_observacion,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                ),
+                                debounce_timeout=300,
                             ),
                         ),
                         class_name="grid grid-cols-2 gap-3",
@@ -141,21 +150,27 @@ def _modal_nueva() -> rx.Component:
                         on_change=ComprasState.set_cart_producto_id,
                         class_name="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                     ),
-                    rx.el.input(
-                        type="text",
-                        placeholder="Cant.",
-                        value=ComprasState.cart_cantidad,
-                        on_change=ComprasState.set_cart_cantidad,
-                        class_name="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    rx.debounce_input(
+                        rx.el.input(
+                            type="text",
+                            placeholder="Cant.",
+                            value=ComprasState.cart_cantidad,
+                            on_change=ComprasState.set_cart_cantidad,
+                            class_name="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        ),
+                        debounce_timeout=300,
                     ),
                     rx.el.div(
                         rx.el.span("$", class_name="text-gray-500 text-sm px-2"),
-                        rx.el.input(
-                            type="text",
-                            placeholder="Costo",
-                            value=ComprasState.cart_costo,
-                            on_change=ComprasState.set_cart_costo,
-                            class_name="w-24 py-2 pr-2 text-sm outline-none",
+                        rx.debounce_input(
+                            rx.el.input(
+                                type="text",
+                                placeholder="Costo",
+                                value=ComprasState.cart_costo,
+                                on_change=ComprasState.set_cart_costo,
+                                class_name="w-24 py-2 pr-2 text-sm outline-none",
+                            ),
+                            debounce_timeout=300,
                         ),
                         class_name="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
                     ),
@@ -493,11 +508,14 @@ def compras_page() -> rx.Component:
         # Búsqueda
         rx.el.div(
             rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-            rx.el.input(
-                placeholder="Buscar por proveedor o número…",
-                value=ComprasState.busqueda,
-                on_change=ComprasState.set_busqueda,
-                class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-72",
+            rx.debounce_input(
+                rx.el.input(
+                    placeholder="Buscar por proveedor o número…",
+                    value=ComprasState.busqueda,
+                    on_change=ComprasState.set_busqueda,
+                    class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-72",
+                ),
+                debounce_timeout=300,
             ),
             class_name="relative mb-5",
         ),

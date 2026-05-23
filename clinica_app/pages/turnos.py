@@ -69,11 +69,14 @@ def _modal_reprogramar() -> rx.Component:
                 rx.el.h2("Reprogramar turno", class_name="text-lg font-semibold text-gray-900 mb-4"),
                 rx.el.div(
                     rx.el.label("Nueva fecha y hora", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.el.input(
-                        type="datetime-local",
-                        value=TurnosState.form_reprogramar_fecha,
-                        on_change=TurnosState.set_form_reprogramar_fecha,
-                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    rx.debounce_input(
+                        rx.el.input(
+                            type="datetime-local",
+                            value=TurnosState.form_reprogramar_fecha,
+                            on_change=TurnosState.set_form_reprogramar_fecha,
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        ),
+                        debounce_timeout=0,
                     ),
                     class_name="mb-6",
                 ),
@@ -115,11 +118,14 @@ def _modal_estado() -> rx.Component:
                     TurnosState.form_nuevo_estado == "cancelado",
                     rx.el.div(
                         rx.el.label("Motivo (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.el.textarea(
-                            value=TurnosState.form_motivo,
-                            on_change=TurnosState.set_form_motivo,
-                            rows=3,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        rx.debounce_input(
+                            rx.el.textarea(
+                                value=TurnosState.form_motivo,
+                                on_change=TurnosState.set_form_motivo,
+                                rows=3,
+                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            ),
+                            debounce_timeout=300,
                         ),
                         class_name="mb-4",
                     ),
@@ -150,8 +156,11 @@ def _modal_estado() -> rx.Component:
 def _input_field(label, tipo, value, on_change) -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
-        rx.el.input(type=tipo, value=value, on_change=on_change,
-                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"),
+        rx.debounce_input(
+            rx.el.input(type=tipo, value=value, on_change=on_change,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"),
+            debounce_timeout=300,
+        ),
     )
 
 
@@ -252,21 +261,27 @@ def turnos_page() -> rx.Component:
             rx.el.div(
                 rx.el.div(
                     rx.el.label("Desde", class_name="text-xs text-gray-500 mr-1"),
-                    rx.el.input(
-                        type="date",
-                        value=TurnosState.filtro_fecha_desde,
-                        on_change=TurnosState.set_filtro_fecha_desde,
-                        class_name="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+                    rx.debounce_input(
+                        rx.el.input(
+                            type="date",
+                            value=TurnosState.filtro_fecha_desde,
+                            on_change=TurnosState.set_filtro_fecha_desde,
+                            class_name="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+                        ),
+                        debounce_timeout=0,
                     ),
                     class_name="flex items-center gap-1",
                 ),
                 rx.el.div(
                     rx.el.label("Hasta", class_name="text-xs text-gray-500 mr-1"),
-                    rx.el.input(
-                        type="date",
-                        value=TurnosState.filtro_fecha_hasta,
-                        on_change=TurnosState.set_filtro_fecha_hasta,
-                        class_name="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+                    rx.debounce_input(
+                        rx.el.input(
+                            type="date",
+                            value=TurnosState.filtro_fecha_hasta,
+                            on_change=TurnosState.set_filtro_fecha_hasta,
+                            class_name="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+                        ),
+                        debounce_timeout=0,
                     ),
                     class_name="flex items-center gap-1",
                 ),

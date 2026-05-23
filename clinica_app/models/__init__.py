@@ -2,7 +2,7 @@ from clinica_app.models.clinica import Clinica
 from clinica_app.models.user import User, RoleEnum, PermisoRol
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.profesional import Profesional
-from clinica_app.models.servicio import Servicio
+from clinica_app.models.servicio import Servicio, ServicioPrecioHist
 from clinica_app.models.servicio_insumo import ServicioInsumo
 from clinica_app.models.turno import Turno, EstadoTurno
 from clinica_app.models.turno_servicio import TurnoServicio
@@ -16,10 +16,16 @@ from clinica_app.models.inventario import (
 )
 from clinica_app.models.promocion import Promocion
 from clinica_app.models.login_intento import LoginIntento
+from clinica_app.models.nota_clinica import NotaClinica, TipoNota
+from clinica_app.models.sede import Sede
+from clinica_app.models.moneda import Moneda
+from clinica_app.models.unidad_medida import UnidadMedida
+from clinica_app.models.metodo_pago_config import MetodoPagoConfig
+from clinica_app.models.impuesto_tasa import ImpuestoTasa
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol",
-    "Paciente", "Profesional", "Servicio", "ServicioInsumo",
+    "Paciente", "Profesional", "Servicio", "ServicioPrecioHist", "ServicioInsumo",
     "Turno", "EstadoTurno", "TurnoServicio",
     "Comprobante", "CajaMovimiento", "CierreCaja",
     "ComprobanteItem", "DeudaPaciente", "TipoMovimiento", "MetodoPago",
@@ -27,4 +33,7 @@ __all__ = [
     "Compra", "CompraItem", "ProductoPrecioHist", "TipoMov",
     "Promocion",
     "LoginIntento",
+    "NotaClinica", "TipoNota",
+    "Sede",
+    "Moneda", "UnidadMedida", "MetodoPagoConfig", "ImpuestoTasa",
 ]

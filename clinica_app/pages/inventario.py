@@ -9,8 +9,11 @@ from clinica_app.state.inventario import InventarioState
 def _campo(label, tipo, value, on_change, placeholder="") -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
-        rx.el.input(type=tipo, value=value, on_change=on_change, placeholder=placeholder,
-                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"),
+        rx.debounce_input(
+            rx.el.input(type=tipo, value=value, on_change=on_change, placeholder=placeholder,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"),
+            debounce_timeout=300,
+        ),
     )
 
 
@@ -201,10 +204,13 @@ def inventario_page() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=16, class_name="text-gray-400"),
-                rx.el.input(
-                    type="text", placeholder="Buscar por nombre o SKU...",
-                    value=InventarioState.busqueda, on_change=InventarioState.set_busqueda,
-                    class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
+                rx.debounce_input(
+                    rx.el.input(
+                        type="text", placeholder="Buscar por nombre o SKU...",
+                        value=InventarioState.busqueda, on_change=InventarioState.set_busqueda,
+                        class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
+                    ),
+                    debounce_timeout=300,
                 ),
                 class_name="flex items-center px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
             ),

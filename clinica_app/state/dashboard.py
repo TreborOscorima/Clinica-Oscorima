@@ -27,6 +27,17 @@ class DashboardState(BaseState):
     # Top 5 servicios del mes  {"nombre": "Limpieza facial", "count": "12", "total": "1800.00"}
     top_servicios:    list[dict] = []
 
+    # Agenda del profesional (solo visible si user_role == "profesional")
+    mis_turnos_hoy:   list[dict] = []
+
+    # Dashboard financiero avanzado
+    ingresos_mes:     str = "0.00"
+    egresos_mes:      str = "0.00"
+    saldo_mes:        str = "0.00"
+    ingresos_mes_ant: str = "0.00"   # mes anterior (para comparativa)
+    variacion_pct:    str = "0"      # variación porcentual vs mes anterior
+    top_servicios_margen: list[dict] = []  # nombre, ingresos, egresos, margen
+
     def on_mount(self):
         return self.require_auth() or self.cargar()
 
@@ -158,3 +169,61 @@ class DashboardState(BaseState):
                 }
                 for row in top_raw
             ]
+
+            # ── Dashboard financiero avanzado ──────────────────────────────────
+            inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            fin_mes    = ahora.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+            def _suma_caja(tipo, desde, hasta):
+                return float(session.exec(
+                    select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
+                        CajaMovimiento.clinica_id == self.clinica_id,
+                        CajaMovimiento.is_active.is_(True),
+                        CajaMovimiento.tipo == tipo,
+                        CajaMovimiento.fecha >= desde,
+                        CajaMovimiento.fecha <= hasta,
+                    )
+                ).scalar_one() or 0)
+
+            ing_mes  = _suma_caja(TipoMovimiento.INGRESO, inicio_mes, fin_mes)
+            egr_mes  = _suma_caja(TipoMovimiento.EGRESO,  inicio_mes, fin_mes)
+            self.ingresos_mes = f"{ing_mes:.2f}"
+            self.egresos_mes  = f"{egr_mes:.2f}"
+            self.saldo_mes    = f"{ing_mes - egr_mes:.2f}"
+
+            # Mes anterior para comparativa
+            mes_ant_fin = inicio_mes - timedelta(seconds=1)
+            mes_ant_ini = mes_ant_fin.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            ing_ant = _suma_caja(TipoMovimiento.INGRESO, mes_ant_ini, mes_ant_fin)
+            self.ingresos_mes_ant = f"{ing_ant:.2f}"
+            if ing_ant > 0:
+                pct = ((ing_mes - ing_ant) / ing_ant) * 100
+                self.variacion_pct = f"{pct:+.1f}"
+            else:
+                self.variacion_pct = "+100" if ing_mes > 0 else "0"
+
+            # Agenda propia del profesional (si aplica)
+            if self.user_role == "profesional" and self.profesional_id:
+                mis = session.exec(
+                    select(Turno)
+                    .where(
+                        Turno.clinica_id == self.clinica_id,
+                        Turno.is_active.is_(True),
+                        Turno.profesional_id == self.profesional_id,
+                        Turno.fecha_hora >= inicio_hoy,
+                        Turno.fecha_hora <= fin_hoy,
+                    )
+                    .order_by(Turno.fecha_hora)
+                ).all()
+                self.mis_turnos_hoy = [
+                    {
+                        "id":              t.id,
+                        "paciente_nombre": t.paciente.nombre if t.paciente else f"#{t.paciente_id}",
+                        "hora":            t.fecha_hora.strftime("%H:%M") if t.fecha_hora else "",
+                        "servicio":        t.servicio.nombre if t.servicio else "—",
+                        "estado":          t.estado.value if t.estado else "",
+                    }
+                    for t in mis
+                ]
+            else:
+                self.mis_turnos_hoy = []

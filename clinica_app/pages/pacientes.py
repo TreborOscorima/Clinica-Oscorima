@@ -109,6 +109,16 @@ def _panel_detalle() -> rx.Component:
                     ),
                     class_name="mb-6",
                 ),
+                # Acceso rápido historia clínica
+                rx.el.div(
+                    rx.el.a(
+                        rx.icon("clipboard-list", size=15, class_name="mr-2"),
+                        "Ver historia clínica completa",
+                        href=f"/historia-clinica?paciente_id={PacientesState.paciente_sel['id']}",
+                        class_name="flex items-center w-full px-4 py-2.5 bg-sky-50 text-sky-700 text-sm font-medium rounded-lg hover:bg-sky-100 transition cursor-pointer border border-sky-200",
+                    ),
+                    class_name="mb-6",
+                ),
                 # Deudas activas
                 rx.cond(
                     PacientesState.historial_deudas.length() > 0,
@@ -212,11 +222,14 @@ def _modal_paciente() -> rx.Component:
 def _campo(label: str, tipo: str, value, on_change) -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
-        rx.el.input(
-            type=tipo,
-            value=value,
-            on_change=on_change,
-            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+        rx.debounce_input(
+            rx.el.input(
+                type=tipo,
+                value=value,
+                on_change=on_change,
+                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+            ),
+            debounce_timeout=300,
         ),
     )
 
@@ -287,12 +300,15 @@ def pacientes_page() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=16, class_name="text-gray-400"),
-                rx.el.input(
-                    type="text",
-                    placeholder="Buscar por nombre o documento...",
-                    value=PacientesState.busqueda,
-                    on_change=PacientesState.set_busqueda,
-                    class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
+                rx.debounce_input(
+                    rx.el.input(
+                        type="text",
+                        placeholder="Buscar por nombre o documento...",
+                        value=PacientesState.busqueda,
+                        on_change=PacientesState.set_busqueda,
+                        class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
+                    ),
+                    debounce_timeout=300,
                 ),
                 class_name="flex items-center px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
             ),

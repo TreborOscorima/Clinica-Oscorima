@@ -75,23 +75,29 @@ def _modal_form() -> rx.Component:
                     # Nombre
                     rx.el.div(
                         rx.el.label("Nombre *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.el.input(
-                            type="text",
-                            placeholder="Ej: Descuento nuevos pacientes",
-                            value=PromocionesState.form_nombre,
-                            on_change=PromocionesState.set_form_nombre,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        rx.debounce_input(
+                            rx.el.input(
+                                type="text",
+                                placeholder="Ej: Descuento nuevos pacientes",
+                                value=PromocionesState.form_nombre,
+                                on_change=PromocionesState.set_form_nombre,
+                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            ),
+                            debounce_timeout=300,
                         ),
                     ),
                     # Descripción
                     rx.el.div(
                         rx.el.label("Descripción", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.el.input(
-                            type="text",
-                            placeholder="Descripción opcional",
-                            value=PromocionesState.form_descripcion,
-                            on_change=PromocionesState.set_form_descripcion,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        rx.debounce_input(
+                            rx.el.input(
+                                type="text",
+                                placeholder="Descripción opcional",
+                                value=PromocionesState.form_descripcion,
+                                on_change=PromocionesState.set_form_descripcion,
+                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            ),
+                            debounce_timeout=300,
                         ),
                     ),
                     # Tipo + Valor + Aplica a
@@ -108,17 +114,20 @@ def _modal_form() -> rx.Component:
                         ),
                         rx.el.div(
                             rx.el.label("Valor *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="text",
-                                input_mode="decimal",
-                                placeholder=rx.cond(
-                                    PromocionesState.form_tipo == "porcentaje",
-                                    "0 – 100",
-                                    "0.00",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="text",
+                                    input_mode="decimal",
+                                    placeholder=rx.cond(
+                                        PromocionesState.form_tipo == "porcentaje",
+                                        "0 – 100",
+                                        "0.00",
+                                    ),
+                                    value=PromocionesState.form_valor,
+                                    on_change=PromocionesState.set_form_valor,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                                 ),
-                                value=PromocionesState.form_valor,
-                                on_change=PromocionesState.set_form_valor,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                debounce_timeout=300,
                             ),
                         ),
                         rx.el.div(
@@ -138,20 +147,26 @@ def _modal_form() -> rx.Component:
                     rx.el.div(
                         rx.el.div(
                             rx.el.label("Fecha inicio", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="date",
-                                value=PromocionesState.form_fecha_inicio,
-                                on_change=PromocionesState.set_form_fecha_inicio,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="date",
+                                    value=PromocionesState.form_fecha_inicio,
+                                    on_change=PromocionesState.set_form_fecha_inicio,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                ),
+                                debounce_timeout=0,
                             ),
                         ),
                         rx.el.div(
                             rx.el.label("Fecha fin", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                            rx.el.input(
-                                type="date",
-                                value=PromocionesState.form_fecha_fin,
-                                on_change=PromocionesState.set_form_fecha_fin,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="date",
+                                    value=PromocionesState.form_fecha_fin,
+                                    on_change=PromocionesState.set_form_fecha_fin,
+                                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                                ),
+                                debounce_timeout=0,
                             ),
                         ),
                         class_name="grid grid-cols-2 gap-3",
@@ -365,11 +380,14 @@ def promociones_page() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-                rx.el.input(
-                    placeholder="Buscar promoción…",
-                    value=PromocionesState.busqueda,
-                    on_change=PromocionesState.set_busqueda,
-                    class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-64",
+                rx.debounce_input(
+                    rx.el.input(
+                        placeholder="Buscar promoción…",
+                        value=PromocionesState.busqueda,
+                        on_change=PromocionesState.set_busqueda,
+                        class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-64",
+                    ),
+                    debounce_timeout=300,
                 ),
                 class_name="relative",
             ),

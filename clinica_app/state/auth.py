@@ -71,11 +71,12 @@ class AuthState(BaseState):
             return
 
         # Poblar BaseState (tenant resuelto desde la DB, nunca desde el cliente)
-        self.user_id         = datos["id"]
-        self.clinica_id      = datos["clinica_id"]
-        self.user_email      = datos["email"]
-        self.user_nombre     = datos["nombre"]
-        self.user_role       = datos["rol"]
+        self.user_id          = datos["id"]
+        self.clinica_id       = datos["clinica_id"]
+        self.user_email       = datos["email"]
+        self.user_nombre      = datos["nombre"]
+        self.user_role        = datos["rol"]
+        self.profesional_id   = datos["profesional_id"]
         self.is_authenticated = True
         self.is_loading      = False
 

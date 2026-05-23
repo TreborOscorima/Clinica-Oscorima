@@ -25,3 +25,21 @@ REPORT_EXPORT_DIR: str = os.getenv("REPORT_EXPORT_DIR", "exports")
 # Rate limiting de login
 LOGIN_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
 LOGIN_WINDOW_SECS:  int = int(os.getenv("LOGIN_WINDOW_SECS", "60"))
+
+# ── Notificaciones Email (SMTP) ────────────────────────────────────────────────
+SMTP_HOST:    str  = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT:    int  = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER:    str  = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM:    str  = os.getenv("SMTP_FROM", "")
+SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "WaykiSAC Clínica")
+NOTIF_EMAIL_ENABLED: bool = os.getenv("NOTIF_EMAIL_ENABLED", "false").lower() == "true"
+
+# ── Notificaciones WhatsApp (Twilio) ───────────────────────────────────────────
+TWILIO_ACCOUNT_SID:  str = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN:   str = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_WA_FROM:      str = os.getenv("TWILIO_WA_FROM", "whatsapp:+14155238886")
+NOTIF_WA_ENABLED:    bool = os.getenv("NOTIF_WA_ENABLED", "false").lower() == "true"
+
+# ── Nombre de la clínica para mensajes ────────────────────────────────────────
+CLINICA_NOMBRE: str = os.getenv("CLINICA_NOMBRE", "la clínica")

@@ -44,11 +44,13 @@ def sidebar() -> rx.Component:
             # ── Navegación ────────────────────────────────────────────────────
             rx.el.nav(
                 _section("Gestión"),
-                _nav_item("Dashboard",       "layout-dashboard", "/"),
-                _nav_item("Pacientes",        "users",            "/pacientes"),
-                _nav_item("Profesionales",    "user-check",       "/profesionales"),
-                _nav_item("Turnos",           "calendar-clock",   "/turnos"),
-                _nav_item("Servicios",        "stethoscope",      "/servicios"),
+                _nav_item("Dashboard",        "layout-dashboard",  "/"),
+                _nav_item("Pacientes",         "users",             "/pacientes"),
+                _nav_item("Historia Clínica",  "clipboard-list",    "/historia-clinica"),
+                _nav_item("Profesionales",     "user-check",        "/profesionales"),
+                _nav_item("Calendario",        "calendar-days",     "/calendario"),
+                _nav_item("Turnos",            "calendar-clock",    "/turnos"),
+                _nav_item("Servicios",         "stethoscope",       "/servicios"),
 
                 _section("Operaciones"),
                 _nav_item("Punto de Cobro",   "credit-card",      "/cobro"),

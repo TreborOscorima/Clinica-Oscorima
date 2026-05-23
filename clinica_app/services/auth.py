@@ -64,9 +64,10 @@ def autenticar(session: Session, email: str, password: str) -> User:
 
 def datos_usuario(user: User) -> dict[str, Any]:
     return {
-        "id":         user.id,
-        "nombre":     user.nombre,
-        "email":      user.email,
-        "rol":        user.rol.value,
-        "clinica_id": user.clinica_id,
+        "id":             user.id,
+        "nombre":         user.nombre,
+        "email":          user.email,
+        "rol":            user.rol.value,
+        "clinica_id":     user.clinica_id,
+        "profesional_id": user.profesional_id or 0,
     }

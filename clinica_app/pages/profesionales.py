@@ -16,15 +16,18 @@ def _label(text: str, required: bool = False) -> rx.Component:
 
 
 def _input(placeholder: str, value, on_change, type_: str = "text") -> rx.Component:
-    return rx.el.input(
-        placeholder=placeholder,
-        value=value,
-        on_change=on_change,
-        type=type_,
-        class_name=(
-            "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
-            "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+    return rx.debounce_input(
+        rx.el.input(
+            placeholder=placeholder,
+            value=value,
+            on_change=on_change,
+            type=type_,
+            class_name=(
+                "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
+                "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+            ),
         ),
+        debounce_timeout=300,
     )
 
 
@@ -228,11 +231,14 @@ def profesionales_page() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=16, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"),
-                rx.el.input(
-                    placeholder="Buscar por nombre, DNI, matrícula o especialidad…",
-                    value=ProfesionalesState.busqueda,
-                    on_change=ProfesionalesState.set_busqueda,
-                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                rx.debounce_input(
+                    rx.el.input(
+                        placeholder="Buscar por nombre, DNI, matrícula o especialidad…",
+                        value=ProfesionalesState.busqueda,
+                        on_change=ProfesionalesState.set_busqueda,
+                        class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    ),
+                    debounce_timeout=300,
                 ),
                 class_name="relative",
             ),

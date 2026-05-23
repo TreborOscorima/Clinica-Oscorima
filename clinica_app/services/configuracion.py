@@ -11,18 +11,31 @@ from clinica_app.services.exceptions import ConflictError, NotFoundError, Servic
 
 # ── Clínica ────────────────────────────────────────────────────────────────────
 
-_CAMPOS_CLINICA = ("nombre", "razon_social", "documento_fiscal", "email", "telefono")
+_CAMPOS_CLINICA = (
+    "nombre", "razon_social", "documento_fiscal", "email", "telefono",
+    "direccion_fiscal", "zona_horaria", "rubro",
+    "mensaje_recibo", "papel_impresion", "ancho_recibo",
+    "margen_global", "mostrar_impuesto_recibo",
+)
 
 
 def _dump_clinica(c: Clinica) -> dict[str, Any]:
     return {
-        "id":               c.id,
-        "nombre":           c.nombre,
-        "slug":             c.slug,
-        "razon_social":     c.razon_social or "",
-        "documento_fiscal": c.documento_fiscal or "",
-        "email":            c.email or "",
-        "telefono":         c.telefono or "",
+        "id":                      c.id,
+        "nombre":                  c.nombre,
+        "slug":                    c.slug,
+        "razon_social":            c.razon_social            or "",
+        "documento_fiscal":        c.documento_fiscal        or "",
+        "email":                   c.email                   or "",
+        "telefono":                c.telefono                or "",
+        "direccion_fiscal":        c.direccion_fiscal        or "",
+        "zona_horaria":            c.zona_horaria            or "",
+        "rubro":                   c.rubro                   or "",
+        "mensaje_recibo":          c.mensaje_recibo          or "",
+        "papel_impresion":         c.papel_impresion         or "80mm",
+        "ancho_recibo":            c.ancho_recibo,
+        "margen_global":           float(c.margen_global)    if c.margen_global is not None else 50.0,
+        "mostrar_impuesto_recibo": bool(c.mostrar_impuesto_recibo),
     }
 
 
@@ -42,9 +55,31 @@ def actualizar_clinica(session: Session, clinica_id: int, payload: dict[str, Any
     for campo in _CAMPOS_CLINICA:
         if campo in payload:
             val = payload[campo]
-            setattr(c, campo, val.strip() if isinstance(val, str) else val)
+            if isinstance(val, str):
+                val = val.strip() or None if campo not in ("nombre",) else val.strip()
+            setattr(c, campo, val)
     session.flush()
     return _dump_clinica(c)
+
+
+def guardar_margenes(session: Session, clinica_id: int, margen_global: float) -> dict[str, Any]:
+    c = session.get(Clinica, clinica_id)
+    if c is None or not c.is_active:
+        raise NotFoundError("Clínica no encontrada")
+    if margen_global < 0:
+        raise ServiceError("El margen no puede ser negativo")
+    c.margen_global = margen_global
+    session.flush()
+    return _dump_clinica(c)
+
+
+def toggle_mostrar_impuesto(session: Session, clinica_id: int) -> bool:
+    c = session.get(Clinica, clinica_id)
+    if c is None or not c.is_active:
+        raise NotFoundError("Clínica no encontrada")
+    c.mostrar_impuesto_recibo = not c.mostrar_impuesto_recibo
+    session.flush()
+    return bool(c.mostrar_impuesto_recibo)
 
 
 # ── Usuarios ───────────────────────────────────────────────────────────────────
@@ -56,16 +91,47 @@ _ROL_LABELS: dict[str, str] = {
     "contador":       "Contador",
 }
 
+_SYSTEM_MODULES: list[tuple[str, str]] = [
+    ("dashboard",     "Dashboard"),
+    ("pacientes",     "Pacientes"),
+    ("historia",      "Historia Clínica"),
+    ("profesionales", "Profesionales"),
+    ("calendario",    "Calendario"),
+    ("turnos",        "Turnos"),
+    ("servicios",     "Servicios"),
+    ("cobro",         "Cobro / POS"),
+    ("caja",          "Caja"),
+    ("cuentas",       "Cuentas Ctes."),
+    ("compras",       "Compras"),
+    ("inventario",    "Inventario"),
+    ("promociones",   "Promociones"),
+    ("reportes",      "Reportes"),
+    ("configuracion", "Configuración"),
+]
+
+_MODULE_LABELS: dict[str, str] = dict(_SYSTEM_MODULES)
+
+_ACCESOS_ROL: dict[str, list[str]] = {
+    "administracion": [k for k, _ in _SYSTEM_MODULES],
+    "recepcionista":  ["dashboard", "pacientes", "historia", "calendario",
+                       "turnos", "servicios", "cobro", "caja", "cuentas"],
+    "profesional":    ["dashboard", "pacientes", "historia", "calendario", "turnos"],
+    "contador":       ["dashboard", "caja", "cuentas", "compras", "inventario", "reportes"],
+}
+
 
 def _dump_user(u: User) -> dict[str, Any]:
+    rol_val = u.rol.value
+    modulos  = _ACCESOS_ROL.get(rol_val, [])
     return {
         "id":         u.id,
         "nombre":     u.nombre,
         "email":      u.email,
-        "rol":        u.rol.value,
-        "rol_label":  _ROL_LABELS.get(u.rol.value, u.rol.value),
+        "rol":        rol_val,
+        "rol_label":  _ROL_LABELS.get(rol_val, rol_val),
         "is_active":  u.is_active,
         "created_at": u.created_at.strftime("%Y-%m-%d") if u.created_at else "",
+        "modulos":    [_MODULE_LABELS[k] for k in modulos if k in _MODULE_LABELS],
     }
 
 
@@ -79,10 +145,10 @@ def listar_usuarios(session: Session, clinica_id: int) -> list[dict[str, Any]]:
 
 
 def crear_usuario(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    nombre   = (payload.get("nombre") or "").strip()
-    email    = (payload.get("email") or "").strip().lower()
+    nombre   = (payload.get("nombre")   or "").strip()
+    email    = (payload.get("email")    or "").strip().lower()
     password = (payload.get("password") or "")
-    rol_str  = (payload.get("rol") or RoleEnum.RECEP.value)
+    rol_str  = (payload.get("rol")      or RoleEnum.RECEP.value)
 
     if not nombre:
         raise ServiceError("Nombre obligatorio")
@@ -128,7 +194,7 @@ def toggle_activo(session: Session, clinica_id: int, user_id: int, solicitante_i
     if u.is_active:
         u.soft_delete()
     else:
-        u.is_active   = True
-        u.deleted_at  = None
+        u.is_active  = True
+        u.deleted_at = None
     session.flush()
     return _dump_user(u)

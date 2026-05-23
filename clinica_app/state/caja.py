@@ -129,3 +129,48 @@ class CajaState(BaseState):
         except ServiceError:
             pass
         return self._cargar_resumen() or self.cargar()
+
+    # ── Cierre de caja ─────────────────────────────────────────────────────────
+
+    modal_cierre:    bool = False
+    cierres:         list[dict] = []
+    cierre_error:    str  = ""
+    cierre_msg:      str  = ""
+    is_cerrando:     bool = False
+    ver_historial:   bool = False
+
+    def abrir_cierre(self):
+        self.cierre_error = ""
+        self.cierre_msg   = ""
+        self.modal_cierre = True
+
+    def cerrar_modal_cierre(self):
+        self.modal_cierre = False
+
+    def toggle_historial(self):
+        self.ver_historial = not self.ver_historial
+        if self.ver_historial:
+            self._cargar_cierres()
+
+    def _cargar_cierres(self):
+        with get_session() as session:
+            result = svc.listar_cierres(session, self.clinica_id)
+        self.cierres = result["data"]
+
+    async def confirmar_cierre(self):
+        self.is_cerrando = True
+        self.cierre_error = ""
+        self.cierre_msg   = ""
+        yield
+        try:
+            with get_session() as session:
+                resultado = svc.realizar_cierre_dia(
+                    session, self.clinica_id, usuario_id=self.user_id
+                )
+            self.cierre_msg = (
+                f"Cierre registrado: Ingresos ${resultado['total_ingresos']} | "
+                f"Egresos ${resultado['total_egresos']} | Saldo ${resultado['saldo']}"
+            )
+        except ServiceError as exc:
+            self.cierre_error = str(exc)
+        self.is_cerrando = False

@@ -42,11 +42,14 @@ def _paciente_search() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-                rx.el.input(
-                    placeholder="Buscar por nombre o DNI…",
-                    value=CobroState.pac_busqueda,
-                    on_change=CobroState.set_pac_busqueda,
-                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                rx.debounce_input(
+                    rx.el.input(
+                        placeholder="Buscar por nombre o DNI…",
+                        value=CobroState.pac_busqueda,
+                        on_change=CobroState.set_pac_busqueda,
+                        class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    ),
+                    debounce_timeout=300,
                 ),
                 class_name="relative",
             ),
@@ -137,11 +140,14 @@ def _catalogo() -> rx.Component:
         # Búsqueda
         rx.el.div(
             rx.icon("search", size=14, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-            rx.el.input(
-                placeholder="Buscar en catálogo…",
-                value=CobroState.busqueda_item,
-                on_change=CobroState.set_busqueda_item,
-                class_name="w-full pl-8 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:border-sky-400",
+            rx.debounce_input(
+                rx.el.input(
+                    placeholder="Buscar en catálogo…",
+                    value=CobroState.busqueda_item,
+                    on_change=CobroState.set_busqueda_item,
+                    class_name="w-full pl-8 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:border-sky-400",
+                ),
+                debounce_timeout=300,
             ),
             class_name="relative",
         ),
@@ -227,13 +233,16 @@ def _totales() -> rx.Component:
         ),
         rx.el.div(
             rx.el.label("Descuento ($)", class_name="text-sm text-gray-600"),
-            rx.el.input(
-                value=CobroState.descuento_global,
-                on_change=CobroState.set_descuento_global,
-                type="number",
-                min="0",
-                step="0.01",
-                class_name="w-24 text-right px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+            rx.debounce_input(
+                rx.el.input(
+                    value=CobroState.descuento_global,
+                    on_change=CobroState.set_descuento_global,
+                    type="number",
+                    min="0",
+                    step="0.01",
+                    class_name="w-24 text-right px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
+                ),
+                debounce_timeout=300,
             ),
             class_name="flex justify-between items-center",
         ),
@@ -300,14 +309,17 @@ def _pago_form() -> rx.Component:
                 ),
                 rx.el.div(
                     rx.el.label("Anticipo ($)", class_name="text-xs text-gray-600 mb-1 block"),
-                    rx.el.input(
-                        placeholder="0.00",
-                        value=CobroState.cuota_inicial,
-                        on_change=CobroState.set_cuota_inicial,
-                        type="number",
-                        min="0",
-                        step="0.01",
-                        class_name=_INPUT_CLS,
+                    rx.debounce_input(
+                        rx.el.input(
+                            placeholder="0.00",
+                            value=CobroState.cuota_inicial,
+                            on_change=CobroState.set_cuota_inicial,
+                            type="number",
+                            min="0",
+                            step="0.01",
+                            class_name=_INPUT_CLS,
+                        ),
+                        debounce_timeout=300,
                     ),
                 ),
                 class_name="grid grid-cols-2 gap-3 mb-4",
@@ -316,11 +328,14 @@ def _pago_form() -> rx.Component:
         # Observación
         rx.el.div(
             rx.el.label("Observación", class_name="text-xs text-gray-500 mb-1 block"),
-            rx.el.input(
-                placeholder="Opcional…",
-                value=CobroState.observacion,
-                on_change=CobroState.set_observacion,
-                class_name=_INPUT_CLS,
+            rx.debounce_input(
+                rx.el.input(
+                    placeholder="Opcional…",
+                    value=CobroState.observacion,
+                    on_change=CobroState.set_observacion,
+                    class_name=_INPUT_CLS,
+                ),
+                debounce_timeout=300,
             ),
             class_name="mb-4",
         ),
@@ -433,6 +448,14 @@ def _modal_recibo() -> rx.Component:
                         "Imprimir",
                         on_click=CobroState.imprimir_recibo,
                         class_name="flex items-center px-4 py-2 bg-sky-600 text-white text-sm rounded-lg hover:bg-sky-700 cursor-pointer",
+                    ),
+                    # Descargar PDF
+                    rx.el.a(
+                        rx.icon("file-down", size=15, class_name="mr-1.5"),
+                        "PDF",
+                        href=f"/api/recibo/pdf?comp_id={CobroState.ultimo_comp['id']}&clinica_id={CobroState.clinica_id}",
+                        target="_blank",
+                        class_name="flex items-center px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 cursor-pointer",
                     ),
                     rx.el.button(
                         rx.icon("x", size=15, class_name="mr-1"),

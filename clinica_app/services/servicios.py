@@ -6,7 +6,7 @@ from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from clinica_app.models.base import tenant_select
-from clinica_app.models.servicio import Servicio
+from clinica_app.models.servicio import Servicio, ServicioPrecioHist
 from clinica_app.services.exceptions import NotFoundError, ServiceError
 
 
@@ -131,12 +131,26 @@ def actualizar(session: Session, clinica_id: int, servicio_id: int, payload: dic
     except (ValueError, TypeError):
         raise ServiceError("Duración inválida")
 
+    precio_anterior = s.precio
     s.nombre      = nombre
     s.categoria   = (payload.get("categoria") or "").strip() or None
     s.descripcion = (payload.get("descripcion") or "").strip() or None
     s.precio      = precio
     s.duracion_min = duracion
     s.protocolo   = (payload.get("protocolo") or "").strip() or None
+
+    # Registrar cambio de precio si hubo variación
+    if precio != precio_anterior:
+        hist = ServicioPrecioHist(
+            clinica_id=clinica_id,
+            servicio_id=servicio_id,
+            precio_anterior=precio_anterior,
+            precio_nuevo=precio,
+            motivo=payload.get("motivo_precio"),
+            usuario_id=payload.get("usuario_id"),
+        )
+        session.add(hist)
+
     session.flush()
     return _dump(s)
 
@@ -145,3 +159,28 @@ def eliminar(session: Session, clinica_id: int, servicio_id: int) -> None:
     s = obtener(session, clinica_id, servicio_id)
     s.soft_delete()
     session.flush()
+
+
+def historial_precios(session: Session, clinica_id: int, servicio_id: int) -> list[dict]:
+    from clinica_app.models.user import User
+    from sqlalchemy.orm import selectinload
+    registros = session.exec(
+        select(ServicioPrecioHist)
+        .where(
+            ServicioPrecioHist.clinica_id == clinica_id,
+            ServicioPrecioHist.servicio_id == servicio_id,
+        )
+        .order_by(ServicioPrecioHist.registrado_en.desc())
+        .limit(50)
+    ).all()
+    return [
+        {
+            "id":              r.id,
+            "precio_anterior": str(r.precio_anterior),
+            "precio_nuevo":    str(r.precio_nuevo),
+            "motivo":          r.motivo or "—",
+            "usuario_id":      r.usuario_id,
+            "registrado_en":   r.registrado_en.strftime("%Y-%m-%d %H:%M") if r.registrado_en else "",
+        }
+        for r in registros
+    ]

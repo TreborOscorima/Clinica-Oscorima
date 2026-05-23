@@ -51,12 +51,15 @@ def _modal_movimiento() -> rx.Component:
                         rx.el.label("Monto *", class_name="block text-sm font-medium text-gray-700 mb-1"),
                         rx.el.div(
                             rx.el.span("$", class_name="text-gray-500 text-sm px-3"),
-                            rx.el.input(
-                                type="text", input_mode="decimal",
-                                value=CajaState.form_monto,
-                                on_change=CajaState.set_form_monto,
-                                placeholder="0.00",
-                                class_name="flex-1 py-2 pr-3 outline-none text-sm",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="text", input_mode="decimal",
+                                    value=CajaState.form_monto,
+                                    on_change=CajaState.set_form_monto,
+                                    placeholder="0.00",
+                                    class_name="flex-1 py-2 pr-3 outline-none text-sm",
+                                ),
+                                debounce_timeout=300,
                             ),
                             class_name="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
                         ),
@@ -77,11 +80,14 @@ def _modal_movimiento() -> rx.Component:
                     # Observación
                     rx.el.div(
                         rx.el.label("Observación", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.el.textarea(
-                            value=CajaState.form_observacion,
-                            on_change=CajaState.set_form_observacion,
-                            rows=2, placeholder="Opcional...",
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
+                        rx.debounce_input(
+                            rx.el.textarea(
+                                value=CajaState.form_observacion,
+                                on_change=CajaState.set_form_observacion,
+                                rows=2, placeholder="Opcional...",
+                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
+                            ),
+                            debounce_timeout=300,
                         ),
                     ),
                     class_name="space-y-4",
@@ -143,16 +149,100 @@ def _fila_mov(m: dict) -> rx.Component:
     )
 
 
+def _modal_cierre() -> rx.Component:
+    return rx.cond(
+        CajaState.modal_cierre,
+        rx.el.div(
+            rx.el.div(class_name="fixed inset-0 bg-black/40 z-40", on_click=CajaState.cerrar_modal_cierre),
+            rx.el.div(
+                rx.el.div(
+                    rx.el.h2("Cierre de caja", class_name="text-lg font-semibold text-gray-900"),
+                    rx.el.button(rx.icon("x", size=18), on_click=CajaState.cerrar_modal_cierre,
+                                 class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
+                    class_name="flex items-center justify-between mb-5",
+                ),
+                # Resumen del día
+                rx.el.div(
+                    rx.el.p("Resumen del día de hoy", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3"),
+                    rx.el.div(
+                        rx.el.div(
+                            rx.el.span("Ingresos", class_name="text-sm text-gray-600"),
+                            rx.el.span(f"$ {CajaState.ingresos_dia}", class_name="text-sm font-semibold text-green-700"),
+                            class_name="flex justify-between py-2 border-b border-gray-100",
+                        ),
+                        rx.el.div(
+                            rx.el.span("Egresos", class_name="text-sm text-gray-600"),
+                            rx.el.span(f"$ {CajaState.egresos_dia}", class_name="text-sm font-semibold text-red-600"),
+                            class_name="flex justify-between py-2 border-b border-gray-100",
+                        ),
+                        rx.el.div(
+                            rx.el.span("Saldo neto", class_name="text-sm font-semibold text-gray-800"),
+                            rx.el.span(f"$ {CajaState.saldo_dia}", class_name="text-base font-bold text-sky-700"),
+                            class_name="flex justify-between py-2",
+                        ),
+                    ),
+                    class_name="bg-gray-50 rounded-xl p-4 mb-5",
+                ),
+                rx.el.p(
+                    rx.icon("triangle-alert", size=14, class_name="inline mr-1 text-amber-500"),
+                    "El cierre es definitivo para el día de hoy. No se puede revertir.",
+                    class_name="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg mb-4",
+                ),
+                # Mensajes
+                rx.cond(
+                    CajaState.cierre_msg != "",
+                    rx.el.p(CajaState.cierre_msg, class_name="text-sm text-green-700 bg-green-50 p-3 rounded-lg mb-3"),
+                ),
+                rx.cond(
+                    CajaState.cierre_error != "",
+                    rx.el.p(CajaState.cierre_error, class_name="text-sm text-red-600 bg-red-50 p-3 rounded-lg mb-3"),
+                ),
+                rx.el.div(
+                    rx.el.button("Cancelar", on_click=CajaState.cerrar_modal_cierre,
+                                 class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"),
+                    rx.cond(
+                        CajaState.cierre_msg == "",
+                        rx.el.button(
+                            rx.cond(
+                                CajaState.is_cerrando,
+                                rx.el.div(rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"),
+                                          "Cerrando...", class_name="flex items-center"),
+                                rx.el.div(rx.icon("lock", size=16, class_name="mr-1"), "Confirmar cierre",
+                                          class_name="flex items-center"),
+                            ),
+                            on_click=CajaState.confirmar_cierre,
+                            disabled=CajaState.is_cerrando,
+                            class_name="flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 cursor-pointer",
+                        ),
+                    ),
+                    class_name="flex gap-3 justify-end",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 def caja_page() -> rx.Component:
     return shell(
         _modal_movimiento(),
+        _modal_cierre(),
         # Encabezado
         rx.el.div(
             rx.el.h1("Caja", class_name="text-xl font-semibold text-gray-900"),
-            rx.el.button(
-                rx.icon("plus", size=16), "Nuevo movimiento",
-                on_click=CajaState.abrir_modal,
-                class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer",
+            rx.el.div(
+                rx.el.button(
+                    rx.icon("lock", size=15), "Cierre del día",
+                    on_click=CajaState.abrir_cierre,
+                    class_name="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer",
+                ),
+                rx.el.button(
+                    rx.icon("plus", size=16), "Nuevo movimiento",
+                    on_click=CajaState.abrir_modal,
+                    class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer",
+                ),
+                class_name="flex items-center gap-3",
             ),
             class_name="flex items-center justify-between mb-6",
         ),
@@ -207,6 +297,50 @@ def caja_page() -> rx.Component:
                 class_name="flex items-center justify-between px-4 py-3 border-t border-gray-100",
             ),
             class_name="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden",
+        ),
+        # Historial de cierres
+        rx.el.div(
+            rx.el.button(
+                rx.icon("chevron-down", size=16, class_name=rx.cond(CajaState.ver_historial, "rotate-180 transition", "transition")),
+                "Historial de cierres de caja",
+                on_click=CajaState.toggle_historial,
+                class_name="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer mt-6",
+            ),
+            rx.cond(
+                CajaState.ver_historial,
+                rx.el.div(
+                    rx.cond(
+                        CajaState.cierres.length() == 0,
+                        rx.el.p("Sin cierres registrados", class_name="text-sm text-gray-400 italic text-center py-4"),
+                        rx.el.div(
+                            rx.el.table(
+                                rx.el.thead(
+                                    rx.el.tr(
+                                        *[rx.el.th(h, class_name="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase")
+                                          for h in ["Fecha", "Ingresos", "Egresos", "Saldo neto", "Registrado"]],
+                                    ),
+                                    class_name="bg-gray-50 border-b border-gray-200",
+                                ),
+                                rx.el.tbody(
+                                    rx.foreach(
+                                        CajaState.cierres.to(list[dict]),
+                                        lambda c: rx.el.tr(
+                                            rx.el.td(c["fecha"], class_name="px-4 py-2 text-sm font-mono text-gray-600"),
+                                            rx.el.td(rx.el.span(f"$ {c['total_ingresos']}", class_name="text-sm font-semibold text-green-700"), class_name="px-4 py-2"),
+                                            rx.el.td(rx.el.span(f"$ {c['total_egresos']}", class_name="text-sm font-semibold text-red-600"), class_name="px-4 py-2"),
+                                            rx.el.td(rx.el.span(f"$ {c['saldo']}", class_name="text-sm font-bold text-sky-700"), class_name="px-4 py-2"),
+                                            rx.el.td(c["creado_en"], class_name="px-4 py-2 text-xs text-gray-400 font-mono"),
+                                            class_name="border-t border-gray-100 hover:bg-gray-50",
+                                        ),
+                                    ),
+                                ),
+                                class_name="w-full border-collapse",
+                            ),
+                            class_name="mt-3 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden",
+                        ),
+                    ),
+                ),
+            ),
         ),
         on_mount=CajaState.on_mount,
     )

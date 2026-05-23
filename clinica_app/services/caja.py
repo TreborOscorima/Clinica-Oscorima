@@ -8,8 +8,8 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel import Session
 
-from clinica_app.models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
-from clinica_app.services.exceptions import NotFoundError, ServiceError
+from clinica_app.models.caja import CajaMovimiento, CierreCaja, MetodoPago, TipoMovimiento
+from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
 
@@ -133,6 +133,86 @@ def registrar_movimiento(session: Session, clinica_id: int, payload: dict[str, A
     session.add(mov)
     session.flush()
     return _dump_mov(mov)
+
+
+def realizar_cierre_dia(
+    session: Session,
+    clinica_id: int,
+    usuario_id: int | None = None,
+    fecha: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Registra el cierre de caja para el día indicado (hoy por defecto).
+    Lanza ConflictError si ya existe un cierre para ese día.
+    """
+    if fecha is None:
+        fecha = datetime.now(timezone.utc)
+
+    fecha_solo = fecha.date()
+    existente = session.exec(
+        select(CierreCaja).where(
+            CierreCaja.clinica_id == clinica_id,
+            CierreCaja.fecha == fecha_solo,
+            CierreCaja.is_active.is_(True),
+        )
+    ).first()
+    if existente:
+        raise ConflictError(f"Ya existe un cierre de caja para {fecha_solo.strftime('%d/%m/%Y')}")
+
+    resumen = resumen_dia(session, clinica_id, fecha)
+    cierre = CierreCaja(
+        clinica_id=clinica_id,
+        fecha=fecha_solo,
+        total_ingresos=Decimal(resumen["ingresos"]),
+        total_egresos=Decimal(resumen["egresos"]),
+        saldo=Decimal(resumen["saldo"]),
+        usuario_id=usuario_id,
+    )
+    session.add(cierre)
+    session.flush()
+    return {
+        "id":             cierre.id,
+        "fecha":          fecha_solo.strftime("%Y-%m-%d"),
+        "total_ingresos": resumen["ingresos"],
+        "total_egresos":  resumen["egresos"],
+        "saldo":          resumen["saldo"],
+        "total_movimientos": resumen["total_movimientos"],
+        "creado_en":      cierre.creado_en.strftime("%Y-%m-%d %H:%M") if cierre.creado_en else "",
+    }
+
+
+def listar_cierres(
+    session: Session,
+    clinica_id: int,
+    page: int = 1,
+    per_page: int = 20,
+) -> dict[str, Any]:
+    from datetime import date as date_type
+    stmt = select(CierreCaja).where(
+        CierreCaja.clinica_id == clinica_id,
+        CierreCaja.is_active.is_(True),
+    ).order_by(CierreCaja.fecha.desc())
+
+    total = session.execute(
+        select(func.count()).select_from(stmt.subquery())
+    ).scalar_one()
+    items = session.exec(stmt.offset((page - 1) * per_page).limit(per_page)).all()
+    return {
+        "data": [
+            {
+                "id":             c.id,
+                "fecha":          c.fecha.strftime("%Y-%m-%d") if c.fecha else "",
+                "total_ingresos": str(c.total_ingresos or "0"),
+                "total_egresos":  str(c.total_egresos or "0"),
+                "saldo":          str(c.saldo or "0"),
+                "creado_en":      c.creado_en.strftime("%Y-%m-%d %H:%M") if c.creado_en else "",
+            }
+            for c in items
+        ],
+        "total": total,
+        "pages": max(1, -(-total // per_page)),
+        "page":  page,
+    }
 
 
 def eliminar_movimiento(session: Session, clinica_id: int, mov_id: int) -> None:

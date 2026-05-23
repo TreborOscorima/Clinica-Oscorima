@@ -35,12 +35,15 @@ def login_page() -> rx.Component:
                                 "Email",
                                 class_name="block text-sm font-medium text-gray-700 mb-1",
                             ),
-                            rx.el.input(
-                                type="email",
-                                placeholder="admin@clinica.local",
-                                value=AuthState.email,
-                                on_change=AuthState.set_email,
-                                class_name="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="email",
+                                    placeholder="admin@clinica.local",
+                                    value=AuthState.email,
+                                    on_change=AuthState.set_email,
+                                    class_name="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition",
+                                ),
+                                debounce_timeout=300,
                             ),
                             class_name="mb-4",
                         ),
@@ -49,12 +52,15 @@ def login_page() -> rx.Component:
                                 "Contraseña",
                                 class_name="block text-sm font-medium text-gray-700 mb-1",
                             ),
-                            rx.el.input(
-                                type="password",
-                                placeholder="••••••••",
-                                value=AuthState.password,
-                                on_change=AuthState.set_password,
-                                class_name="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition",
+                            rx.debounce_input(
+                                rx.el.input(
+                                    type="password",
+                                    placeholder="••••••••",
+                                    value=AuthState.password,
+                                    on_change=AuthState.set_password,
+                                    class_name="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition",
+                                ),
+                                debounce_timeout=300,
                             ),
                             class_name="mb-4",
                         ),

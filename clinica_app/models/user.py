@@ -29,6 +29,8 @@ class User(TenantSQLModel, table=True):
     rol: RoleEnum = Field(
         sa_column=Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.RECEP)
     )
+    # Vínculo opcional con la entidad Profesional (para mostrar agenda propia)
+    profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)
 
     def set_password(self, raw: str) -> None:
         pwd_bytes = raw[:72].encode("utf-8")

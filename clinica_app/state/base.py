@@ -12,11 +12,12 @@ class BaseState(rx.State):
     en el servidor Python de Reflex y se propaga a todos los SubStates.
     """
 
-    user_id:    int  = 0
-    clinica_id: int  = 0   # ← eje central del multi-tenant
-    user_email: str  = ""
-    user_nombre: str = ""
-    user_role:  str  = ""  # RoleEnum.value: "administracion" | "recepcionista" | ...
+    user_id:         int  = 0
+    clinica_id:      int  = 0   # ← eje central del multi-tenant
+    user_email:      str  = ""
+    user_nombre:     str  = ""
+    user_role:       str  = ""  # RoleEnum.value: "administracion" | "recepcionista" | ...
+    profesional_id:  int  = 0   # 0 = sin vínculo; >0 = linked to Profesional
     is_authenticated: bool = False
 
     # ── Computed vars (derivados, read-only en el cliente) ─────────────────────
