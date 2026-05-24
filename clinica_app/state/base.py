@@ -12,13 +12,14 @@ class BaseState(rx.State):
     en el servidor Python de Reflex y se propaga a todos los SubStates.
     """
 
-    user_id:         int  = 0
-    clinica_id:      int  = 0   # ← eje central del multi-tenant
-    user_email:      str  = ""
-    user_nombre:     str  = ""
-    user_role:       str  = ""  # RoleEnum.value: "administracion" | "recepcionista" | ...
-    profesional_id:  int  = 0   # 0 = sin vínculo; >0 = linked to Profesional
+    user_id:          int  = 0
+    clinica_id:       int  = 0   # ← eje central del multi-tenant
+    user_email:       str  = ""
+    user_nombre:      str  = ""
+    user_role:        str  = ""  # RoleEnum.value: "administracion" | "recepcionista" | ...
+    profesional_id:   int  = 0   # 0 = sin vínculo; >0 = linked to Profesional
     is_authenticated: bool = False
+    sidebar_open:     bool = False
 
     # ── Computed vars (derivados, read-only en el cliente) ─────────────────────
 
@@ -45,6 +46,12 @@ class BaseState(rx.State):
         return mapping.get(self.user_role, self.user_role)
 
     # ── Guards ─────────────────────────────────────────────────────────────────
+
+    def toggle_sidebar(self):
+        self.sidebar_open = not self.sidebar_open
+
+    def close_sidebar(self):
+        self.sidebar_open = False
 
     def require_auth(self):
         """Redirige al login si el usuario no está autenticado."""

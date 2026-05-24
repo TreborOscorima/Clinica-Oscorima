@@ -162,8 +162,6 @@ def eliminar(session: Session, clinica_id: int, servicio_id: int) -> None:
 
 
 def historial_precios(session: Session, clinica_id: int, servicio_id: int) -> list[dict]:
-    from clinica_app.models.user import User
-    from sqlalchemy.orm import selectinload
     registros = session.exec(
         select(ServicioPrecioHist)
         .where(
