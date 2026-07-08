@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.reportes import ReportesState
 
 _TIPOS = [
@@ -113,12 +114,7 @@ def _status_panel() -> rx.Component:
 
 def reportes_page() -> rx.Component:
     return shell(
-        # Encabezado
-        rx.el.div(
-            rx.el.h1("Reportes", class_name="text-xl font-semibold text-gray-900 mb-0.5"),
-            rx.el.p("Genera y descarga reportes en Excel", class_name="text-sm text-gray-500"),
-            class_name="mb-6",
-        ),
+        page_header("Reportes", "Genera y descarga reportes en Excel"),
 
         # KPIs del mes
         rx.el.div(
@@ -151,24 +147,20 @@ def reportes_page() -> rx.Component:
                 rx.el.div(
                     rx.el.div(
                         rx.el.label("Desde", class_name="block text-xs text-gray-500 mb-1"),
-                        rx.debounce_input(
-                            rx.el.input(
-                                type="date", value=ReportesState.fecha_desde,
-                                on_change=ReportesState.set_fecha_desde,
-                                class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-sky-500",
-                            ),
-                            debounce_timeout=0,
+                        
+                        rx.el.input(
+                            type="date", default_value=ReportesState.fecha_desde,
+                            on_change=ReportesState.set_fecha_desde,
+                            class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
                     rx.el.div(
                         rx.el.label("Hasta", class_name="block text-xs text-gray-500 mb-1"),
-                        rx.debounce_input(
-                            rx.el.input(
-                                type="date", value=ReportesState.fecha_hasta,
-                                on_change=ReportesState.set_fecha_hasta,
-                                class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-sky-500",
-                            ),
-                            debounce_timeout=0,
+                        
+                        rx.el.input(
+                            type="date", default_value=ReportesState.fecha_hasta,
+                            on_change=ReportesState.set_fecha_hasta,
+                            class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
                     class_name="flex gap-4",

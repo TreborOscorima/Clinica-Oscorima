@@ -3,20 +3,30 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.state.base import BaseState
+from clinica_app.state.auth import AuthState
 
 
 # ── Primitivos de navegación ──────────────────────────────────────────────────
 
 def _nav_item(label: str, icon: str, href: str) -> rx.Component:
+    is_active = rx.State.router.page.path == href
     return rx.el.a(
         rx.el.div(
-            rx.icon(icon, size=17),
-            rx.el.span(label, class_name="ml-3 text-sm font-medium"),
-            class_name=rx.cond(
-                rx.State.router.page.path == href,
-                "flex items-center px-3 py-2 rounded-lg bg-sky-100 text-sky-700",
-                "flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors",
+            rx.cond(
+                is_active,
+                rx.el.div(class_name="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-sky-500 rounded-r-full"),
+                rx.fragment(),
             ),
+            rx.el.div(
+                rx.icon(icon, size=17),
+                rx.el.span(label, class_name="ml-3 text-sm font-medium"),
+                class_name=rx.cond(
+                    is_active,
+                    "flex items-center pl-4 pr-3 py-2 rounded-lg bg-sky-50 text-sky-700 font-semibold",
+                    "flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors",
+                ),
+            ),
+            class_name="relative",
         ),
         href=href,
         on_click=BaseState.close_sidebar,
@@ -27,7 +37,7 @@ def _nav_item(label: str, icon: str, href: str) -> rx.Component:
 def _section(label: str) -> rx.Component:
     return rx.el.p(
         label,
-        class_name="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1 mt-5",
+        class_name="text-xs font-semibold text-gray-400 uppercase tracking-widest px-3 mb-1 mt-5",
     )
 
 
@@ -36,11 +46,41 @@ def _section(label: str) -> rx.Component:
 def _logo() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.icon("stethoscope", size=20, color="white"),
-            class_name="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center shrink-0",
+            rx.el.div(
+                rx.icon("stethoscope", size=20, color="white"),
+                class_name="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center shrink-0",
+            ),
+            rx.el.span("WaykiSAC", class_name="ml-2 font-bold text-gray-900 text-lg"),
+            class_name="flex items-center",
         ),
-        rx.el.span("WaykiSAC", class_name="ml-2 font-bold text-gray-900 text-lg"),
-        class_name="flex items-center px-3 py-4 shrink-0",
+        rx.cond(
+            BaseState.sede_actual_nombre != "",
+            rx.el.div(
+                rx.el.div(
+                    rx.icon("map-pin", size=11, class_name="text-sky-600 shrink-0"),
+                    rx.el.span(
+                        BaseState.sede_actual_nombre,
+                        class_name="ml-1 text-xs font-medium text-sky-700 truncate flex-1",
+                    ),
+                    class_name="flex items-center",
+                ),
+                rx.cond(
+                    AuthState.tiene_multiples_sedes,
+                    rx.el.button(
+                        rx.icon("arrow-left-right", size=10),
+                        rx.el.span("Cambiar", class_name="ml-1 text-xs"),
+                        on_click=AuthState.abrir_selector_sede,
+                        class_name=(
+                            "flex items-center mt-0.5 ml-1 text-sky-500 "
+                            "hover:text-sky-700 transition-colors cursor-pointer"
+                        ),
+                        title="Cambiar sucursal",
+                    ),
+                ),
+                class_name="flex items-center justify-between mt-1 px-1",
+            ),
+        ),
+        class_name="px-3 py-3 shrink-0",
     )
 
 
@@ -73,6 +113,7 @@ def _nav_links() -> rx.Component:
     )
 
 
+
 def _user_footer() -> rx.Component:
     return rx.el.div(
         rx.el.div(
@@ -88,7 +129,7 @@ def _user_footer() -> rx.Component:
             rx.el.button(
                 rx.icon("log-out", size=16),
                 on_click=BaseState.logout,
-                class_name="ml-auto text-gray-400 hover:text-red-500 transition-colors cursor-pointer shrink-0",
+                class_name="text-gray-400 hover:text-red-500 transition-colors cursor-pointer shrink-0",
                 title="Cerrar sesión",
             ),
             class_name="flex items-center gap-2",

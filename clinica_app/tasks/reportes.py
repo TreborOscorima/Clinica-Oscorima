@@ -32,17 +32,22 @@ def generar_reporte(clinica_id: int, tipo: str, params: dict[str, Any]) -> str:
     return fn(clinica_id, params)
 
 
+def _sede_filter(stmt, model, params: dict):
+    sid = params.get("sede_id", 0)
+    if sid and hasattr(model, "sede_id"):
+        return stmt.where(model.sede_id == sid)
+    return stmt
+
+
 # ── Pacientes ─────────────────────────────────────────────────────────────────
 
 def _reporte_pacientes(clinica_id: int, params: dict) -> str:
     import openpyxl
 
     with get_session() as session:
-        rows = session.execute(
-            select(Paciente)
-            .where(Paciente.clinica_id == clinica_id, Paciente.is_active.is_(True))
-            .order_by(Paciente.nombre)
-        ).scalars().all()
+        stmt = select(Paciente).where(Paciente.clinica_id == clinica_id, Paciente.is_active.is_(True))
+        stmt = _sede_filter(stmt, Paciente, params)
+        rows = session.execute(stmt.order_by(Paciente.nombre)).scalars().all()
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -73,6 +78,7 @@ def _reporte_caja(clinica_id: int, params: dict) -> str:
             select(CajaMovimiento)
             .where(CajaMovimiento.clinica_id == clinica_id, CajaMovimiento.is_active.is_(True))
         )
+        stmt = _sede_filter(stmt, CajaMovimiento, params)
         if desde_str:
             stmt = stmt.where(CajaMovimiento.fecha >= datetime.fromisoformat(desde_str))
         if hasta_str:
@@ -109,6 +115,7 @@ def _reporte_turnos(clinica_id: int, params: dict) -> str:
             select(Turno)
             .where(Turno.clinica_id == clinica_id, Turno.is_active.is_(True))
         )
+        stmt = _sede_filter(stmt, Turno, params)
         if desde_str:
             stmt = stmt.where(Turno.fecha_hora >= datetime.fromisoformat(desde_str))
         if hasta_str:
@@ -135,11 +142,9 @@ def _reporte_inventario(clinica_id: int, params: dict) -> str:
     import openpyxl
 
     with get_session() as session:
-        rows = session.execute(
-            select(Producto)
-            .where(Producto.clinica_id == clinica_id, Producto.is_active.is_(True))
-            .order_by(Producto.nombre)
-        ).scalars().all()
+        stmt = select(Producto).where(Producto.clinica_id == clinica_id, Producto.is_active.is_(True))
+        stmt = _sede_filter(stmt, Producto, params)
+        rows = session.execute(stmt.order_by(Producto.nombre)).scalars().all()
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -171,6 +176,7 @@ def _reporte_compras(clinica_id: int, params: dict) -> str:
             .outerjoin(Proveedor, Compra.proveedor_id == Proveedor.id)
             .where(Compra.clinica_id == clinica_id, Compra.is_active.is_(True))
         )
+        stmt = _sede_filter(stmt, Compra, params)
         if desde_str:
             stmt = stmt.where(Compra.fecha >= datetime.fromisoformat(desde_str))
         if hasta_str:

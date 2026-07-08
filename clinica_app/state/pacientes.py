@@ -3,27 +3,30 @@ from __future__ import annotations
 from typing import Any
 
 import reflex as rx
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import pacientes as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
 
 
 class PacientesState(BaseState):
-    """Estado del módulo Pacientes. clinica_id viene de BaseState."""
+    """Estado del módulo Pacientes."""
 
-    # ── Datos de tabla ─────────────────────────────────────────────────────────
+    # ── Tabla ──────────────────────────────────────────────────────────────────
     pacientes:   list[dict] = []
     total:       int        = 0
     page:        int        = 1
     per_page:    int        = 20
     total_pages: int        = 1
     busqueda:    str        = ""
+    is_loading:  bool       = False
 
-    # ── Modal de creación/edición ──────────────────────────────────────────────
+    # ── Modal creación/edición ─────────────────────────────────────────────────
     modal_abierto:   bool = False
-    editando_id:     int  = 0     # 0 = creación
+    editando_id:     int  = 0
     form_nombre:     str  = ""
     form_documento:  str  = ""
     form_email:      str  = ""
@@ -34,7 +37,7 @@ class PacientesState(BaseState):
     form_error:      str  = ""
     is_saving:       bool = False
 
-    # ── Panel de detalle / historial ───────────────────────────────────────────
+    # ── Panel de detalle ───────────────────────────────────────────────────────
     panel_detalle: bool = False
     paciente_sel: dict = {
         "id": 0, "nombre": "", "documento": "", "email": "",
@@ -44,16 +47,25 @@ class PacientesState(BaseState):
     historial_comprobantes: list[dict] = []
     historial_deudas:       list[dict] = []
 
-    # ── Carga ─────────────────────────────────────────────────────────────────
+    # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def on_mount(self):
-        return self.require_auth() or self.cargar()
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async for s in self.cargar():
+            yield s
 
-    def cargar(self):
-        with get_session() as session:
-            resultado = svc.listar(
+    # ── Carga progresiva ───────────────────────────────────────────────────────
+
+    async def cargar(self):
+        self.is_loading = True
+        yield
+        async with get_async_session() as session:
+            resultado = await svc.listar(
                 session,
                 self.clinica_id,
+                sede_id=self.sede_actual_id,
                 q=self.busqueda,
                 page=self.page,
                 per_page=self.per_page,
@@ -61,15 +73,18 @@ class PacientesState(BaseState):
         self.pacientes   = resultado["data"]
         self.total       = resultado["total"]
         self.total_pages = resultado["pages"]
+        self.is_loading  = False
 
     # ── Búsqueda ───────────────────────────────────────────────────────────────
 
-    def set_busqueda(self, value: str):
+    async def set_busqueda(self, value: str):
         self.busqueda = value
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    # ── Setters de formulario ──────────────────────────────────────────────────
+
     def set_form_nombre(self, v: str):     self.form_nombre = v
     def set_form_documento(self, v: str):  self.form_documento = v
     def set_form_email(self, v: str):      self.form_email = v
@@ -80,15 +95,17 @@ class PacientesState(BaseState):
 
     # ── Paginación ─────────────────────────────────────────────────────────────
 
-    def prev_page(self):
+    async def prev_page(self):
         if self.page > 1:
             self.page -= 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def next_page(self):
+    async def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Modal ──────────────────────────────────────────────────────────────────
 
@@ -145,11 +162,11 @@ class PacientesState(BaseState):
             return
 
         try:
-            with get_session() as session:
+            async with get_async_session() as session:
                 if self.editando_id:
-                    svc.actualizar(session, self.clinica_id, self.editando_id, payload)
+                    await svc.actualizar(session, self.clinica_id, self.editando_id, payload, sede_id=self.sede_actual_id)
                 else:
-                    svc.crear(session, self.clinica_id, payload)
+                    await svc.crear(session, self.clinica_id, sede_id=self.sede_actual_id, payload=payload)
         except ServiceError as exc:
             self.form_error = str(exc)
             self.is_saving  = False
@@ -157,36 +174,51 @@ class PacientesState(BaseState):
 
         self.is_saving     = False
         self.modal_abierto = False
-        self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    # ── Panel de detalle ───────────────────────────────────────────────────────
+    # ── Panel de detalle — Fase 3: N+1 eliminado con selectinload ─────────────
 
-    def abrir_detalle(self, p: dict):
+    async def abrir_detalle(self, p: dict):
         from clinica_app.models.caja import Comprobante, DeudaPaciente
         from clinica_app.models.turno import Turno
-        from sqlmodel import select
 
         self.paciente_sel = p
         pac_id = p.get("id") or 0
 
-        with get_session() as session:
-            turnos = session.exec(
+        async with get_async_session() as session:
+            # Turno con relaciones pre-cargadas en UNA sola consulta (no N+1)
+            q_turnos = (
                 select(Turno)
-                .where(Turno.paciente_id == pac_id, Turno.is_active.is_(True))
+                .where(
+                    Turno.paciente_id == pac_id,
+                    Turno.clinica_id == self.clinica_id,
+                    Turno.is_active.is_(True),
+                )
+                .options(
+                    selectinload(Turno.profesional),
+                    selectinload(Turno.servicio),
+                )
                 .order_by(Turno.fecha_hora.desc())
                 .limit(10)
-            ).all()
+            )
+            if self.sede_actual_id:
+                q_turnos = q_turnos.where(Turno.sede_id == self.sede_actual_id)
+            turnos = (await session.execute(q_turnos)).scalars().all()
             self.historial_turnos = [
                 {
-                    "fecha_hora":        t.fecha_hora.strftime("%d/%m/%Y %H:%M") if t.fecha_hora else "",
-                    "profesional_nombre": t.profesional.nombres + " " + t.profesional.apellidos if t.profesional else "—",
-                    "servicio_nombre":   t.servicio.nombre if t.servicio else "—",
-                    "estado":            t.estado.value if t.estado else "",
+                    "fecha_hora":         t.fecha_hora.strftime("%d/%m/%Y %H:%M") if t.fecha_hora else "",
+                    "profesional_nombre": (
+                        f"{t.profesional.nombres} {t.profesional.apellidos}"
+                        if t.profesional else "—"
+                    ),
+                    "servicio_nombre":    t.servicio.nombre if t.servicio else "—",
+                    "estado":             t.estado.value if t.estado else "",
                 }
                 for t in turnos
             ]
 
-            comprobantes = session.exec(
+            q_comp = (
                 select(Comprobante)
                 .where(
                     Comprobante.paciente_id == pac_id,
@@ -195,7 +227,10 @@ class PacientesState(BaseState):
                 )
                 .order_by(Comprobante.fecha.desc())
                 .limit(10)
-            ).all()
+            )
+            if self.sede_actual_id:
+                q_comp = q_comp.where(Comprobante.sede_id == self.sede_actual_id)
+            comprobantes = (await session.execute(q_comp)).scalars().all()
             self.historial_comprobantes = [
                 {
                     "numero":     c.numero or f"#{c.id}",
@@ -206,16 +241,18 @@ class PacientesState(BaseState):
                 for c in comprobantes
             ]
 
-            deudas = session.exec(
-                select(DeudaPaciente)
-                .where(
-                    DeudaPaciente.paciente_id == pac_id,
-                    DeudaPaciente.clinica_id == self.clinica_id,
-                    DeudaPaciente.estado != "saldado",
-                    DeudaPaciente.is_active.is_(True),
+            deudas = (
+                await session.execute(
+                    select(DeudaPaciente)
+                    .where(
+                        DeudaPaciente.paciente_id == pac_id,
+                        DeudaPaciente.clinica_id == self.clinica_id,
+                        DeudaPaciente.estado != "saldado",
+                        DeudaPaciente.is_active.is_(True),
+                    )
+                    .order_by(DeudaPaciente.creado_en.desc())
                 )
-                .order_by(DeudaPaciente.creado_en.desc())
-            ).all()
+            ).scalars().all()
             self.historial_deudas = [
                 {
                     "saldo":  f"{float(d.saldo or 0):.2f}",
@@ -232,10 +269,37 @@ class PacientesState(BaseState):
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 
-    def eliminar(self, paciente_id: int):
-        try:
-            with get_session() as session:
-                svc.eliminar(session, self.clinica_id, paciente_id)
-        except ServiceError:
-            pass
-        return self.cargar()
+    async def eliminar(self, paciente_id: int):
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar(session, self.clinica_id, paciente_id, sede_id=self.sede_actual_id)
+            except ServiceError:
+                pass
+        async for s in self.cargar():
+            yield s
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    async def handle_modal_key(self, key: str):
+        if key == "Escape":
+            self.modal_abierto = False
+        elif key == "Enter" and self.modal_abierto and not self.is_saving:
+            async for s in self.guardar():
+                yield s
+
+    def handle_panel_key(self, key: str):
+        if key == "Escape":
+            self.panel_detalle = False
+
+    async def handle_busqueda_key(self, key: str):
+        if key == "Escape" and self.busqueda:
+            async for s in self.set_busqueda(""):
+                yield s
+
+    async def handle_tabla_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.prev_page():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.next_page():
+                yield s

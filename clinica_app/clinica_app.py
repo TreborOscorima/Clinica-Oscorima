@@ -15,8 +15,8 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 
 from clinica_app.config import REPORT_EXPORT_DIR
-from clinica_app.database import get_session as _get_session
-from clinica_app.database import _engine
+from clinica_app.database import get_async_session as _get_async_session
+from clinica_app.database import _sync_engine as _engine
 import clinica_app.models  # noqa: F401 — registra todos los modelos antes del create_all
 
 # Crea las tablas que no existen (no toca las existentes)
@@ -113,6 +113,16 @@ async def _health_check(request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
+async def _api_ping(request: Request) -> JSONResponse:
+    """Ping liviano — usado por el HEALTHCHECK del contenedor Docker."""
+    return JSONResponse({"status": "ok"})
+
+
+async def _api_health(request: Request) -> JSONResponse:
+    """Health con identidad de app — usado por deploy-prod.sh vía NPM."""
+    return JSONResponse({"status": "ok", "app": "waykisac-clinica"})
+
+
 async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
     filename = os.path.basename(request.path_params.get("filename", ""))
     if not filename:
@@ -141,8 +151,8 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
     try:
         from clinica_app.services.pdf_recibo import generar_recibo_pdf, obtener_datos_comprobante
         from clinica_app.config import CLINICA_NOMBRE
-        with _get_session() as session:
-            comp_dict, pac_nombre = obtener_datos_comprobante(session, clinica_id, comp_id)
+        async with _get_async_session() as session:
+            comp_dict, pac_nombre = await obtener_datos_comprobante(session, clinica_id, comp_id)
         filename = generar_recibo_pdf(comp_dict, pac_nombre, CLINICA_NOMBRE)
         path = os.path.join(REPORT_EXPORT_DIR, filename)
         if not os.path.isfile(path):
@@ -157,5 +167,7 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
 
 
 app._api.add_route("/health", _health_check)
+app._api.add_route("/api/ping", _api_ping)
+app._api.add_route("/api/health", _api_health)
 app._api.add_route("/api/reportes/descargar/{filename}", _descargar_reporte)
 app._api.add_route("/api/recibo/pdf", _generar_pdf_recibo)

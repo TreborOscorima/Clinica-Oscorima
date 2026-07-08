@@ -44,6 +44,15 @@ class User(TenantSQLModel, table=True):
             return False
 
 
+class UsuarioSede(BaseSQLModel, table=True):
+    """Sucursales a las que tiene acceso un usuario (no-admin)."""
+    __tablename__ = "usuario_sedes"
+    __table_args__ = (UniqueConstraint("user_id", "sede_id", name="uq_usuario_sedes"),)
+
+    user_id: int = Field(foreign_key="usuarios.id", nullable=False, index=True)
+    sede_id: int = Field(foreign_key="sedes.id",    nullable=False, index=True)
+
+
 class PermisoRol(BaseSQLModel, table=True):
     __tablename__ = "permisos_rol"
 

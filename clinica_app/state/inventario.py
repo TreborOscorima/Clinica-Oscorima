@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import reflex as rx
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import inventario as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -17,34 +17,53 @@ class InventarioState(BaseState):
     total_pages: int        = 1
     busqueda:    str        = ""
     solo_minimo: bool       = False
+    is_loading:  bool       = False
+
+    # Margen de ganancia de la clínica (para sugerir precio de venta)
+    margen_global: float = 50.0
 
     # Modal producto
-    modal_producto:  bool = False
-    editando_id:     int  = 0
-    form_nombre:     str  = ""
-    form_sku:        str  = ""
-    form_precio_costo: str = ""
-    form_precio_venta: str = ""
-    form_stock_actual: str = ""
-    form_stock_minimo: str = ""
-    form_error:      str  = ""
-    is_saving:       bool = False
+    modal_producto:    bool = False
+    editando_id:       int  = 0
+    form_nombre:       str  = ""
+    form_sku:          str  = ""
+    form_precio_costo: str  = ""
+    form_precio_venta: str  = ""
+    form_stock_actual: str  = ""
+    form_stock_minimo: str  = ""
+    form_error:        str  = ""
+    is_saving:         bool = False
 
     # Modal movimiento de stock
-    modal_mov:     bool = False
-    mov_prod_id:   int  = 0
-    mov_prod_nombre: str = ""
-    form_mov_tipo: str  = "ingreso"
-    form_mov_cantidad: str = ""
-    form_mov_motivo: str = ""
+    modal_mov:         bool = False
+    mov_prod_id:       int  = 0
+    mov_prod_nombre:   str  = ""
+    form_mov_tipo:     str  = "ingreso"
+    form_mov_cantidad: str  = ""
+    form_mov_motivo:   str  = ""
 
-    def on_mount(self):
-        return self.require_auth() or self.cargar()
+    # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def cargar(self):
-        with get_session() as session:
-            result = svc.listar_productos(
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async with get_async_session() as session:
+            from clinica_app.services.configuracion import obtener_clinica
+            c = await obtener_clinica(session, self.clinica_id)
+            self.margen_global = c["margen_global"]
+        async for s in self.cargar():
+            yield s
+
+    # ── Carga progresiva ───────────────────────────────────────────────────────
+
+    async def cargar(self):
+        self.is_loading = True
+        yield
+        async with get_async_session() as session:
+            result = await svc.listar_productos(
                 session, self.clinica_id,
+                sede_id=self.sede_actual_id,
                 q=self.busqueda,
                 bajo_minimo=self.solo_minimo,
                 page=self.page,
@@ -53,16 +72,28 @@ class InventarioState(BaseState):
         self.productos   = result["data"]
         self.total       = result["total"]
         self.total_pages = result["pages"]
+        self.is_loading  = False
 
-    def set_busqueda(self, v: str):
+    async def set_busqueda(self, v: str):
         self.busqueda = v
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    # ── Setters de formulario ──────────────────────────────────────────────────
+
     def set_form_nombre(self, v: str):        self.form_nombre = v
     def set_form_sku(self, v: str):           self.form_sku = v
-    def set_form_precio_costo(self, v: str):  self.form_precio_costo = v
+    def set_form_precio_costo(self, v: str):
+        self.form_precio_costo = v
+        if not self.form_precio_venta and v:
+            try:
+                costo = float(v)
+                if costo > 0:
+                    sugerido = costo * (1 + self.margen_global / 100)
+                    self.form_precio_venta = f"{sugerido:.2f}"
+            except ValueError:
+                pass
     def set_form_precio_venta(self, v: str):  self.form_precio_venta = v
     def set_form_stock_actual(self, v: str):  self.form_stock_actual = v
     def set_form_stock_minimo(self, v: str):  self.form_stock_minimo = v
@@ -70,20 +101,25 @@ class InventarioState(BaseState):
     def set_form_mov_cantidad(self, v: str):  self.form_mov_cantidad = v
     def set_form_mov_motivo(self, v: str):    self.form_mov_motivo = v
 
-    def toggle_minimo(self):
+    async def toggle_minimo(self):
         self.solo_minimo = not self.solo_minimo
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    def prev_page(self):
+    # ── Paginación ─────────────────────────────────────────────────────────────
+
+    async def prev_page(self):
         if self.page > 1:
             self.page -= 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def next_page(self):
+    async def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Modal producto ─────────────────────────────────────────────────────────
 
@@ -94,14 +130,14 @@ class InventarioState(BaseState):
 
     def abrir_editar(self, p: dict):
         self._limpiar_form()
-        self.editando_id      = p.get("id") or 0
-        self.form_nombre      = p.get("nombre") or ""
-        self.form_sku         = p.get("sku") or ""
+        self.editando_id       = p.get("id") or 0
+        self.form_nombre       = p.get("nombre") or ""
+        self.form_sku          = p.get("sku") or ""
         self.form_precio_costo = p.get("precio_costo") or ""
         self.form_precio_venta = p.get("precio_venta") or ""
         self.form_stock_actual = p.get("stock_actual") or ""
         self.form_stock_minimo = p.get("stock_minimo") or ""
-        self.modal_producto   = True
+        self.modal_producto    = True
 
     def cerrar_producto(self):
         self.modal_producto = False
@@ -130,11 +166,11 @@ class InventarioState(BaseState):
         }
 
         try:
-            with get_session() as session:
+            async with get_async_session() as session:
                 if self.editando_id:
-                    svc.actualizar_producto(session, self.clinica_id, self.editando_id, payload)
+                    await svc.actualizar_producto(session, self.clinica_id, self.editando_id, payload, self.sede_actual_id)
                 else:
-                    svc.crear_producto(session, self.clinica_id, payload)
+                    await svc.crear_producto(session, self.clinica_id, payload, self.sede_actual_id)
         except ServiceError as exc:
             self.form_error = str(exc)
             self.is_saving  = False
@@ -142,43 +178,71 @@ class InventarioState(BaseState):
 
         self.is_saving      = False
         self.modal_producto = False
-        self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    def eliminar_producto(self, prod_id: int):
-        try:
-            with get_session() as session:
-                svc.eliminar_producto(session, self.clinica_id, prod_id)
-        except ServiceError:
-            pass
-        return self.cargar()
+    async def eliminar_producto(self, prod_id: int):
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar_producto(session, self.clinica_id, prod_id, self.sede_actual_id)
+            except ServiceError:
+                pass
+        async for s in self.cargar():
+            yield s
 
     # ── Modal movimiento de stock ──────────────────────────────────────────────
 
     def abrir_mov(self, p: dict):
-        self.mov_prod_id     = p.get("id") or 0
-        self.mov_prod_nombre = p.get("nombre") or ""
-        self.form_mov_tipo   = "ingreso"
+        self.mov_prod_id       = p.get("id") or 0
+        self.mov_prod_nombre   = p.get("nombre") or ""
+        self.form_mov_tipo     = "ingreso"
         self.form_mov_cantidad = ""
         self.form_mov_motivo   = ""
-        self.modal_mov       = True
+        self.modal_mov         = True
 
     def cerrar_mov(self):
         self.modal_mov = False
 
-    def guardar_movimiento(self):
+    async def guardar_movimiento(self):
         if not self.form_mov_cantidad:
             return
-        try:
-            with get_session() as session:
-                svc.registrar_movimiento_stock(
+        async with get_async_session() as session:
+            try:
+                await svc.registrar_movimiento_stock(
                     session,
                     self.clinica_id,
                     self.mov_prod_id,
                     self.form_mov_tipo,
                     self.form_mov_cantidad,
                     motivo=self.form_mov_motivo,
+                    sede_id=self.sede_actual_id,
                 )
-        except ServiceError:
-            pass
+            except ServiceError:
+                pass
         self.modal_mov = False
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    async def handle_modal_producto_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_producto()
+        elif key == "Enter" and self.modal_producto and not self.is_saving:
+            async for s in self.guardar_producto():
+                yield s
+
+    async def handle_modal_mov_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_mov()
+        elif key == "Enter" and self.modal_mov and not self.is_saving:
+            async for s in self.guardar_movimiento():
+                yield s
+
+    async def handle_tabla_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.prev_page():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.next_page():
+                yield s

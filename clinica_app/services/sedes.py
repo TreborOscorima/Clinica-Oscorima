@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from clinica_app.models.base import tenant_select
 from clinica_app.models.sede import Sede
@@ -21,40 +22,34 @@ def _dump(s: Sede) -> dict[str, Any]:
     }
 
 
-def listar(session: Session, clinica_id: int) -> list[dict]:
-    rows = session.exec(
+async def listar(session: AsyncSession, clinica_id: int) -> list[dict]:
+    rows = (await session.execute(
         tenant_select(Sede, clinica_id).order_by(Sede.es_principal.desc(), Sede.nombre)
-    ).all()
+    )).scalars().all()
     return [_dump(s) for s in rows]
 
 
-def crear(session: Session, clinica_id: int, payload: dict) -> dict:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict) -> dict:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise ServiceError("El nombre de la sede es obligatorio")
 
-    existente = session.exec(
+    existente = (await session.execute(
         select(Sede).where(
             Sede.clinica_id == clinica_id,
             Sede.nombre == nombre,
             Sede.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if existente:
         raise ConflictError(f"Ya existe una sede con el nombre '{nombre}'")
 
     es_principal = bool(payload.get("es_principal", False))
     # Solo una sede puede ser principal: desmarcar las demás
     if es_principal:
-        session.exec(
-            select(Sede).where(
-                Sede.clinica_id == clinica_id,
-                Sede.es_principal.is_(True),
-            )
-        )
-        for s in session.exec(
+        for s in (await session.execute(
             select(Sede).where(Sede.clinica_id == clinica_id, Sede.is_active.is_(True))
-        ).all():
+        )).scalars().all():
             s.es_principal = False
 
     sede = Sede(
@@ -66,18 +61,18 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
         es_principal=es_principal,
     )
     session.add(sede)
-    session.flush()
+    await session.flush()
     return _dump(sede)
 
 
-def actualizar(session: Session, clinica_id: int, sede_id: int, payload: dict) -> dict:
-    sede = session.exec(
+async def actualizar(session: AsyncSession, clinica_id: int, sede_id: int, payload: dict) -> dict:
+    sede = (await session.execute(
         select(Sede).where(
             Sede.id == sede_id,
             Sede.clinica_id == clinica_id,
             Sede.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not sede:
         raise NotFoundError("Sede no encontrada")
 
@@ -92,29 +87,29 @@ def actualizar(session: Session, clinica_id: int, sede_id: int, payload: dict) -
 
     es_principal = bool(payload.get("es_principal", False))
     if es_principal and not sede.es_principal:
-        for s in session.exec(
+        for s in (await session.execute(
             select(Sede).where(Sede.clinica_id == clinica_id, Sede.is_active.is_(True))
-        ).all():
+        )).scalars().all():
             s.es_principal = False
         sede.es_principal = True
     elif not es_principal:
         sede.es_principal = False
 
-    session.flush()
+    await session.flush()
     return _dump(sede)
 
 
-def eliminar(session: Session, clinica_id: int, sede_id: int) -> None:
-    sede = session.exec(
+async def eliminar(session: AsyncSession, clinica_id: int, sede_id: int) -> None:
+    sede = (await session.execute(
         select(Sede).where(
             Sede.id == sede_id,
             Sede.clinica_id == clinica_id,
             Sede.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not sede:
         raise NotFoundError("Sede no encontrada")
     if sede.es_principal:
         raise ConflictError("No se puede eliminar la sede principal. Establecé otra como principal primero.")
     sede.soft_delete()
-    session.flush()
+    await session.flush()

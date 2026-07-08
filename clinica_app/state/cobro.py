@@ -4,8 +4,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import reflex as rx
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import cobro as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -21,11 +23,11 @@ _COMP_VACIO: dict = {
 class CobroState(BaseState):
 
     # ── Paciente ───────────────────────────────────────────────────────────────
-    pac_busqueda:   str       = ""
+    pac_busqueda:   str        = ""
     pac_resultados: list[dict] = []
-    pac_id_sel:     str       = ""
-    pac_nombre_sel: str       = ""
-    pac_doc_sel:    str       = ""
+    pac_id_sel:     str        = ""
+    pac_nombre_sel: str        = ""
+    pac_doc_sel:    str        = ""
 
     # ── Catálogos ──────────────────────────────────────────────────────────────
     servicios_todos:     list[dict] = []
@@ -57,7 +59,7 @@ class CobroState(BaseState):
     promociones_vigentes: list[dict] = []
     promo_sel_id:         str        = ""
 
-    # ── Último comprobante (para el modal recibo) ──────────────────────────────
+    # ── Último comprobante ─────────────────────────────────────────────────────
     modal_recibo: bool       = False
     ultimo_comp:  dict       = _COMP_VACIO
     ultimo_items: list[dict] = []
@@ -68,10 +70,20 @@ class CobroState(BaseState):
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def on_mount(self):
-        return self.require_auth() or self._cargar_catalogos() or self._cargar_promociones() or self._precargar_turno()
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        await self._cargar_catalogos()
+        await self._cargar_promociones()
+        await self._precargar_turno()
 
-    def _precargar_turno(self):
+    # ── Fase 3: N+1 eliminado — turno.servicio pre-cargado con selectinload ────
+
+    async def _precargar_turno(self):
+        from clinica_app.models.turno import Turno
+        from clinica_app.models.paciente import Paciente
+
         turno_id_str = self.router.url.query_parameters.get("turno_id", "")
         if not turno_id_str:
             return
@@ -80,38 +92,41 @@ class CobroState(BaseState):
         except ValueError:
             return
 
-        from clinica_app.models.turno import Turno
-        from clinica_app.models.paciente import Paciente
-        from sqlmodel import select
-
-        with get_session() as session:
-            turno = session.exec(
-                select(Turno).where(
+        async with get_async_session() as session:
+            q_turno = (
+                select(Turno)
+                .where(
                     Turno.id == turno_id,
                     Turno.clinica_id == self.clinica_id,
                     Turno.is_active.is_(True),
                 )
-            ).first()
+                .options(selectinload(Turno.servicio))
+            )
+            if self.sede_actual_id:
+                q_turno = q_turno.where(Turno.sede_id == self.sede_actual_id)
+            turno = (await session.execute(q_turno)).scalars().first()
             if turno is None:
                 return
 
-            paciente = session.exec(
-                select(Paciente).where(Paciente.id == turno.paciente_id)
-            ).first()
+            paciente = (
+                await session.execute(
+                    select(Paciente).where(Paciente.id == turno.paciente_id)
+                )
+            ).scalars().first()
             if paciente is None:
                 return
 
             pac_nombre = paciente.nombre
-            pac_doc = paciente.documento or ""
-            pac_id = str(turno.paciente_id)
+            pac_doc    = paciente.documento or ""
+            pac_id     = str(turno.paciente_id)
 
             servicio_nombre = None
             servicio_precio = None
-            servicio_id = None
+            servicio_id     = None
             if turno.servicio:
                 servicio_nombre = turno.servicio.nombre
                 servicio_precio = str(turno.servicio.precio or "0")
-                servicio_id = str(turno.servicio_id)
+                servicio_id     = str(turno.servicio_id)
 
         self.pac_id_sel     = pac_id
         self.pac_nombre_sel = pac_nombre
@@ -122,50 +137,56 @@ class CobroState(BaseState):
         if servicio_id and servicio_nombre and servicio_precio:
             self.agregar_servicio(servicio_id, servicio_nombre, servicio_precio)
 
-    def _cargar_catalogos(self):
+    async def _cargar_catalogos(self):
         from clinica_app.models.servicio   import Servicio
         from clinica_app.models.inventario import Producto
-        from sqlmodel import select
 
-        with get_session() as session:
-            servs = session.exec(
+        async with get_async_session() as session:
+            serv_stmt = (
                 select(Servicio)
                 .where(Servicio.clinica_id == self.clinica_id, Servicio.is_active.is_(True))
                 .order_by(Servicio.nombre.asc())
                 .limit(300)
-            ).all()
-            prods = session.exec(
+            )
+            if self.sede_actual_id:
+                serv_stmt = serv_stmt.where(Servicio.sede_id == self.sede_actual_id)
+            prod_stmt = (
                 select(Producto)
                 .where(Producto.clinica_id == self.clinica_id, Producto.is_active.is_(True))
                 .order_by(Producto.nombre.asc())
                 .limit(300)
-            ).all()
-            self.servicios_todos = [
-                {"id": str(s.id), "nombre": s.nombre, "precio": str(s.precio or 0),
-                 "categoria": s.categoria or ""}
-                for s in servs
-            ]
-            self.productos_todos = [
-                {"id": str(p.id), "nombre": p.nombre, "precio": str(p.precio_venta or 0)}
-                for p in prods
-            ]
+            )
+            if self.sede_actual_id:
+                prod_stmt = prod_stmt.where(Producto.sede_id == self.sede_actual_id)
+            servs = (await session.execute(serv_stmt)).scalars().all()
+            prods = (await session.execute(prod_stmt)).scalars().all()
+
+        self.servicios_todos = [
+            {"id": str(s.id), "nombre": s.nombre, "precio": str(s.precio or 0),
+             "categoria": s.categoria or ""}
+            for s in servs
+        ]
+        self.productos_todos = [
+            {"id": str(p.id), "nombre": p.nombre, "precio": str(p.precio_venta or 0)}
+            for p in prods
+        ]
         self.servicios_filtrados = self.servicios_todos[:40]
         self.productos_filtrados = self.productos_todos[:40]
 
-    def _cargar_promociones(self):
+    async def _cargar_promociones(self):
         from clinica_app.models.promocion import Promocion
-        from sqlmodel import select
         from datetime import datetime, timezone
 
         ahora = datetime.now(timezone.utc).replace(tzinfo=None)
-        with get_session() as session:
-            promos = session.exec(
-                select(Promocion).where(
-                    Promocion.clinica_id == self.clinica_id,
-                    Promocion.activo.is_(True),
-                    Promocion.is_active.is_(True),
-                )
-            ).all()
+        async with get_async_session() as session:
+            q_promos = select(Promocion).where(
+                Promocion.clinica_id == self.clinica_id,
+                Promocion.activo.is_(True),
+                Promocion.is_active.is_(True),
+            )
+            if self.sede_actual_id:
+                q_promos = q_promos.where(Promocion.sede_id == self.sede_actual_id)
+            promos = (await session.execute(q_promos)).scalars().all()
         self.promociones_vigentes = [
             {
                 "id":       str(p.id),
@@ -183,7 +204,7 @@ class CobroState(BaseState):
 
     # ── Búsqueda de paciente ───────────────────────────────────────────────────
 
-    def set_pac_busqueda(self, v: str):
+    async def set_pac_busqueda(self, v: str):
         self.pac_busqueda = v
         if self.pac_id_sel:
             self.pac_id_sel     = ""
@@ -193,20 +214,20 @@ class CobroState(BaseState):
         if len(v) >= 2:
             from clinica_app.models.paciente import Paciente
             from sqlalchemy import String, cast, or_
-            from sqlmodel import select
 
             like = f"%{v}%"
-            with get_session() as session:
-                pacs = session.exec(
-                    select(Paciente).where(
-                        Paciente.clinica_id == self.clinica_id,
-                        Paciente.is_active.is_(True),
-                        or_(
-                            Paciente.nombre.ilike(like),
-                            cast(Paciente.documento, String).ilike(like),
-                        ),
-                    ).limit(8)
-                ).all()
+            async with get_async_session() as session:
+                q_pacs = select(Paciente).where(
+                    Paciente.clinica_id == self.clinica_id,
+                    Paciente.is_active.is_(True),
+                    or_(
+                        Paciente.nombre.ilike(like),
+                        cast(Paciente.documento, String).ilike(like),
+                    ),
+                )
+                if self.sede_actual_id:
+                    q_pacs = q_pacs.where(Paciente.sede_id == self.sede_actual_id)
+                pacs = (await session.execute(q_pacs.limit(8))).scalars().all()
             self.pac_resultados = [
                 {"id": str(p.id), "nombre": p.nombre, "documento": p.documento or ""}
                 for p in pacs
@@ -333,13 +354,13 @@ class CobroState(BaseState):
         if promo is None:
             return
         try:
-            valor = Decimal(promo["valor"])
+            valor    = Decimal(promo["valor"])
             aplica_a = promo["aplica_a"]
             if aplica_a == "todo":
                 base = Decimal(self.total_bruto_str)
             elif aplica_a == "servicios":
                 base = sum(Decimal(i["subtotal"]) for i in self.carrito if i["tipo"] == "servicio")
-            else:  # productos
+            else:
                 base = sum(Decimal(i["subtotal"]) for i in self.carrito if i["tipo"] == "producto")
 
             if promo["tipo"] == "porcentaje":
@@ -392,16 +413,15 @@ class CobroState(BaseState):
         }
 
         try:
-            with get_session() as session:
-                result = svc.crear(session, self.clinica_id, payload)
+            async with get_async_session() as session:
+                result = await svc.crear(session, self.clinica_id, payload, sede_id=self.sede_actual_id)
         except (ServiceError, Exception) as exc:
             self.form_error = str(exc)
             self.is_saving  = False
             return
 
-        # Guardar datos del recibo ANTES de limpiar el formulario
-        pac_nombre       = self.pac_nombre_sel
-        items_recibo     = result.pop("items", [])
+        pac_nombre   = self.pac_nombre_sel
+        items_recibo = result.pop("items", [])
         result["paciente_nombre"] = pac_nombre
 
         self.is_saving = False
@@ -411,7 +431,6 @@ class CobroState(BaseState):
         self.modal_recibo = True
 
     def _limpiar_pos(self):
-        """Resetea el formulario del POS sin tocar ultimo_comp/ultimo_items."""
         self.carrito          = []
         self.pac_id_sel       = ""
         self.pac_nombre_sel   = ""
@@ -440,3 +459,18 @@ class CobroState(BaseState):
 
     def imprimir_recibo(self):
         return rx.call_script("window.print()")
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    async def handle_pac_busqueda_key(self, key: str):
+        if key == "Escape" and self.pac_busqueda:
+            async for s in self.set_pac_busqueda(""):
+                yield s
+
+    def handle_busqueda_item_key(self, key: str):
+        if key == "Escape":
+            self.busqueda_item = ""
+
+    def handle_recibo_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_recibo()

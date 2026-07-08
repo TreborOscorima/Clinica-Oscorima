@@ -3,7 +3,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from sqlalchemy import func, or_
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from clinica_app.models.base import tenant_select
 from clinica_app.models.servicio import Servicio, ServicioPrecioHist
@@ -24,15 +25,18 @@ def _dump(s: Servicio) -> dict:
     }
 
 
-def listar(
-    session: Session,
+async def listar(
+    session: AsyncSession,
     clinica_id: int,
+    sede_id: int = 0,
     q: str = "",
     categoria: str = "",
     page: int = 1,
     per_page: int = 20,
 ) -> dict:
     stmt = tenant_select(Servicio, clinica_id)
+    if sede_id:
+        stmt = stmt.where(Servicio.sede_id == sede_id)
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -41,14 +45,17 @@ def listar(
     if categoria:
         stmt = stmt.where(Servicio.categoria == categoria)
 
-    total: int = session.execute(
-        select(func.count()).select_from(stmt.subquery())
+    total: int = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
-    items = session.exec(
-        stmt.order_by(Servicio.categoria.asc(), Servicio.nombre.asc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-    ).all()
+    items = (
+        await session.execute(
+            stmt.order_by(Servicio.categoria.asc(), Servicio.nombre.asc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
+    ).scalars().all()
+
     return {
         "data":     [_dump(s) for s in items],
         "page":     page,
@@ -58,34 +65,38 @@ def listar(
     }
 
 
-def categorias(session: Session, clinica_id: int) -> list[str]:
-    rows = session.exec(
+async def categorias(session: AsyncSession, clinica_id: int, sede_id: int = 0) -> list[str]:
+    stmt = (
         select(Servicio.categoria)
         .where(
             Servicio.clinica_id == clinica_id,
             Servicio.is_active.is_(True),
             Servicio.categoria.isnot(None),
         )
-        .distinct()
-        .order_by(Servicio.categoria.asc())
-    ).all()
+    )
+    if sede_id:
+        stmt = stmt.where(Servicio.sede_id == sede_id)
+    rows = (
+        await session.execute(stmt.distinct().order_by(Servicio.categoria.asc()))
+    ).scalars().all()
     return [r for r in rows if r]
 
 
-def obtener(session: Session, clinica_id: int, servicio_id: int) -> Servicio:
-    s = session.exec(
-        select(Servicio).where(
-            Servicio.clinica_id == clinica_id,
-            Servicio.id == servicio_id,
-            Servicio.is_active.is_(True),
-        )
-    ).first()
+async def obtener(session: AsyncSession, clinica_id: int, servicio_id: int, sede_id: int = 0) -> Servicio:
+    stmt = select(Servicio).where(
+        Servicio.clinica_id == clinica_id,
+        Servicio.id == servicio_id,
+        Servicio.is_active.is_(True),
+    )
+    if sede_id:
+        stmt = stmt.where(Servicio.sede_id == sede_id)
+    s = (await session.execute(stmt)).scalars().first()
     if not s:
         raise NotFoundError(f"Servicio {servicio_id} no encontrado")
     return s
 
 
-def crear(session: Session, clinica_id: int, payload: dict) -> dict:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict, sede_id: int = 0) -> dict:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise ServiceError("El nombre del servicio es obligatorio")
@@ -102,6 +113,7 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
 
     s = Servicio(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         nombre=nombre,
         categoria=(payload.get("categoria") or "").strip() or None,
         descripcion=(payload.get("descripcion") or "").strip() or None,
@@ -110,12 +122,12 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
         protocolo=(payload.get("protocolo") or "").strip() or None,
     )
     session.add(s)
-    session.flush()
+    await session.flush()
     return _dump(s)
 
 
-def actualizar(session: Session, clinica_id: int, servicio_id: int, payload: dict) -> dict:
-    s = obtener(session, clinica_id, servicio_id)
+async def actualizar(session: AsyncSession, clinica_id: int, servicio_id: int, payload: dict, sede_id: int = 0) -> dict:
+    s = await obtener(session, clinica_id, servicio_id, sede_id=sede_id)
 
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
@@ -132,14 +144,13 @@ def actualizar(session: Session, clinica_id: int, servicio_id: int, payload: dic
         raise ServiceError("Duración inválida")
 
     precio_anterior = s.precio
-    s.nombre      = nombre
-    s.categoria   = (payload.get("categoria") or "").strip() or None
-    s.descripcion = (payload.get("descripcion") or "").strip() or None
-    s.precio      = precio
+    s.nombre       = nombre
+    s.categoria    = (payload.get("categoria") or "").strip() or None
+    s.descripcion  = (payload.get("descripcion") or "").strip() or None
+    s.precio       = precio
     s.duracion_min = duracion
-    s.protocolo   = (payload.get("protocolo") or "").strip() or None
+    s.protocolo    = (payload.get("protocolo") or "").strip() or None
 
-    # Registrar cambio de precio si hubo variación
     if precio != precio_anterior:
         hist = ServicioPrecioHist(
             clinica_id=clinica_id,
@@ -151,26 +162,28 @@ def actualizar(session: Session, clinica_id: int, servicio_id: int, payload: dic
         )
         session.add(hist)
 
-    session.flush()
+    await session.flush()
     return _dump(s)
 
 
-def eliminar(session: Session, clinica_id: int, servicio_id: int) -> None:
-    s = obtener(session, clinica_id, servicio_id)
+async def eliminar(session: AsyncSession, clinica_id: int, servicio_id: int, sede_id: int = 0) -> None:
+    s = await obtener(session, clinica_id, servicio_id, sede_id=sede_id)
     s.soft_delete()
-    session.flush()
+    await session.flush()
 
 
-def historial_precios(session: Session, clinica_id: int, servicio_id: int) -> list[dict]:
-    registros = session.exec(
-        select(ServicioPrecioHist)
-        .where(
-            ServicioPrecioHist.clinica_id == clinica_id,
-            ServicioPrecioHist.servicio_id == servicio_id,
+async def historial_precios(session: AsyncSession, clinica_id: int, servicio_id: int) -> list[dict]:
+    registros = (
+        await session.execute(
+            select(ServicioPrecioHist)
+            .where(
+                ServicioPrecioHist.clinica_id == clinica_id,
+                ServicioPrecioHist.servicio_id == servicio_id,
+            )
+            .order_by(ServicioPrecioHist.registrado_en.desc())
+            .limit(50)
         )
-        .order_by(ServicioPrecioHist.registrado_en.desc())
-        .limit(50)
-    ).all()
+    ).scalars().all()
     return [
         {
             "id":              r.id,

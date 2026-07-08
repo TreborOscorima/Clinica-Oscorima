@@ -16,6 +16,7 @@ class Promocion(SQLModel, table=True):
 
     id:          int | None = Field(default=None, primary_key=True)
     clinica_id:  int        = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id:     int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombre:      str        = Field(max_length=180, nullable=False, index=True)
     descripcion: str | None = Field(default=None, max_length=500, nullable=True)
     # "porcentaje" | "monto_fijo"

@@ -23,11 +23,11 @@ def dashboard_page() -> rx.Component:
         # Saludo
         rx.el.div(
             rx.el.h1(
-                rx.el.span("Bienvenido, "),
+                rx.el.span("Hola, ", class_name="font-normal text-gray-500"),
                 DashboardState.user_nombre,
-                class_name="text-xl font-semibold text-gray-900 mb-1",
+                class_name="text-2xl font-bold text-gray-900 tracking-tight mb-1",
             ),
-            rx.el.p("Resumen de hoy", class_name="text-sm text-gray-500"),
+            rx.el.p("Resumen de actividad de hoy", class_name="text-sm text-gray-500"),
             class_name="mb-8",
         ),
         # KPIs
@@ -212,10 +212,16 @@ def dashboard_page() -> rx.Component:
 def _quick_link(href: str, icon: str, label: str) -> rx.Component:
     return rx.el.a(
         rx.el.div(
-            rx.icon(icon, size=22, class_name="text-sky-600"),
-            rx.el.span(label, class_name="mt-2 text-sm font-medium text-gray-700"),
-            class_name="flex flex-col items-center gap-1 py-5",
+            rx.el.div(
+                rx.icon(icon, size=20, class_name="text-sky-600"),
+                class_name="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center mb-2",
+            ),
+            rx.el.span(label, class_name="text-sm font-medium text-gray-700"),
+            class_name="flex flex-col items-center py-5",
         ),
         href=href,
-        class_name="flex justify-center bg-white rounded-xl border border-gray-200 hover:border-sky-300 hover:bg-sky-50 hover:shadow-sm transition",
+        class_name=(
+            "flex justify-center bg-white rounded-2xl border border-gray-100 shadow-sm "
+            "hover:border-sky-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150"
+        ),
     )

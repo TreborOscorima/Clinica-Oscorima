@@ -1,0 +1,27 @@
+# =============================================================================
+# docker-compose.local.yml — Override para testing local (Windows/Mac/Linux)
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+#
+# Acceso:
+#   WaykiSAC Clínica : http://localhost:3004
+#   MySQL            : localhost:33308 (usuario clinica / MYSQL_PASSWORD)
+#
+# Mínimo en .env: MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY
+# Nota: no usar 3003 (dev nativo de la clínica ni Food local) ni 33307 (Food).
+#
+# Requiere la red externa (una sola vez, igual que Ventas/Food):
+#   docker network create nginx-proxy-manager_default
+# =============================================================================
+
+services:
+  clinica_mysql:
+    ports:
+      - "33308:3306"
+
+  wayki_clinica:
+    ports:
+      - "3004:3000"
+    environment:
+      PUBLIC_API_URL: "http://localhost:3004"

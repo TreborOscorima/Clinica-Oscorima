@@ -77,3 +77,6 @@ exports/
 .agents/
 .claude/
 
+
+# -------- Claude Code --------
+skills-lock.json

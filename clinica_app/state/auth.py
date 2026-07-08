@@ -1,60 +1,36 @@
 from __future__ import annotations
 
 import reflex as rx
-import redis as redis_lib
 
-from clinica_app.config import REDIS_URL, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SECS
-from clinica_app.database import get_session
-from clinica_app.services.auth import autenticar, datos_usuario
+from clinica_app.database import get_async_session
+from clinica_app.services.auth import autenticar, datos_usuario, sedes_para_usuario
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
-
-_redis = redis_lib.from_url(REDIS_URL, decode_responses=True)
-
-
-def _check_rate_limit(key: str) -> bool:
-    """Retorna True si el intento está dentro del límite permitido."""
-    pipe = _redis.pipeline()
-    pipe.incr(key)
-    pipe.expire(key, LOGIN_WINDOW_SECS)
-    count, _ = pipe.execute()
-    return int(count) <= LOGIN_MAX_ATTEMPTS
 
 
 class AuthState(BaseState):
     """Gestiona el formulario de login y la autenticación."""
 
-    email:      str  = ""
-    password:   str  = ""
     error_msg:  str  = ""
     is_loading: bool = False
 
-    # ── Event handlers ─────────────────────────────────────────────────────────
+    # Selector de sucursal post-login / cambio en sesión
+    sedes_disponibles:    list[dict] = []
+    mostrar_selector_sede: bool      = False
 
-    def set_email(self, value: str):
-        self.email = value
-        self.error_msg = ""
+    @rx.var
+    def tiene_multiples_sedes(self) -> bool:
+        return len(self.sedes_disponibles) > 1
 
-    def set_password(self, value: str):
-        self.password = value
-        self.error_msg = ""
+    # ── Login ──────────────────────────────────────────────────────────────────
 
-    async def handle_login(self):
+    async def handle_login(self, form_data: dict):
         self.is_loading = True
         self.error_msg  = ""
         yield
 
-        # Rate limiting por IP
-        raw_ip = getattr(self.router.headers, "x_forwarded_for", None) or getattr(self.router.headers, "host", "unknown")
-        ip = raw_ip.split(",")[0].strip()
-        rate_key = f"login_attempts:{ip}"
-        if not _check_rate_limit(rate_key):
-            self.error_msg  = "Demasiados intentos. Espera 1 minuto."
-            self.is_loading = False
-            return
-
-        email    = self.email.strip().lower()
-        password = self.password
+        email    = (form_data.get("email") or "").strip().lower()
+        password = form_data.get("password") or ""
 
         if not email or not password:
             self.error_msg  = "Ingresa email y contraseña"
@@ -62,15 +38,19 @@ class AuthState(BaseState):
             return
 
         try:
-            with get_session() as session:
-                user = autenticar(session, email, password)
+            async with get_async_session() as session:
+                user  = await autenticar(session, email, password)
                 datos = datos_usuario(user)
+                is_admin = (datos["rol"] == "administracion")
+                sedes = await sedes_para_usuario(
+                    session, datos["clinica_id"], datos["id"], is_admin
+                )
         except ServiceError as exc:
             self.error_msg  = str(exc)
             self.is_loading = False
             return
 
-        # Poblar BaseState (tenant resuelto desde la DB, nunca desde el cliente)
+        # Poblar BaseState — tenant resuelto desde la DB, nunca desde el cliente
         self.user_id          = datos["id"]
         self.clinica_id       = datos["clinica_id"]
         self.user_email       = datos["email"]
@@ -78,13 +58,52 @@ class AuthState(BaseState):
         self.user_role        = datos["rol"]
         self.profesional_id   = datos["profesional_id"]
         self.is_authenticated = True
-        self.is_loading      = False
+        self.is_loading       = False
+        self.sedes_disponibles = sedes
 
-        # Limpiar formulario
-        self.email    = ""
-        self.password = ""
+        if len(sedes) == 1:
+            # Auto-selección cuando hay una sola sede
+            self.sede_actual_id     = sedes[0]["id"]
+            self.sede_actual_nombre = sedes[0]["nombre"]
+            yield rx.redirect("/")
+        elif len(sedes) == 0:
+            # Sin sedes configuradas — entrar sin filtro de sede
+            self.sede_actual_id     = 0
+            self.sede_actual_nombre = "Sin sucursal"
+            yield rx.redirect("/")
+        else:
+            # Múltiples sedes — redirigir al dashboard donde el modal vive dentro del shell()
+            self.mostrar_selector_sede = True
+            yield rx.redirect("/")
 
-        yield rx.redirect("/")
+    def seleccionar_sede(self, sede_id: int):
+        try:
+            sede_id_int = int(sede_id)
+        except (TypeError, ValueError):
+            return
+        sede = next((s for s in self.sedes_disponibles if int(s["id"]) == sede_id_int), None)
+        if not sede:
+            return
+        self.sede_actual_id        = sede["id"]
+        self.sede_actual_nombre    = sede["nombre"]
+        self.mostrar_selector_sede = False
+        # Recargar la página para que el estado del módulo activo consulte
+        # los datos de la nueva sede (re-ejecuta on_mount).
+        return rx.call_script("window.location.reload()")
+
+    # ── Cambio de sucursal en sesión ───────────────────────────────────────────
+
+    async def abrir_selector_sede(self):
+        """Recarga las sedes disponibles y muestra el modal selector."""
+        is_admin = (self.user_role == "administracion")
+        async with get_async_session() as session:
+            sedes = await sedes_para_usuario(
+                session, self.clinica_id, self.user_id, is_admin
+            )
+        self.sedes_disponibles    = sedes
+        self.mostrar_selector_sede = True
+
+    # ── Logout ─────────────────────────────────────────────────────────────────
 
     def handle_logout(self):
         return self.logout()

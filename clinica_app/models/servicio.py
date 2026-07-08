@@ -16,6 +16,7 @@ def _utcnow() -> datetime:
 class Servicio(TenantSQLModel, table=True):
     __tablename__ = "servicios"
 
+    sede_id:      int | None    = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombre:       str           = Field(max_length=120, nullable=False, index=True)
     categoria:    str | None    = Field(default=None, max_length=80, nullable=True, index=True)
     descripcion:  str | None    = Field(default=None, sa_column=Column(Text, nullable=True))

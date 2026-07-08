@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import reflex as rx
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import caja as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -10,44 +10,65 @@ from clinica_app.state.base import BaseState
 
 class CajaState(BaseState):
 
-    movimientos: list[dict] = []
-    total:       int        = 0
-    page:        int        = 1
-    per_page:    int        = 30
-    total_pages: int        = 1
-    filtro_tipo: str        = ""
+    movimientos:  list[dict] = []
+    total:        int        = 0
+    page:         int        = 1
+    per_page:     int        = 30
+    total_pages:  int        = 1
+    filtro_tipo:  str        = ""
+    is_loading:   bool       = False
 
     # KPIs del día
-    ingresos_dia:  str = "0.00"
-    egresos_dia:   str = "0.00"
-    saldo_dia:     str = "0.00"
-    total_movs_dia: int = 0
+    ingresos_dia:    str = "0.00"
+    egresos_dia:     str = "0.00"
+    saldo_dia:       str = "0.00"
+    total_movs_dia:  int = 0
 
     # Modal nuevo movimiento
-    modal_abierto: bool = False
-    form_tipo:         str  = "ingreso"
-    form_monto:        str  = ""
-    form_metodo:       str  = "efectivo"
-    form_observacion:  str  = ""
-    form_error:        str  = ""
-    is_saving:         bool = False
+    modal_abierto:    bool = False
+    form_tipo:        str  = "ingreso"
+    form_monto:       str  = ""
+    form_metodo:      str  = "efectivo"
+    form_observacion: str  = ""
+    form_error:       str  = ""
+    is_saving:        bool = False
 
-    def on_mount(self):
-        return self.require_auth() or self._cargar_resumen() or self.cargar()
+    # Cierre de caja
+    modal_cierre:  bool       = False
+    cierres:       list[dict] = []
+    cierre_error:  str        = ""
+    cierre_msg:    str        = ""
+    is_cerrando:   bool       = False
+    ver_historial: bool       = False
 
-    def _cargar_resumen(self):
-        with get_session() as session:
-            r = svc.resumen_dia(session, self.clinica_id)
+    # ── Ciclo de vida ──────────────────────────────────────────────────────────
+
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        await self._cargar_resumen()
+        async for s in self.cargar():
+            yield s
+
+    async def _cargar_resumen(self):
+        async with get_async_session() as session:
+            r = await svc.resumen_dia(session, self.clinica_id, sede_id=self.sede_actual_id)
         self.ingresos_dia   = r["ingresos"]
         self.egresos_dia    = r["egresos"]
         self.saldo_dia      = r["saldo"]
         self.total_movs_dia = r["total_movimientos"]
 
-    def cargar(self):
-        with get_session() as session:
-            result = svc.listar_movimientos(
+    # ── Carga progresiva ───────────────────────────────────────────────────────
+
+    async def cargar(self):
+        self.is_loading = True
+        yield
+        async with get_async_session() as session:
+            result = await svc.listar_movimientos(
                 session,
                 self.clinica_id,
+                sede_id=self.sede_actual_id,
                 tipo=self.filtro_tipo,
                 page=self.page,
                 per_page=self.per_page,
@@ -55,27 +76,34 @@ class CajaState(BaseState):
         self.movimientos = result["data"]
         self.total       = result["total"]
         self.total_pages = result["pages"]
+        self.is_loading  = False
 
-    def set_filtro_tipo(self, valor: str):
+    async def set_filtro_tipo(self, valor: str):
         self.filtro_tipo = valor
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    # ── Setters de formulario (Reflex 0.9.x no auto-genera setters en sub-states)
+    # ── Setters de formulario ──────────────────────────────────────────────────
+
     def set_form_tipo(self, v: str):        self.form_tipo = v
     def set_form_monto(self, v: str):       self.form_monto = v
     def set_form_metodo(self, v: str):      self.form_metodo = v
     def set_form_observacion(self, v: str): self.form_observacion = v
 
-    def prev_page(self):
+    # ── Paginación ─────────────────────────────────────────────────────────────
+
+    async def prev_page(self):
         if self.page > 1:
             self.page -= 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def next_page(self):
+    async def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Modal ──────────────────────────────────────────────────────────────────
 
@@ -101,8 +129,8 @@ class CajaState(BaseState):
             return
 
         try:
-            with get_session() as session:
-                svc.registrar_movimiento(
+            async with get_async_session() as session:
+                await svc.registrar_movimiento(
                     session,
                     self.clinica_id,
                     {
@@ -111,6 +139,7 @@ class CajaState(BaseState):
                         "metodo_pago": self.form_metodo,
                         "observacion": self.form_observacion.strip() or None,
                     },
+                    sede_id=self.sede_actual_id,
                 )
         except ServiceError as exc:
             self.form_error = str(exc)
@@ -119,25 +148,21 @@ class CajaState(BaseState):
 
         self.is_saving     = False
         self.modal_abierto = False
-        self._cargar_resumen()
-        self.cargar()
+        await self._cargar_resumen()
+        async for s in self.cargar():
+            yield s
 
-    def eliminar_movimiento(self, mov_id: int):
-        try:
-            with get_session() as session:
-                svc.eliminar_movimiento(session, self.clinica_id, mov_id)
-        except ServiceError:
-            pass
-        return self._cargar_resumen() or self.cargar()
+    async def eliminar_movimiento(self, mov_id: int):
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar_movimiento(session, self.clinica_id, mov_id, sede_id=self.sede_actual_id)
+            except ServiceError:
+                pass
+        await self._cargar_resumen()
+        async for s in self.cargar():
+            yield s
 
     # ── Cierre de caja ─────────────────────────────────────────────────────────
-
-    modal_cierre:    bool = False
-    cierres:         list[dict] = []
-    cierre_error:    str  = ""
-    cierre_msg:      str  = ""
-    is_cerrando:     bool = False
-    ver_historial:   bool = False
 
     def abrir_cierre(self):
         self.cierre_error = ""
@@ -147,25 +172,25 @@ class CajaState(BaseState):
     def cerrar_modal_cierre(self):
         self.modal_cierre = False
 
-    def toggle_historial(self):
+    async def toggle_historial(self):
         self.ver_historial = not self.ver_historial
         if self.ver_historial:
-            self._cargar_cierres()
+            await self._cargar_cierres()
 
-    def _cargar_cierres(self):
-        with get_session() as session:
-            result = svc.listar_cierres(session, self.clinica_id)
+    async def _cargar_cierres(self):
+        async with get_async_session() as session:
+            result = await svc.listar_cierres(session, self.clinica_id, sede_id=self.sede_actual_id)
         self.cierres = result["data"]
 
     async def confirmar_cierre(self):
-        self.is_cerrando = True
+        self.is_cerrando  = True
         self.cierre_error = ""
         self.cierre_msg   = ""
         yield
         try:
-            with get_session() as session:
-                resultado = svc.realizar_cierre_dia(
-                    session, self.clinica_id, usuario_id=self.user_id
+            async with get_async_session() as session:
+                resultado = await svc.realizar_cierre_dia(
+                    session, self.clinica_id, sede_id=self.sede_actual_id, usuario_id=self.user_id
                 )
             self.cierre_msg = (
                 f"Cierre registrado: Ingresos ${resultado['total_ingresos']} | "
@@ -174,3 +199,21 @@ class CajaState(BaseState):
         except ServiceError as exc:
             self.cierre_error = str(exc)
         self.is_cerrando = False
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    def handle_modal_key(self, key: str):
+        if key == "Escape":
+            self.modal_abierto = False
+
+    def handle_modal_cierre_key(self, key: str):
+        if key == "Escape":
+            self.modal_cierre = False
+
+    async def handle_tabla_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.prev_page():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.next_page():
+                yield s

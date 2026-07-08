@@ -1,41 +1,64 @@
-# ─── Stage 1: dependencias Python ─────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+# WaykiSAC Clínica (Reflex + MySQL) - Imagen para producción
+# Build multi-stage: builder compila wheels; runtime recibe solo site-packages.
+# Misma mecánica que Sistema-de-Ventas y TUWAYKIFOOD.
 
-WORKDIR /app
-COPY requirements_reflex.txt .
-RUN pip install --no-cache-dir -r requirements_reflex.txt
+# =============================================================================
+# Stage 1: builder — instala deps Python (compila wheels si es necesario)
+# =============================================================================
+FROM python:3.13-slim AS builder
 
-# ─── Stage 2: imagen de producción ────────────────────────────────────────────
-FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-WORKDIR /app
-
-# Node.js 20 — necesario para compilar el frontend Next.js de Reflex
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar site-packages y binarios instalados en el stage builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Copiar código fuente (el .dockerignore excluye Flask era, .env, .git, etc.)
-COPY . .
 
-# Inicializar el scaffold de Reflex (crea .web/ con node_modules — sin necesitar DB)
-# Se hace en build para evitar demora en el cold start del container
-RUN reflex init --loglevel critical
+# =============================================================================
+# Stage 2: runtime — imagen final liviana
+# =============================================================================
+FROM python:3.13-slim AS runtime
 
-# El frontend de Next.js se compila la primera vez que corre `reflex run --env prod`
-# Si quisieras pre-compilarlo aquí (más lento en build, más rápido en start):
-# RUN reflex export --frontend-only --no-zip --loglevel critical
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOME=/app
 
-EXPOSE 3000 8000
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    unzip \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+COPY --from=builder /install /usr/local
 
-# Producción: compila y sirve frontend + backend WebSocket
-CMD ["reflex", "run", "--env", "prod", "--backend-host", "0.0.0.0"]
+WORKDIR /app
+
+RUN groupadd --system --gid 1000 app \
+    && useradd --system --uid 1000 --gid app --no-create-home --shell /sbin/nologin app \
+    && mkdir -p /app/.web /app/exports \
+    && chown -R app:app /app
+
+COPY --chown=app:app . .
+
+COPY --chown=app:app scripts/docker-entrypoint.sh /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=5 \
+    CMD curl -fsS http://localhost:3000/api/ping || exit 1
+
+USER app
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/docker-entrypoint.sh"]
+CMD ["reflex", "run", "--env", "prod", "--loglevel", "warning", "--backend-host", "0.0.0.0", "--single-port"]

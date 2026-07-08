@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.profesionales import ProfesionalesState
 
 # ── Helpers de campo ──────────────────────────────────────────────────────────
@@ -16,18 +17,15 @@ def _label(text: str, required: bool = False) -> rx.Component:
 
 
 def _input(placeholder: str, value, on_change, type_: str = "text") -> rx.Component:
-    return rx.debounce_input(
-        rx.el.input(
-            placeholder=placeholder,
-            value=value,
-            on_change=on_change,
-            type=type_,
-            class_name=(
-                "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
-                "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-            ),
+    return rx.el.input(
+        placeholder=placeholder,
+        value=value,
+        on_change=on_change,
+        type=type_,
+        class_name=(
+            "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
+            "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
         ),
-        debounce_timeout=300,
     )
 
 
@@ -57,7 +55,7 @@ def _modal() -> rx.Component:
                         on_click=ProfesionalesState.cerrar_modal,
                         class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
                     ),
-                    class_name="flex items-center justify-between mb-6",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 # body — 2 columnas
                 rx.el.div(
@@ -131,6 +129,8 @@ def _modal() -> rx.Component:
                         ),
                         on_click=ProfesionalesState.guardar,
                         disabled=ProfesionalesState.is_saving,
+                        data_modal_submit="1",
+                        title="Guardar (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
                     ),
                     class_name="flex gap-3 justify-end mt-6",
@@ -207,38 +207,31 @@ def _fila(prof: dict) -> rx.Component:
 def profesionales_page() -> rx.Component:
     return shell(
         _modal(),
-        # header
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Profesionales", class_name="text-2xl font-bold text-gray-900"),
-                rx.el.p(
-                    ProfesionalesState.total.to(str) + " registrados",
-                    class_name="text-sm text-gray-500 mt-0.5",
-                ),
-            ),
-            rx.el.button(
-                rx.icon("user-plus", size=16, class_name="mr-2"),
-                "Nuevo profesional",
+        page_header(
+            "Profesionales",
+            "Médicos y especialistas de la clínica",
+            action=rx.el.button(
+                rx.icon("user-plus", size=16),
+                rx.el.span("Nuevo profesional", class_name="ml-1.5"),
                 on_click=ProfesionalesState.abrir_nuevo,
-                class_name=(
-                    "flex items-center px-4 py-2 bg-sky-600 text-white text-sm "
-                    "font-medium rounded-lg hover:bg-sky-700 cursor-pointer"
-                ),
+                data_new_action="1",
+                title="Nuevo profesional (N)",
+                class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
             ),
-            class_name="flex items-start justify-between mb-6",
         ),
         # buscador
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=16, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"),
-                rx.debounce_input(
-                    rx.el.input(
-                        placeholder="Buscar por nombre, DNI, matrícula o especialidad…",
-                        value=ProfesionalesState.busqueda,
-                        on_change=ProfesionalesState.set_busqueda,
-                        class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
-                    ),
-                    debounce_timeout=300,
+                
+                rx.el.input(
+                    placeholder="Buscar por nombre, DNI, matrícula o especialidad…",
+                    value=ProfesionalesState.busqueda,
+                    on_change=ProfesionalesState.set_busqueda,
+                    on_key_down=ProfesionalesState.handle_busqueda_key,
+                    data_search_input="1",
+                    title="Buscar (/)",
+                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
                 ),
                 class_name="relative",
             ),

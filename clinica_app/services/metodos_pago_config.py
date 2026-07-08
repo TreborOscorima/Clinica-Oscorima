@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from clinica_app.models.base import tenant_select
 from clinica_app.models.metodo_pago_config import MetodoPagoConfig
@@ -20,14 +21,14 @@ def _dump(m: MetodoPagoConfig) -> dict[str, Any]:
     }
 
 
-def listar(session: Session, clinica_id: int) -> list[dict]:
-    rows = session.exec(
+async def listar(session: AsyncSession, clinica_id: int) -> list[dict]:
+    rows = (await session.execute(
         tenant_select(MetodoPagoConfig, clinica_id).order_by(MetodoPagoConfig.nombre)
-    ).all()
+    )).scalars().all()
     return [_dump(m) for m in rows]
 
 
-def crear(session: Session, clinica_id: int, payload: dict) -> dict:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict) -> dict:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise ServiceError("El nombre del método de pago es obligatorio")
@@ -41,32 +42,32 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
         visible_en_venta=bool(payload.get("visible_en_venta", True)),
     )
     session.add(m)
-    session.flush()
+    await session.flush()
     return _dump(m)
 
 
-def toggle_visible(session: Session, clinica_id: int, mid: int) -> dict:
-    m = session.exec(
+async def toggle_visible(session: AsyncSession, clinica_id: int, mid: int) -> dict:
+    m = (await session.execute(
         select(MetodoPagoConfig).where(
             MetodoPagoConfig.id         == mid,
             MetodoPagoConfig.clinica_id == clinica_id,
             MetodoPagoConfig.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not m:
         raise NotFoundError("Método no encontrado")
     m.visible_en_venta = not m.visible_en_venta
-    session.flush()
+    await session.flush()
     return _dump(m)
 
 
-def toggle_activo(session: Session, clinica_id: int, mid: int) -> dict:
-    m = session.exec(
+async def toggle_activo(session: AsyncSession, clinica_id: int, mid: int) -> dict:
+    m = (await session.execute(
         select(MetodoPagoConfig).where(
             MetodoPagoConfig.id         == mid,
             MetodoPagoConfig.clinica_id == clinica_id,
         )
-    ).first()
+    )).scalars().first()
     if not m:
         raise NotFoundError("Método no encontrado")
     if m.is_active:
@@ -74,19 +75,19 @@ def toggle_activo(session: Session, clinica_id: int, mid: int) -> dict:
     else:
         m.is_active  = True
         m.deleted_at = None
-    session.flush()
+    await session.flush()
     return _dump(m)
 
 
-def eliminar(session: Session, clinica_id: int, mid: int) -> None:
-    m = session.exec(
+async def eliminar(session: AsyncSession, clinica_id: int, mid: int) -> None:
+    m = (await session.execute(
         select(MetodoPagoConfig).where(
             MetodoPagoConfig.id         == mid,
             MetodoPagoConfig.clinica_id == clinica_id,
             MetodoPagoConfig.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not m:
         raise NotFoundError("Método no encontrado")
     m.soft_delete()
-    session.flush()
+    await session.flush()

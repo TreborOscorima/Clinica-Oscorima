@@ -4,8 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel import Session
 
 from clinica_app.models.inventario import (
     Compra, CompraItem, Producto, Proveedor, TipoMov,
@@ -57,21 +57,32 @@ def _dump_item(i: CompraItem, prod_nombre: str = "") -> dict[str, Any]:
 
 # ── Proveedores ───────────────────────────────────────────────────────────────
 
-def listar_proveedores(session: Session, clinica_id: int) -> list[dict[str, Any]]:
-    rows = session.exec(
-        select(Proveedor)
-        .where(Proveedor.clinica_id == clinica_id, Proveedor.is_active.is_(True))
-        .order_by(Proveedor.nombre)
-    ).all()
-    return [{"id": p.id, "nombre": p.nombre} for p in rows]
+def _dump_proveedor(p: Proveedor) -> dict[str, Any]:
+    return {
+        "id":        p.id or 0,
+        "nombre":    p.nombre,
+        "documento": p.documento or "",
+        "email":     p.email or "",
+        "telefono":  p.telefono or "",
+        "direccion": p.direccion or "",
+    }
 
 
-def crear_proveedor(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+async def listar_proveedores(session: AsyncSession, clinica_id: int, sede_id: int = 0) -> list[dict[str, Any]]:
+    stmt = select(Proveedor).where(Proveedor.clinica_id == clinica_id, Proveedor.is_active.is_(True))
+    if sede_id:
+        stmt = stmt.where(Proveedor.sede_id == sede_id)
+    rows = (await session.execute(stmt.order_by(Proveedor.nombre))).scalars().all()
+    return [_dump_proveedor(p) for p in rows]
+
+
+async def crear_proveedor(session: AsyncSession, clinica_id: int, payload: dict[str, Any], sede_id: int = 0) -> dict[str, Any]:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise ServiceError("El nombre del proveedor es requerido")
     p = Proveedor(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         nombre=nombre,
         documento=(payload.get("documento") or "").strip() or None,
         email=(payload.get("email") or "").strip() or None,
@@ -79,15 +90,42 @@ def crear_proveedor(session: Session, clinica_id: int, payload: dict[str, Any]) 
         direccion=(payload.get("direccion") or "").strip() or None,
     )
     session.add(p)
-    session.flush()
-    return {"id": p.id, "nombre": p.nombre}
+    await session.flush()
+    return _dump_proveedor(p)
+
+
+async def actualizar_proveedor(
+    session: AsyncSession, clinica_id: int, prov_id: int, payload: dict[str, Any]
+) -> dict[str, Any]:
+    p = await session.get(Proveedor, prov_id)
+    if not p or p.clinica_id != clinica_id or not p.is_active:
+        raise NotFoundError("Proveedor no encontrado")
+    nombre = (payload.get("nombre") or "").strip()
+    if not nombre:
+        raise ServiceError("El nombre del proveedor es requerido")
+    p.nombre    = nombre
+    p.documento = (payload.get("documento") or "").strip() or None
+    p.email     = (payload.get("email") or "").strip() or None
+    p.telefono  = (payload.get("telefono") or "").strip() or None
+    p.direccion = (payload.get("direccion") or "").strip() or None
+    await session.flush()
+    return _dump_proveedor(p)
+
+
+async def eliminar_proveedor(session: AsyncSession, clinica_id: int, prov_id: int) -> None:
+    p = await session.get(Proveedor, prov_id)
+    if not p or p.clinica_id != clinica_id or not p.is_active:
+        raise NotFoundError("Proveedor no encontrado")
+    p.soft_delete()
+    await session.flush()
 
 
 # ── Compras ───────────────────────────────────────────────────────────────────
 
-def listar(
-    session: Session,
+async def listar(
+    session: AsyncSession,
     clinica_id: int,
+    sede_id: int = 0,
     q: str = "",
     page: int = 1,
     per_page: int = 20,
@@ -97,6 +135,8 @@ def listar(
         .outerjoin(Proveedor, Proveedor.id == Compra.proveedor_id)
         .where(Compra.clinica_id == clinica_id, Compra.is_active.is_(True))
     )
+    if sede_id:
+        base = base.where(Compra.sede_id == sede_id)
 
     if q:
         like = f"%{q}%"
@@ -107,15 +147,15 @@ def listar(
     base = base.order_by(Compra.fecha.desc())
 
     total_sub = base.subquery()
-    total = session.execute(select(func.count()).select_from(total_sub)).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(total_sub))).scalar_one()
 
-    rows = session.execute(base.offset((page - 1) * per_page).limit(per_page)).all()
+    rows = (await session.execute(base.offset((page - 1) * per_page).limit(per_page))).all()
     data = [_dump_compra(c, p.nombre if p else "") for c, p in rows]
 
-    kpi = session.execute(
+    kpi = (await session.execute(
         select(func.count(Compra.id), func.coalesce(func.sum(Compra.total), 0))
         .where(Compra.clinica_id == clinica_id, Compra.is_active.is_(True))
-    ).one()
+    )).one()
 
     return {
         "data":          data,
@@ -126,28 +166,30 @@ def listar(
     }
 
 
-def obtener_items(session: Session, compra_id: int) -> list[dict[str, Any]]:
-    rows = session.execute(
+async def obtener_items(session: AsyncSession, compra_id: int) -> list[dict[str, Any]]:
+    rows = (await session.execute(
         select(CompraItem, Producto)
         .join(Producto, Producto.id == CompraItem.producto_id)
         .where(CompraItem.compra_id == compra_id)
         .order_by(CompraItem.id)
-    ).all()
+    )).all()
     return [_dump_item(i, p.nombre) for i, p in rows]
 
 
-def crear(
-    session: Session,
+async def crear(
+    session: AsyncSession,
     clinica_id: int,
     payload: dict[str, Any],
     items: list[dict[str, Any]],
+    margen_global: float = 50.0,
+    sede_id: int = 0,
 ) -> dict[str, Any]:
     if not items:
         raise ServiceError("Debe agregar al menos un producto")
 
     proveedor_id = payload.get("proveedor_id") or None
     if proveedor_id:
-        prov = session.get(Proveedor, int(proveedor_id))
+        prov = await session.get(Proveedor, int(proveedor_id))
         if not prov or prov.clinica_id != clinica_id:
             raise NotFoundError("Proveedor no encontrado")
     else:
@@ -155,6 +197,7 @@ def crear(
 
     compra = Compra(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         proveedor_id=int(proveedor_id) if proveedor_id else None,
         tipo_doc=(payload.get("tipo_doc") or "").strip() or None,
         numero=(payload.get("numero") or "").strip() or None,
@@ -162,13 +205,15 @@ def crear(
         observacion=(payload.get("observacion") or "").strip() or None,
     )
     session.add(compra)
-    session.flush()
+    await session.flush()
 
     total_compra = Decimal("0")
     for it in items:
-        prod = session.get(Producto, int(it["producto_id"]))
+        prod = await session.get(Producto, int(it["producto_id"]))
         if not prod or prod.clinica_id != clinica_id or not prod.is_active:
             raise NotFoundError(f"Producto {it.get('producto_id')} no encontrado")
+        if sede_id and prod.sede_id and prod.sede_id != sede_id:
+            raise NotFoundError(f"Producto {it.get('producto_id')} no pertenece a esta sucursal")
 
         cantidad = _dec3(it.get("cantidad", 0))
         costo    = _dec2(it.get("costo_unitario", 0))
@@ -190,6 +235,8 @@ def crear(
         session.add(item)
 
         prod.precio_costo = costo
+        if costo > Decimal("0") and margen_global >= 0:
+            prod.precio_venta = (costo * (1 + Decimal(str(margen_global)) / 100)).quantize(D2)
         _aplicar_movimiento(
             session, prod,
             TipoMov.INGRESO.value,
@@ -199,21 +246,21 @@ def crear(
         )
 
     compra.total = total_compra
-    session.flush()
+    await session.flush()
 
     return _dump_compra(compra, prov.nombre if prov else "")
 
 
-def anular(session: Session, clinica_id: int, compra_id: int) -> None:
-    compra = session.get(Compra, compra_id)
+async def anular(session: AsyncSession, clinica_id: int, compra_id: int) -> None:
+    compra = await session.get(Compra, compra_id)
     if not compra or compra.clinica_id != clinica_id or not compra.is_active:
         raise NotFoundError("Compra no encontrada")
 
-    items = session.execute(
+    items = (await session.execute(
         select(CompraItem, Producto)
         .join(Producto, Producto.id == CompraItem.producto_id)
         .where(CompraItem.compra_id == compra_id)
-    ).all()
+    )).all()
 
     for ci, prod in items:
         try:
@@ -228,4 +275,4 @@ def anular(session: Session, clinica_id: int, compra_id: int) -> None:
             raise ServiceError(str(exc)) from exc
 
     compra.soft_delete()
-    session.flush()
+    await session.flush()

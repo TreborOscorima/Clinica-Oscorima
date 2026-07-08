@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.calendario import CalendarioState
 
 def _chip_turno(t: dict) -> rx.Component:
@@ -56,7 +57,7 @@ def _modal_nuevo() -> rx.Component:
                     rx.el.h2("Nuevo turno", class_name="text-lg font-semibold text-gray-900"),
                     rx.el.button(rx.icon("x", size=18), on_click=CalendarioState.cerrar_nuevo,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     # Paciente
@@ -68,7 +69,7 @@ def _modal_nuevo() -> rx.Component:
                                 CalendarioState.pacientes_cat,
                                 lambda o: rx.el.option(o["nombre"], value=o["id"]),
                             ),
-                            value=CalendarioState.form_paciente_id,
+                            default_value=CalendarioState.form_paciente_id,
                             on_change=CalendarioState.set_form_paciente_id,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -82,7 +83,7 @@ def _modal_nuevo() -> rx.Component:
                                 CalendarioState.profesionales_cat,
                                 lambda o: rx.el.option(o["nombre"], value=o["id"]),
                             ),
-                            value=CalendarioState.form_profesional_id,
+                            default_value=CalendarioState.form_profesional_id,
                             on_change=CalendarioState.set_form_profesional_id,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -96,7 +97,7 @@ def _modal_nuevo() -> rx.Component:
                                 CalendarioState.servicios_cat,
                                 lambda o: rx.el.option(o["nombre"], value=o["id"]),
                             ),
-                            value=CalendarioState.form_servicio_id,
+                            default_value=CalendarioState.form_servicio_id,
                             on_change=CalendarioState.set_form_servicio_id,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -104,14 +105,12 @@ def _modal_nuevo() -> rx.Component:
                     # Fecha y hora
                     rx.el.div(
                         rx.el.label("Fecha y hora *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.debounce_input(
-                            rx.el.input(
-                                type="datetime-local",
-                                value=CalendarioState.form_fecha_hora,
-                                on_change=CalendarioState.set_form_fecha_hora,
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
-                            ),
-                            debounce_timeout=0,
+                        
+                        rx.el.input(
+                            type="datetime-local",
+                            default_value=CalendarioState.form_fecha_hora,
+                            on_change=CalendarioState.set_form_fecha_hora,
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
                     class_name="space-y-4",
@@ -168,13 +167,10 @@ def _leyenda() -> rx.Component:
 def calendario_page() -> rx.Component:
     return shell(
         _modal_nuevo(),
-        # Header
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Calendario", class_name="text-xl font-semibold text-gray-900"),
-                rx.el.p(CalendarioState.rango_label, class_name="text-sm text-gray-500"),
-            ),
-            rx.el.div(
+        page_header(
+            "Calendario",
+            "Visualizá y agendá turnos por semana",
+            action=rx.el.div(
                 # Filtro por profesional
                 rx.el.select(
                     rx.el.option("Todos los profesionales", value=""),
@@ -186,13 +182,13 @@ def calendario_page() -> rx.Component:
                     on_change=CalendarioState.set_filtro_profesional_id,
                     class_name="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-sky-500",
                 ),
-                # Navegación
+                # Navegación semana
                 rx.el.div(
                     rx.el.button(
                         rx.icon("chevron-left", size=16),
                         on_click=CalendarioState.semana_anterior,
                         class_name="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
-                        title="Semana anterior",
+                        title="Semana anterior (← flecha izq)",
                     ),
                     rx.el.button(
                         "Hoy",
@@ -203,18 +199,18 @@ def calendario_page() -> rx.Component:
                         rx.icon("chevron-right", size=16),
                         on_click=CalendarioState.semana_siguiente,
                         class_name="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
-                        title="Semana siguiente",
+                        title="Semana siguiente (→ flecha der)",
                     ),
                     class_name="flex gap-1",
                 ),
                 rx.el.button(
-                    rx.icon("plus", size=16), "Nuevo turno",
+                    rx.icon("plus", size=16),
+                    rx.el.span("Nuevo turno", class_name="ml-1.5"),
                     on_click=lambda: CalendarioState.abrir_nuevo(""),
-                    class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer",
+                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
                 ),
-                class_name="flex items-center gap-3",
+                class_name="flex items-center gap-3 flex-wrap",
             ),
-            class_name="flex items-center justify-between mb-5 flex-wrap gap-3",
         ),
         # Leyenda
         rx.el.div(_leyenda(), class_name="mb-4"),

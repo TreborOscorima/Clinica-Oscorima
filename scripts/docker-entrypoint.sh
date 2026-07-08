@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# =============================================================================
+# docker-entrypoint.sh — Pre-arranque del contenedor WaykiSAC Clínica
+#
+# 1. Espera a que MySQL esté disponible.
+# 2. Ejecuta migraciones Alembic (upgrade head).
+# 3. Pre-init Reflex + es-toolkit-shims (fix Vite/Rolldown CJS).
+# 4. Arranca Reflex con los argumentos pasados por CMD.
+#
+# Misma mecánica que Sistema-de-Ventas / TUWAYKIFOOD.
+# =============================================================================
+set -euo pipefail
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+info()  { echo -e "${CYAN}[ENTRYPOINT]${NC} $*"; }
+ok()    { echo -e "${GREEN}[ENTRYPOINT]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[ENTRYPOINT]${NC} $*"; }
+fail()  { echo -e "${RED}[ENTRYPOINT]${NC} $*"; exit 1; }
+
+# ─── 1. Esperar MySQL ───────────────────────────────────────────────────────
+# La clínica usa variables MYSQL_* (ver clinica_app/config.py)
+DB_HOST="${MYSQL_HOST:-clinica_mysql}"
+DB_PORT="${MYSQL_PORT:-3306}"
+MAX_WAIT=120
+SOCKET_TIMEOUT=5
+
+sleep 3
+
+info "Esperando MySQL en ${DB_HOST}:${DB_PORT}..."
+WAITED=0
+while [[ $WAITED -lt $MAX_WAIT ]]; do
+    if python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(${SOCKET_TIMEOUT})
+try:
+    s.connect(('${DB_HOST}', ${DB_PORT}))
+    s.close()
+    exit(0)
+except Exception:
+    exit(1)
+" 2>/dev/null; then
+        break
+    fi
+    sleep 2
+    WAITED=$((WAITED + 2))
+done
+
+if [[ $WAITED -ge $MAX_WAIT ]]; then
+    fail "MySQL no disponible después de ${MAX_WAIT}s"
+fi
+ok "MySQL disponible"
+
+# ─── 2. Migraciones Alembic ─────────────────────────────────────────────────
+SKIP_MIGRATE="${SKIP_MIGRATE:-false}"
+if [[ "$SKIP_MIGRATE" != "true" ]]; then
+    info "Ejecutando migraciones Alembic..."
+    if ! alembic upgrade head; then
+        fail "Migraciones fallaron — abortando arranque"
+    fi
+    ok "Migraciones aplicadas correctamente"
+else
+    warn "Migraciones saltadas (SKIP_MIGRATE=true)"
+fi
+
+# ─── 3. Pre-init Reflex ─────────────────────────────────────────────────────
+info "Pre-inicializando frontend (reflex init)..."
+reflex init 2>&1 | tail -3 && ok "reflex init OK" || warn "reflex init con error — continuando"
+
+# ── Crear es-toolkit-shims DESPUÉS de reflex init ────────────────────────────
+info "Creando es-toolkit-shims para Vite..."
+mkdir -p /app/.web/es-toolkit-shims
+cat > /app/.web/es-toolkit-shims/get.js          << 'EOF'
+export { get as default } from '../node_modules/es-toolkit/dist/compat/object/get.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/sortBy.js       << 'EOF'
+export { sortBy as default } from '../node_modules/es-toolkit/dist/compat/array/sortBy.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/omit.js         << 'EOF'
+export { omit as default } from '../node_modules/es-toolkit/dist/compat/object/omit.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/range.js        << 'EOF'
+export { range as default } from '../node_modules/es-toolkit/dist/compat/math/range.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/throttle.js     << 'EOF'
+export { throttle as default } from '../node_modules/es-toolkit/dist/compat/function/throttle.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/maxBy.js        << 'EOF'
+export { maxBy as default } from '../node_modules/es-toolkit/dist/compat/math/maxBy.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/sumBy.js        << 'EOF'
+export { sumBy as default } from '../node_modules/es-toolkit/dist/compat/math/sumBy.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/isPlainObject.js << 'EOF'
+export { isPlainObject as default } from '../node_modules/es-toolkit/dist/compat/predicate/isPlainObject.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/minBy.js        << 'EOF'
+export { minBy as default } from '../node_modules/es-toolkit/dist/compat/math/minBy.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/last.js         << 'EOF'
+export { last as default } from '../node_modules/es-toolkit/dist/compat/array/last.mjs';
+EOF
+cat > /app/.web/es-toolkit-shims/uniqBy.js       << 'EOF'
+export { uniqBy as default } from '../node_modules/es-toolkit/dist/compat/array/uniqBy.mjs';
+EOF
+ok "es-toolkit-shims creados (11 archivos)"
+
+# ── Patch watcher en background (fix Rolldown CJS) ───────────────────────────
+cat > /app/.web/.patch_estoolkit.py << 'PATCHEOF'
+import os, json, shutil, time, sys
+
+pkg_dir  = '/app/.web/node_modules/es-toolkit'
+pkg_path = pkg_dir + '/package.json'
+shim_dir = pkg_dir + '/compat-esm'
+mjs_barrel = pkg_dir + '/dist/compat/index.mjs'
+
+for i in range(150):
+    if (os.path.isdir(pkg_dir) and
+            os.path.exists(pkg_path) and
+            os.path.exists(mjs_barrel)):
+        time.sleep(3)
+        break
+    sys.stdout.write('[PATCH-BG] Esperando es-toolkit... ' + str(i*2) + 's\n')
+    sys.stdout.flush()
+    time.sleep(2)
+
+if not os.path.exists(pkg_path):
+    print('[PATCH-BG] SKIP: es-toolkit package.json no disponible tras 300s')
+    sys.exit(0)
+if not os.path.exists(mjs_barrel):
+    print('[PATCH-BG] SKIP: dist/compat/index.mjs no existe')
+    sys.exit(0)
+
+try:
+    with open(pkg_path) as f:
+        pkg = json.load(f)
+
+    compat_exp = pkg.get('exports', {}).get('./compat/*', {})
+    if isinstance(compat_exp, dict) and compat_exp.get('import', '').startswith('./compat-esm/'):
+        print('[PATCH-BG] es-toolkit ya parcheado — OK')
+        sys.exit(0)
+
+    os.makedirs(shim_dir, exist_ok=True)
+    compat_dir = pkg_dir + '/compat'
+    shim_count = 0
+    if os.path.exists(compat_dir):
+        for fname in sorted(os.listdir(compat_dir)):
+            if fname.endswith('.js') and fname != 'index.js':
+                func = fname[:-3]
+                with open(shim_dir + '/' + func + '.mjs', 'w') as f:
+                    f.write('export { ' + func + ' as default } from "../dist/compat/index.mjs";\n')
+                shim_count += 1
+
+    pkg['exports']['./compat/*'] = {
+        'import':  './compat-esm/*.mjs',
+        'default': './compat/*.js'
+    }
+    with open(pkg_path, 'w') as f:
+        json.dump(pkg, f, indent=2)
+
+    print('[PATCH-BG] es-toolkit parcheado: ' + str(shim_count) + ' shims ESM')
+
+    for d in ['/app/.web/.vite', '/app/.web/node_modules/.vite']:
+        if os.path.exists(d):
+            shutil.rmtree(d)
+            print('[PATCH-BG] cache limpiado: ' + d)
+
+except Exception as e:
+    print('[PATCH-BG] Patch fallo: ' + str(e))
+    import traceback; traceback.print_exc()
+PATCHEOF
+chmod +x /app/.web/.patch_estoolkit.py
+python3 /app/.web/.patch_estoolkit.py &
+PATCH_PID=$!
+ok "es-toolkit patch watcher lanzado (PID $PATCH_PID)"
+
+# ─── 4. Ejecutar CMD (reflex run ...) ───────────────────────────────────────
+info "Iniciando Reflex: $*"
+exec "$@"

@@ -4,8 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel import Session
 
 from clinica_app.models.caja import (
     CajaMovimiento,
@@ -42,9 +42,10 @@ def _dump(d: DeudaPaciente, pac_nombre: str = "", comp_numero: str = "") -> dict
     }
 
 
-def listar(
-    session: Session,
+async def listar(
+    session: AsyncSession,
     clinica_id: int,
+    sede_id: int = 0,
     estado: str = "",
     paciente_q: str = "",
     page: int = 1,
@@ -58,6 +59,8 @@ def listar(
         .join(Comprobante, Comprobante.id == DeudaPaciente.comprobante_id)
         .where(DeudaPaciente.clinica_id == clinica_id, DeudaPaciente.is_active.is_(True))
     )
+    if sede_id:
+        base = base.where(Comprobante.sede_id == sede_id)
 
     if estado:
         base = base.where(DeudaPaciente.estado == estado)
@@ -74,20 +77,24 @@ def listar(
     base = base.order_by(DeudaPaciente.creado_en.desc())
 
     total_sub = base.subquery()
-    total = session.execute(select(func.count()).select_from(total_sub)).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(total_sub))).scalar_one()
 
-    rows = session.execute(base.offset((page - 1) * per_page).limit(per_page)).all()
+    rows = (await session.execute(base.offset((page - 1) * per_page).limit(per_page))).all()
     data = [_dump(d, p.nombre, c.numero or "") for d, p, c in rows]
 
     # KPIs: deudores activos y saldo global pendiente
-    kpi = session.execute(
+    kpi_q = (
         select(func.count(DeudaPaciente.id), func.coalesce(func.sum(DeudaPaciente.saldo), 0))
+        .join(Comprobante, Comprobante.id == DeudaPaciente.comprobante_id)
         .where(
             DeudaPaciente.clinica_id == clinica_id,
             DeudaPaciente.is_active.is_(True),
             DeudaPaciente.estado.in_(["pendiente", "parcial"]),
         )
-    ).one()
+    )
+    if sede_id:
+        kpi_q = kpi_q.where(Comprobante.sede_id == sede_id)
+    kpi = (await session.execute(kpi_q)).one()
 
     return {
         "data":            data,
@@ -98,15 +105,16 @@ def listar(
     }
 
 
-def registrar_pago(
-    session: Session,
+async def registrar_pago(
+    session: AsyncSession,
     clinica_id: int,
     deuda_id: int,
     monto_str: str,
     metodo: str,
     observacion: str = "",
+    sede_id: int = 0,
 ) -> dict[str, Any]:
-    deuda = session.get(DeudaPaciente, deuda_id)
+    deuda = await session.get(DeudaPaciente, deuda_id)
     if not deuda or deuda.clinica_id != clinica_id or not deuda.is_active:
         raise NotFoundError("Deuda no encontrada")
 
@@ -133,6 +141,7 @@ def registrar_pago(
 
     mov = CajaMovimiento(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         tipo=TipoMovimiento.INGRESO,
         monto=monto,
         metodo_pago=metodo_pago,
@@ -141,10 +150,10 @@ def registrar_pago(
         observacion=f"Pago cuota{' - ' + observacion if observacion else ''}",
     )
     session.add(mov)
-    session.flush()
+    await session.flush()
 
-    pac  = session.get(Paciente,    deuda.paciente_id)
-    comp = session.get(Comprobante, deuda.comprobante_id)
+    pac  = await session.get(Paciente,    deuda.paciente_id)
+    comp = await session.get(Comprobante, deuda.comprobante_id)
     return _dump(
         deuda,
         pac.nombre    if pac  else "",

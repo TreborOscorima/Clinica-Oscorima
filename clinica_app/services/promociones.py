@@ -5,8 +5,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel import Session
 
 from clinica_app.models.promocion import Promocion
 from clinica_app.services.exceptions import NotFoundError, ServiceError
@@ -45,9 +45,10 @@ def _dump(p: Promocion) -> dict[str, Any]:
     }
 
 
-def listar(
-    session: Session,
+async def listar(
+    session: AsyncSession,
     clinica_id: int,
+    sede_id: int = 0,
     solo_activas: bool = False,
     q: str = "",
     page: int = 1,
@@ -57,6 +58,8 @@ def listar(
         Promocion.clinica_id == clinica_id,
         Promocion.is_active.is_(True),
     )
+    if sede_id:
+        base = base.where(Promocion.sede_id == sede_id)
     if solo_activas:
         base = base.where(Promocion.activo.is_(True))
     if q:
@@ -65,18 +68,18 @@ def listar(
     base = base.order_by(Promocion.created_at.desc())
 
     total_sub = base.subquery()
-    total = session.execute(select(func.count()).select_from(total_sub)).scalar_one()
-    rows = session.execute(base.offset((page - 1) * per_page).limit(per_page)).all()
+    total = (await session.execute(select(func.count()).select_from(total_sub))).scalar_one()
+    rows = (await session.execute(base.offset((page - 1) * per_page).limit(per_page))).all()
     data = [_dump(r[0]) for r in rows]
 
-    kpi = session.execute(
+    kpi = (await session.execute(
         select(func.count())
         .where(
             Promocion.clinica_id == clinica_id,
             Promocion.is_active.is_(True),
             Promocion.activo.is_(True),
         )
-    ).scalar_one()
+    )).scalar_one()
 
     return {
         "data":           data,
@@ -86,7 +89,7 @@ def listar(
     }
 
 
-def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any], sede_id: int = 0) -> dict[str, Any]:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise ServiceError("El nombre es requerido")
@@ -107,6 +110,7 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
 
     p = Promocion(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         nombre=nombre,
         descripcion=(payload.get("descripcion") or "").strip() or None,
         tipo=tipo,
@@ -116,17 +120,18 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
         fecha_fin=_parse_fecha(payload.get("fecha_fin", "")),
     )
     session.add(p)
-    session.flush()
+    await session.flush()
     return _dump(p)
 
 
-def actualizar(
-    session: Session,
+async def actualizar(
+    session: AsyncSession,
     clinica_id: int,
     promo_id: int,
     payload: dict[str, Any],
+    sede_id: int = 0,
 ) -> dict[str, Any]:
-    p = _get(session, clinica_id, promo_id)
+    p = await _get(session, clinica_id, promo_id, sede_id=sede_id)
 
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
@@ -144,25 +149,27 @@ def actualizar(
     p.aplica_a    = payload.get("aplica_a", p.aplica_a)
     p.fecha_inicio = _parse_fecha(payload.get("fecha_inicio", ""))
     p.fecha_fin    = _parse_fecha(payload.get("fecha_fin", ""))
-    session.flush()
+    await session.flush()
     return _dump(p)
 
 
-def toggle_activo(session: Session, clinica_id: int, promo_id: int) -> dict[str, Any]:
-    p = _get(session, clinica_id, promo_id)
+async def toggle_activo(session: AsyncSession, clinica_id: int, promo_id: int, sede_id: int = 0) -> dict[str, Any]:
+    p = await _get(session, clinica_id, promo_id, sede_id=sede_id)
     p.activo = not p.activo
-    session.flush()
+    await session.flush()
     return _dump(p)
 
 
-def eliminar(session: Session, clinica_id: int, promo_id: int) -> None:
-    p = _get(session, clinica_id, promo_id)
+async def eliminar(session: AsyncSession, clinica_id: int, promo_id: int, sede_id: int = 0) -> None:
+    p = await _get(session, clinica_id, promo_id, sede_id=sede_id)
     p.soft_delete()
-    session.flush()
+    await session.flush()
 
 
-def _get(session: Session, clinica_id: int, promo_id: int) -> Promocion:
-    p = session.get(Promocion, promo_id)
+async def _get(session: AsyncSession, clinica_id: int, promo_id: int, sede_id: int = 0) -> Promocion:
+    p = await session.get(Promocion, promo_id)
     if not p or p.clinica_id != clinica_id or not p.is_active:
+        raise NotFoundError("Promoción no encontrada")
+    if sede_id and p.sede_id and p.sede_id != sede_id:
         raise NotFoundError("Promoción no encontrada")
     return p

@@ -4,6 +4,7 @@ import reflex as rx
 
 from clinica_app.components.badge import estado_badge
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.pacientes import PacientesState
 
 
@@ -170,7 +171,7 @@ def _modal_paciente() -> rx.Component:
                         on_click=PacientesState.cerrar_modal,
                         class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
                     ),
-                    class_name="flex items-center justify-between mb-6",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 # Campos del formulario
                 rx.el.div(
@@ -208,6 +209,8 @@ def _modal_paciente() -> rx.Component:
                         ),
                         on_click=PacientesState.guardar,
                         disabled=PacientesState.is_saving,
+                        data_modal_submit="1",
+                        title="Guardar (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 transition cursor-pointer",
                     ),
                     class_name="flex gap-3 justify-end mt-6",
@@ -222,14 +225,11 @@ def _modal_paciente() -> rx.Component:
 def _campo(label: str, tipo: str, value, on_change) -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
-        rx.debounce_input(
-            rx.el.input(
-                type=tipo,
-                value=value,
-                on_change=on_change,
-                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
-            ),
-            debounce_timeout=300,
+        rx.el.input(
+            type=tipo,
+            default_value=value,
+            on_change=on_change,
+            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
         ),
     )
 
@@ -279,36 +279,31 @@ def pacientes_page() -> rx.Component:
     return shell(
         _modal_paciente(),
         _panel_detalle(),
-        # Encabezado
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Pacientes", class_name="text-xl font-semibold text-gray-900"),
-                rx.el.p(
-                    f"{PacientesState.total} registrados",
-                    class_name="text-sm text-gray-500",
-                ),
-            ),
-            rx.el.button(
+        page_header(
+            "Pacientes",
+            "Gestioná la base de datos de pacientes",
+            action=rx.el.button(
                 rx.icon("plus", size=16),
-                "Nuevo paciente",
+                rx.el.span("Nuevo paciente", class_name="ml-1.5"),
                 on_click=PacientesState.abrir_nuevo,
-                class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition cursor-pointer",
+                data_new_action="1",
+                title="Nuevo paciente (N)",
+                class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition cursor-pointer shadow-sm",
             ),
-            class_name="flex items-center justify-between mb-6",
         ),
         # Buscador
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=16, class_name="text-gray-400"),
-                rx.debounce_input(
-                    rx.el.input(
-                        type="text",
-                        placeholder="Buscar por nombre o documento...",
-                        value=PacientesState.busqueda,
-                        on_change=PacientesState.set_busqueda,
-                        class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
-                    ),
-                    debounce_timeout=300,
+                
+                rx.el.input(
+                    type="text",
+                    placeholder="Buscar por nombre o documento...",
+                    on_change=PacientesState.set_busqueda,
+                    on_key_down=PacientesState.handle_busqueda_key,
+                    data_search_input="1",
+                    title="Buscar (/)",
+                    class_name="w-full outline-none text-sm text-gray-700 placeholder-gray-400 ml-2",
                 ),
                 class_name="flex items-center px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
             ),
@@ -330,7 +325,18 @@ def pacientes_page() -> rx.Component:
                         class_name="bg-gray-50 border-b border-gray-200",
                     ),
                     rx.el.tbody(
-                        rx.foreach(PacientesState.pacientes.to(list[dict]), _fila_paciente),
+                        rx.cond(
+                            PacientesState.pacientes,
+                            rx.foreach(PacientesState.pacientes.to(list[dict]), _fila_paciente),
+                            rx.el.tr(rx.el.td(
+                                rx.el.div(
+                                    rx.icon("users", size=28, class_name="text-gray-300 mx-auto mb-2"),
+                                    rx.el.p("No se encontraron pacientes", class_name="text-sm text-gray-500"),
+                                    class_name="py-10 text-center",
+                                ),
+                                col_span=6,
+                            )),
+                        )
                     ),
                     class_name="w-full border-collapse",
                 ),

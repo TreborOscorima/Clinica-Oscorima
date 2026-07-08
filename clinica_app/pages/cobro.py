@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.cobro import CobroState
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -42,14 +43,12 @@ def _paciente_search() -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-                rx.debounce_input(
-                    rx.el.input(
-                        placeholder="Buscar por nombre o DNI…",
-                        value=CobroState.pac_busqueda,
-                        on_change=CobroState.set_pac_busqueda,
-                        class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
-                    ),
-                    debounce_timeout=300,
+                
+                rx.el.input(
+                    placeholder="Buscar por nombre o DNI…",
+                    on_change=CobroState.set_pac_busqueda,
+                    on_key_down=CobroState.handle_pac_busqueda_key,
+                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
                 ),
                 class_name="relative",
             ),
@@ -140,14 +139,12 @@ def _catalogo() -> rx.Component:
         # Búsqueda
         rx.el.div(
             rx.icon("search", size=14, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-            rx.debounce_input(
-                rx.el.input(
-                    placeholder="Buscar en catálogo…",
-                    value=CobroState.busqueda_item,
-                    on_change=CobroState.set_busqueda_item,
-                    class_name="w-full pl-8 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:border-sky-400",
-                ),
-                debounce_timeout=300,
+            
+            rx.el.input(
+                placeholder="Buscar en catálogo…",
+                on_change=CobroState.set_busqueda_item,
+                on_key_down=CobroState.handle_busqueda_item_key,
+                class_name="w-full pl-8 pr-3 py-2 text-sm border-b border-gray-200 focus:outline-none focus:border-sky-400",
             ),
             class_name="relative",
         ),
@@ -224,7 +221,7 @@ def _totales() -> rx.Component:
                         CobroState.promociones_vigentes,
                         lambda p: rx.el.option(p["nombre"], value=p["id"]),
                     ),
-                    value=CobroState.promo_sel_id,
+                    default_value=CobroState.promo_sel_id,
                     on_change=CobroState.set_promo_sel_id,
                     class_name="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sky-500 max-w-[180px]",
                 ),
@@ -233,16 +230,14 @@ def _totales() -> rx.Component:
         ),
         rx.el.div(
             rx.el.label("Descuento ($)", class_name="text-sm text-gray-600"),
-            rx.debounce_input(
-                rx.el.input(
-                    value=CobroState.descuento_global,
-                    on_change=CobroState.set_descuento_global,
-                    type="number",
-                    min="0",
-                    step="0.01",
-                    class_name="w-24 text-right px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
-                ),
-                debounce_timeout=300,
+            
+            rx.el.input(
+                default_value=CobroState.descuento_global,
+                on_change=CobroState.set_descuento_global,
+                type="number",
+                min="0",
+                step="0.01",
+                class_name="w-24 text-right px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500",
             ),
             class_name="flex justify-between items-center",
         ),
@@ -302,24 +297,22 @@ def _pago_form() -> rx.Component:
                         rx.el.option("3 cuotas", value="3"),
                         rx.el.option("6 cuotas", value="6"),
                         rx.el.option("12 cuotas", value="12"),
-                        value=CobroState.num_cuotas,
+                        default_value=CobroState.num_cuotas,
                         on_change=CobroState.set_num_cuotas,
                         class_name=_INPUT_CLS,
                     ),
                 ),
                 rx.el.div(
                     rx.el.label("Anticipo ($)", class_name="text-xs text-gray-600 mb-1 block"),
-                    rx.debounce_input(
-                        rx.el.input(
-                            placeholder="0.00",
-                            value=CobroState.cuota_inicial,
-                            on_change=CobroState.set_cuota_inicial,
-                            type="number",
-                            min="0",
-                            step="0.01",
-                            class_name=_INPUT_CLS,
-                        ),
-                        debounce_timeout=300,
+                    
+                    rx.el.input(
+                        placeholder="0.00",
+                        default_value=CobroState.cuota_inicial,
+                        on_change=CobroState.set_cuota_inicial,
+                        type="number",
+                        min="0",
+                        step="0.01",
+                        class_name=_INPUT_CLS,
                     ),
                 ),
                 class_name="grid grid-cols-2 gap-3 mb-4",
@@ -328,14 +321,12 @@ def _pago_form() -> rx.Component:
         # Observación
         rx.el.div(
             rx.el.label("Observación", class_name="text-xs text-gray-500 mb-1 block"),
-            rx.debounce_input(
-                rx.el.input(
-                    placeholder="Opcional…",
-                    value=CobroState.observacion,
-                    on_change=CobroState.set_observacion,
-                    class_name=_INPUT_CLS,
-                ),
-                debounce_timeout=300,
+            
+            rx.el.input(
+                placeholder="Opcional…",
+                default_value=CobroState.observacion,
+                on_change=CobroState.set_observacion,
+                class_name=_INPUT_CLS,
             ),
             class_name="mb-4",
         ),
@@ -556,15 +547,7 @@ def cobro_page() -> rx.Component:
     return shell(
         _print_styles(),
         _modal_recibo(),
-        # Encabezado
-        rx.el.div(
-            rx.el.h1("Punto de Cobro", class_name="text-2xl font-bold text-gray-900"),
-            rx.el.p(
-                "Registrá servicios, productos y medios de pago",
-                class_name="text-sm text-gray-500 mt-0.5",
-            ),
-            class_name="mb-6",
-        ),
+        page_header("Punto de Cobro", "Registrá servicios, productos y medios de pago"),
         # Layout POS: catálogo izquierda, carrito derecha
         rx.el.div(
             # Columna izquierda

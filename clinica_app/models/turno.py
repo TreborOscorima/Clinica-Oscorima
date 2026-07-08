@@ -21,6 +21,7 @@ class EstadoTurno(str, Enum):
 class Turno(TenantSQLModel, table=True):
     __tablename__ = "turnos"
 
+    sede_id:        int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     paciente_id:    int = Field(foreign_key="pacientes.id", nullable=False)
     profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)
     servicio_id:    int | None = Field(default=None, foreign_key="servicios.id", nullable=True)

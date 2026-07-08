@@ -3,10 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
 
 from clinica_app.models.nota_clinica import NotaClinica, TipoNota
 from clinica_app.services.exceptions import NotFoundError, ServiceError
+
+
+def _with_profesional():
+    return selectinload(NotaClinica.profesional)
 
 
 def _dump(n: NotaClinica) -> dict[str, Any]:
@@ -27,26 +33,30 @@ def _dump(n: NotaClinica) -> dict[str, Any]:
     }
 
 
-def listar_por_paciente(
-    session: Session,
+async def listar_por_paciente(
+    session: AsyncSession,
     clinica_id: int,
     paciente_id: int,
+    sede_id: int = 0,
     page: int = 1,
     per_page: int = 20,
 ) -> dict[str, Any]:
     base = (
         select(NotaClinica)
+        .options(_with_profesional())
         .where(
             NotaClinica.clinica_id == clinica_id,
             NotaClinica.paciente_id == paciente_id,
             NotaClinica.is_active.is_(True),
         )
-        .order_by(NotaClinica.created_at.desc())
     )
-    total: int = session.execute(
+    if sede_id:
+        base = base.where(NotaClinica.sede_id == sede_id)
+    base = base.order_by(NotaClinica.created_at.desc())
+    total: int = (await session.execute(
         select(func.count()).select_from(base.subquery())
-    ).scalar_one()
-    items = session.exec(base.offset((page - 1) * per_page).limit(per_page)).all()
+    )).scalar_one()
+    items = (await session.execute(base.offset((page - 1) * per_page).limit(per_page))).scalars().all()
     return {
         "data":     [_dump(n) for n in items],
         "total":    total,
@@ -56,11 +66,12 @@ def listar_por_paciente(
     }
 
 
-def crear(
-    session: Session,
+async def crear(
+    session: AsyncSession,
     clinica_id: int,
     payload: dict[str, Any],
     created_by_id: int | None = None,
+    sede_id: int = 0,
 ) -> dict[str, Any]:
     paciente_id = payload.get("paciente_id")
     if not paciente_id:
@@ -77,6 +88,7 @@ def crear(
 
     nota = NotaClinica(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         paciente_id=paciente_id,
         turno_id=payload.get("turno_id"),
         profesional_id=payload.get("profesional_id"),
@@ -85,24 +97,28 @@ def crear(
         contenido=contenido,
     )
     session.add(nota)
-    session.flush()
-    session.refresh(nota)
+    await session.flush()
+    nota = (await session.execute(
+        select(NotaClinica).options(_with_profesional()).where(NotaClinica.id == nota.id)
+    )).scalars().first()
     return _dump(nota)
 
 
-def actualizar(
-    session: Session,
+async def actualizar(
+    session: AsyncSession,
     clinica_id: int,
     nota_id: int,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    nota = session.exec(
-        select(NotaClinica).where(
+    nota = (await session.execute(
+        select(NotaClinica)
+        .options(_with_profesional())
+        .where(
             NotaClinica.id == nota_id,
             NotaClinica.clinica_id == clinica_id,
             NotaClinica.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if nota is None:
         raise NotFoundError("Nota no encontrada")
 
@@ -116,19 +132,19 @@ def actualizar(
             nota.tipo = TipoNota(payload["tipo"])
         except ValueError:
             pass
-    session.flush()
+    await session.flush()
     return _dump(nota)
 
 
-def eliminar(session: Session, clinica_id: int, nota_id: int) -> None:
-    nota = session.exec(
+async def eliminar(session: AsyncSession, clinica_id: int, nota_id: int) -> None:
+    nota = (await session.execute(
         select(NotaClinica).where(
             NotaClinica.id == nota_id,
             NotaClinica.clinica_id == clinica_id,
             NotaClinica.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if nota is None:
         raise NotFoundError("Nota no encontrada")
     nota.soft_delete()
-    session.flush()
+    await session.flush()

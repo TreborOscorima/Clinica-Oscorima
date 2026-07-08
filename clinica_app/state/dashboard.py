@@ -1,137 +1,145 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 
 import reflex as rx
+from sqlalchemy import cast, Date as SADate, func
+from sqlmodel import select
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.models.caja import CajaMovimiento, ComprobanteItem, Comprobante, TipoMovimiento
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.turno import EstadoTurno, Turno
 from clinica_app.state.base import BaseState
-from sqlalchemy import func, select
 
 
 class DashboardState(BaseState):
 
     # KPIs
-    total_pacientes:  int = 0
-    turnos_hoy:       int = 0
-    ingresos_hoy:     str = "0.00"
+    total_pacientes:   int = 0
+    turnos_hoy:        int = 0
+    ingresos_hoy:      str = "0.00"
     turnos_pendientes: int = 0
-    turnos_recientes: list[dict] = []
+    turnos_recientes:  list[dict] = []
+    is_loading:        bool = False
 
-    # Gráfico ingresos 7 días  {"fecha": "Lun", "monto": "$1500.00", "pct": "75%"}
-    ingresos_7dias:   list[dict] = []
+    # Gráfico ingresos 7 días
+    ingresos_7dias: list[dict] = []
 
-    # Top 5 servicios del mes  {"nombre": "Limpieza facial", "count": "12", "total": "1800.00"}
-    top_servicios:    list[dict] = []
+    # Top 5 servicios del mes
+    top_servicios: list[dict] = []
 
-    # Agenda del profesional (solo visible si user_role == "profesional")
-    mis_turnos_hoy:   list[dict] = []
+    # Agenda del profesional
+    mis_turnos_hoy: list[dict] = []
 
     # Dashboard financiero avanzado
     ingresos_mes:     str = "0.00"
     egresos_mes:      str = "0.00"
     saldo_mes:        str = "0.00"
-    ingresos_mes_ant: str = "0.00"   # mes anterior (para comparativa)
-    variacion_pct:    str = "0"      # variación porcentual vs mes anterior
-    top_servicios_margen: list[dict] = []  # nombre, ingresos, egresos, margen
+    ingresos_mes_ant: str = "0.00"
+    variacion_pct:    str = "0"
+    top_servicios_margen: list[dict] = []
 
-    def on_mount(self):
-        return self.require_auth() or self.cargar()
+    # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def cargar(self):
-        ahora = datetime.now(timezone.utc)
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async for s in self.cargar():
+            yield s
+
+    # ── Carga progresiva — Fase 3: N+1 eliminado en 7 días con GROUP BY ────────
+
+    async def cargar(self):
+        self.is_loading = True
+        yield
+
+        ahora      = datetime.now(timezone.utc)
         inicio_hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
         fin_hoy    = ahora.replace(hour=23, minute=59, second=59, microsecond=999999)
+        sid        = self.sede_actual_id  # 0 = sin filtro de sucursal
 
-        with get_session() as session:
+        async with get_async_session() as session:
             # Total pacientes activos
-            self.total_pacientes = session.exec(
-                select(func.count(Paciente.id)).where(
-                    Paciente.clinica_id == self.clinica_id,
-                    Paciente.is_active.is_(True),
-                )
-            ).scalar_one()
+            q_pac = select(func.count(Paciente.id)).where(
+                Paciente.clinica_id == self.clinica_id,
+                Paciente.is_active.is_(True),
+            )
+            if sid:
+                q_pac = q_pac.where(Paciente.sede_id == sid)
+            self.total_pacientes = (await session.execute(q_pac)).scalar_one()
 
             # Turnos hoy
-            self.turnos_hoy = session.exec(
-                select(func.count(Turno.id)).where(
-                    Turno.clinica_id == self.clinica_id,
-                    Turno.is_active.is_(True),
-                    Turno.fecha_hora >= inicio_hoy,
-                    Turno.fecha_hora <= fin_hoy,
-                )
-            ).scalar_one()
+            q_th = select(func.count(Turno.id)).where(
+                Turno.clinica_id == self.clinica_id,
+                Turno.is_active.is_(True),
+                Turno.fecha_hora >= inicio_hoy,
+                Turno.fecha_hora <= fin_hoy,
+            )
+            if sid:
+                q_th = q_th.where(Turno.sede_id == sid)
+            self.turnos_hoy = (await session.execute(q_th)).scalar_one()
 
             # Turnos pendientes
-            self.turnos_pendientes = session.exec(
-                select(func.count(Turno.id)).where(
-                    Turno.clinica_id == self.clinica_id,
-                    Turno.is_active.is_(True),
-                    Turno.estado == EstadoTurno.PENDIENTE,
-                )
-            ).scalar_one()
+            q_tp = select(func.count(Turno.id)).where(
+                Turno.clinica_id == self.clinica_id,
+                Turno.is_active.is_(True),
+                Turno.estado == EstadoTurno.PENDIENTE,
+            )
+            if sid:
+                q_tp = q_tp.where(Turno.sede_id == sid)
+            self.turnos_pendientes = (await session.execute(q_tp)).scalar_one()
 
             # Ingresos hoy
-            ingreso = session.exec(
-                select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
+            q_ih = select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
+                CajaMovimiento.clinica_id == self.clinica_id,
+                CajaMovimiento.is_active.is_(True),
+                CajaMovimiento.tipo == TipoMovimiento.INGRESO,
+                CajaMovimiento.fecha >= inicio_hoy,
+                CajaMovimiento.fecha <= fin_hoy,
+            )
+            if sid:
+                q_ih = q_ih.where(CajaMovimiento.sede_id == sid)
+            ingreso = (await session.execute(q_ih)).scalar_one()
+            self.ingresos_hoy = f"{float(ingreso or 0):.2f}"
+
+            # ── Ingresos 7 días — una sola consulta GROUP BY ──────────────────
+            siete_dias_atras = (ahora - timedelta(days=6)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            q_7d = (
+                select(
+                    cast(CajaMovimiento.fecha, SADate).label("dia"),
+                    func.coalesce(func.sum(CajaMovimiento.monto), 0).label("monto"),
+                )
+                .where(
                     CajaMovimiento.clinica_id == self.clinica_id,
                     CajaMovimiento.is_active.is_(True),
                     CajaMovimiento.tipo == TipoMovimiento.INGRESO,
-                    CajaMovimiento.fecha >= inicio_hoy,
-                    CajaMovimiento.fecha <= fin_hoy,
+                    CajaMovimiento.fecha >= siete_dias_atras,
                 )
-            ).scalar_one()
-            self.ingresos_hoy = f"{float(ingreso or 0):.2f}"
+                .group_by(cast(CajaMovimiento.fecha, SADate))
+            )
+            if sid:
+                q_7d = q_7d.where(CajaMovimiento.sede_id == sid)
+            rows_7dias = (await session.execute(q_7d)).all()
 
-            # Turnos recientes (5)
-            turnos = session.exec(
-                select(Turno)
-                .where(
-                    Turno.clinica_id == self.clinica_id,
-                    Turno.is_active.is_(True),
-                )
-                .order_by(Turno.fecha_hora.desc())
-                .limit(5)
-            ).all()
-            self.turnos_recientes = [
-                {
-                    "id":              t.id,
-                    "paciente_nombre": t.paciente.nombre if t.paciente else f"#{t.paciente_id}",
-                    "fecha_hora":      t.fecha_hora.strftime("%d/%m %H:%M") if t.fecha_hora else "",
-                    "estado":          t.estado.value if t.estado else "",
-                }
-                for t in turnos
-            ]
-
-            # Ingresos últimos 7 días
+            mapa_7dias: dict[date, float] = {row.dia: float(row.monto) for row in rows_7dias}
             dias_labels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
             dias_data: list[dict] = []
             max_monto = 0.0
             for offset in range(6, -1, -1):
-                dia = ahora - timedelta(days=offset)
-                d_ini = dia.replace(hour=0, minute=0, second=0, microsecond=0)
-                d_fin = dia.replace(hour=23, minute=59, second=59, microsecond=999999)
-                monto_dia = session.exec(
-                    select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
-                        CajaMovimiento.clinica_id == self.clinica_id,
-                        CajaMovimiento.is_active.is_(True),
-                        CajaMovimiento.tipo == TipoMovimiento.INGRESO,
-                        CajaMovimiento.fecha >= d_ini,
-                        CajaMovimiento.fecha <= d_fin,
-                    )
-                ).scalar_one()
-                m = float(monto_dia or 0)
+                dia     = ahora - timedelta(days=offset)
+                dia_key = dia.date()
+                m       = mapa_7dias.get(dia_key, 0.0)
                 if m > max_monto:
                     max_monto = m
                 dias_data.append({
-                    "fecha": dias_labels[dia.weekday() + 1 if dia.weekday() < 6 else 0],
+                    "fecha": dias_labels[(dia.weekday() + 1) % 7],
                     "monto": f"{m:.2f}",
                     "raw":   m,
                 })
-            # Calcular porcentaje para altura de barra
             self.ingresos_7dias = [
                 {
                     "fecha": d["fecha"],
@@ -143,7 +151,7 @@ class DashboardState(BaseState):
 
             # Top 5 servicios del mes
             inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            top_raw = session.execute(
+            q_top = (
                 select(
                     ComprobanteItem.nombre,
                     func.count(ComprobanteItem.id).label("cnt"),
@@ -160,7 +168,10 @@ class DashboardState(BaseState):
                 .group_by(ComprobanteItem.nombre)
                 .order_by(func.count(ComprobanteItem.id).desc())
                 .limit(5)
-            ).all()
+            )
+            if sid:
+                q_top = q_top.where(Comprobante.sede_id == sid)
+            top_raw = (await session.execute(q_top)).all()
             self.top_servicios = [
                 {
                     "nombre": row.nombre or "—",
@@ -170,31 +181,30 @@ class DashboardState(BaseState):
                 for row in top_raw
             ]
 
-            # ── Dashboard financiero avanzado ──────────────────────────────────
-            inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            fin_mes    = ahora.replace(hour=23, minute=59, second=59, microsecond=999999)
+            # ── Financiero del mes ─────────────────────────────────────────────
+            fin_mes = ahora.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-            def _suma_caja(tipo, desde, hasta):
-                return float(session.exec(
-                    select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
-                        CajaMovimiento.clinica_id == self.clinica_id,
-                        CajaMovimiento.is_active.is_(True),
-                        CajaMovimiento.tipo == tipo,
-                        CajaMovimiento.fecha >= desde,
-                        CajaMovimiento.fecha <= hasta,
-                    )
-                ).scalar_one() or 0)
+            async def _suma_caja(tipo, desde, hasta) -> float:
+                q = select(func.coalesce(func.sum(CajaMovimiento.monto), 0)).where(
+                    CajaMovimiento.clinica_id == self.clinica_id,
+                    CajaMovimiento.is_active.is_(True),
+                    CajaMovimiento.tipo == tipo,
+                    CajaMovimiento.fecha >= desde,
+                    CajaMovimiento.fecha <= hasta,
+                )
+                if sid:
+                    q = q.where(CajaMovimiento.sede_id == sid)
+                return float((await session.execute(q)).scalar_one() or 0)
 
-            ing_mes  = _suma_caja(TipoMovimiento.INGRESO, inicio_mes, fin_mes)
-            egr_mes  = _suma_caja(TipoMovimiento.EGRESO,  inicio_mes, fin_mes)
+            ing_mes = await _suma_caja(TipoMovimiento.INGRESO, inicio_mes, fin_mes)
+            egr_mes = await _suma_caja(TipoMovimiento.EGRESO,  inicio_mes, fin_mes)
             self.ingresos_mes = f"{ing_mes:.2f}"
             self.egresos_mes  = f"{egr_mes:.2f}"
             self.saldo_mes    = f"{ing_mes - egr_mes:.2f}"
 
-            # Mes anterior para comparativa
             mes_ant_fin = inicio_mes - timedelta(seconds=1)
             mes_ant_ini = mes_ant_fin.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            ing_ant = _suma_caja(TipoMovimiento.INGRESO, mes_ant_ini, mes_ant_fin)
+            ing_ant = await _suma_caja(TipoMovimiento.INGRESO, mes_ant_ini, mes_ant_fin)
             self.ingresos_mes_ant = f"{ing_ant:.2f}"
             if ing_ant > 0:
                 pct = ((ing_mes - ing_ant) / ing_ant) * 100
@@ -202,9 +212,10 @@ class DashboardState(BaseState):
             else:
                 self.variacion_pct = "+100" if ing_mes > 0 else "0"
 
-            # Agenda propia del profesional (si aplica)
+            # Agenda del profesional (si aplica)
             if self.user_role == "profesional" and self.profesional_id:
-                mis = session.exec(
+                from sqlalchemy.orm import selectinload
+                q_mis = (
                     select(Turno)
                     .where(
                         Turno.clinica_id == self.clinica_id,
@@ -213,8 +224,15 @@ class DashboardState(BaseState):
                         Turno.fecha_hora >= inicio_hoy,
                         Turno.fecha_hora <= fin_hoy,
                     )
+                    .options(
+                        selectinload(Turno.paciente),
+                        selectinload(Turno.servicio),
+                    )
                     .order_by(Turno.fecha_hora)
-                ).all()
+                )
+                if sid:
+                    q_mis = q_mis.where(Turno.sede_id == sid)
+                mis = (await session.execute(q_mis)).scalars().all()
                 self.mis_turnos_hoy = [
                     {
                         "id":              t.id,
@@ -225,5 +243,30 @@ class DashboardState(BaseState):
                     }
                     for t in mis
                 ]
-            else:
-                self.mis_turnos_hoy = []
+
+            # Turnos recientes con relaciones pre-cargadas
+            from sqlalchemy.orm import selectinload as sl
+            q_rec = (
+                select(Turno)
+                .where(
+                    Turno.clinica_id == self.clinica_id,
+                    Turno.is_active.is_(True),
+                )
+                .options(sl(Turno.paciente))
+                .order_by(Turno.fecha_hora.desc())
+                .limit(5)
+            )
+            if sid:
+                q_rec = q_rec.where(Turno.sede_id == sid)
+            turnos_rec = (await session.execute(q_rec)).scalars().all()
+            self.turnos_recientes = [
+                {
+                    "id":              t.id,
+                    "paciente_nombre": t.paciente.nombre if t.paciente else f"#{t.paciente_id}",
+                    "fecha_hora":      t.fecha_hora.strftime("%d/%m %H:%M") if t.fecha_hora else "",
+                    "estado":          t.estado.value if t.estado else "",
+                }
+                for t in turnos_rec
+            ]
+
+        self.is_loading = False

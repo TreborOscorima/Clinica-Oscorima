@@ -12,16 +12,16 @@ class BaseState(rx.State):
     en el servidor Python de Reflex y se propaga a todos los SubStates.
     """
 
-    user_id:          int  = 0
-    clinica_id:       int  = 0   # ← eje central del multi-tenant
-    user_email:       str  = ""
-    user_nombre:      str  = ""
-    user_role:        str  = ""  # RoleEnum.value: "administracion" | "recepcionista" | ...
-    profesional_id:   int  = 0   # 0 = sin vínculo; >0 = linked to Profesional
-    is_authenticated: bool = False
-    sidebar_open:     bool = False
-
-    # ── Computed vars (derivados, read-only en el cliente) ─────────────────────
+    user_id:            int  = 0
+    clinica_id:         int  = 0
+    user_email:         str  = ""
+    user_nombre:        str  = ""
+    user_role:          str  = ""
+    profesional_id:     int  = 0
+    is_authenticated:   bool = False
+    sidebar_open:       bool = False
+    sede_actual_id:     int  = 0
+    sede_actual_nombre: str  = ""
 
     @rx.var
     def is_admin(self) -> bool:
@@ -45,8 +45,6 @@ class BaseState(rx.State):
         }
         return mapping.get(self.user_role, self.user_role)
 
-    # ── Guards ─────────────────────────────────────────────────────────────────
-
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
@@ -54,17 +52,76 @@ class BaseState(rx.State):
         self.sidebar_open = False
 
     def require_auth(self):
-        """Redirige al login si el usuario no está autenticado."""
+        """Retorna redirect si no autenticado, None si OK."""
         if not self.is_authenticated:
             return rx.redirect("/login")
 
     def require_admin(self):
-        """Redirige si el usuario no tiene rol de admin."""
+        """Retorna redirect si no es admin, None si OK."""
         if not self.is_admin:
             return rx.redirect("/")
-
-    # ── Logout ─────────────────────────────────────────────────────────────────
 
     def logout(self):
         self.reset()
         return rx.redirect("/login")
+
+    def setup_keyboard_shortcuts(self):
+        js = """
+(function() {
+    if (window.__waykiSC) return;
+    window.__waykiSC = true;
+    document.addEventListener('keydown', function(e) {
+        var active = document.activeElement || document.body;
+        var tag = active.tagName.toLowerCase();
+        var isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || !!active.isContentEditable;
+
+        // Alt+1..7 — navegación entre módulos
+        if (e.altKey && !e.ctrlKey && !e.metaKey) {
+            var nav = {'1':'/', '2':'/pacientes', '3':'/turnos', '4':'/cobro', '5':'/calendario', '6':'/caja', '7':'/reportes'};
+            if (nav[e.key]) { e.preventDefault(); window.location.href = nav[e.key]; return; }
+        }
+
+        // Escape — cierra el modal visible con mayor z-index
+        if (e.key === 'Escape') {
+            var bs = document.querySelectorAll('[data-modal-close]');
+            var target = null, topZ = -1;
+            for (var i = 0; i < bs.length; i++) {
+                var z = parseInt(window.getComputedStyle(bs[i]).zIndex) || 0;
+                if (z > topZ) { topZ = z; target = bs[i]; }
+            }
+            if (!target) {
+                var fbs = document.querySelectorAll('.z-40.fixed.inset-0');
+                for (var j = fbs.length - 1; j >= 0; j--) {
+                    if (window.getComputedStyle(fbs[j]).display !== 'none') { target = fbs[j]; break; }
+                }
+            }
+            if (target) { e.preventDefault(); target.click(); return; }
+        }
+
+        // Ctrl/Cmd+Enter — envía el formulario del modal más arriba (último en DOM)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            var sbs = document.querySelectorAll('[data-modal-submit]:not([disabled])');
+            if (sbs.length) { e.preventDefault(); sbs[sbs.length - 1].click(); return; }
+        }
+
+        // N — acción "nuevo" de la página actual
+        if ((e.key === 'n' || e.key === 'N') && !isEditable && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            var nb = document.querySelector('[data-new-action]');
+            if (nb) { e.preventDefault(); nb.click(); return; }
+        }
+
+        // P — gestionar proveedores (módulo Compras)
+        if ((e.key === 'p' || e.key === 'P') && !isEditable && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            var pb = document.querySelector('[data-prov-action]');
+            if (pb) { e.preventDefault(); pb.click(); return; }
+        }
+
+        // / — enfocar buscador de la página
+        if (e.key === '/' && !isEditable && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            var si = document.querySelector('[data-search-input]');
+            if (si) { e.preventDefault(); si.focus(); si.select(); return; }
+        }
+    });
+})();
+"""
+        return rx.call_script(js)

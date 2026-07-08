@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.configuracion import ConfiguracionState
 
 
@@ -13,13 +14,11 @@ from clinica_app.state.configuracion import ConfiguracionState
 def _campo(label: str, tipo: str, value, on_change, placeholder: str = "") -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-xs font-medium text-gray-600 mb-1"),
-        rx.debounce_input(
-            rx.el.input(
-                type=tipo, value=value, on_change=on_change, placeholder=placeholder,
-                class_name="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm "
-                           "focus:outline-none focus:ring-2 focus:ring-sky-500 transition bg-white",
-            ),
-            debounce_timeout=300,
+        
+        rx.el.input(
+            type=tipo, default_value=value, on_change=on_change, placeholder=placeholder,
+            class_name="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm "
+                       "focus:outline-none focus:ring-2 focus:ring-sky-500 transition bg-white",
         ),
     )
 
@@ -29,7 +28,7 @@ def _select(label: str, value, on_change, options: list[tuple[str, str]]) -> rx.
         rx.el.label(label, class_name="block text-xs font-medium text-gray-600 mb-1"),
         rx.el.select(
             *[rx.el.option(lbl, value=val) for val, lbl in options],
-            value=value, on_change=on_change,
+            default_value=value, on_change=on_change,
             class_name="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm "
                        "focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white",
         ),
@@ -39,13 +38,11 @@ def _select(label: str, value, on_change, options: list[tuple[str, str]]) -> rx.
 def _campo_pw(label: str, value, on_change) -> rx.Component:
     return rx.el.div(
         rx.el.label(label, class_name="block text-xs font-medium text-gray-600 mb-1"),
-        rx.debounce_input(
-            rx.el.input(
-                type="password", value=value, on_change=on_change, placeholder="••••••••",
-                class_name="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm "
-                           "focus:outline-none focus:ring-2 focus:ring-sky-500 transition",
-            ),
-            debounce_timeout=300,
+        
+        rx.el.input(
+            type="password", default_value=value, on_change=on_change, placeholder="••••••••",
+            class_name="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm "
+                       "focus:outline-none focus:ring-2 focus:ring-sky-500 transition",
         ),
     )
 
@@ -59,7 +56,7 @@ def _btn(label: str, on_click, color: str = "sky", size: str = "md") -> rx.Compo
     )
 
 
-def _btn_spinner(label: str, loading_label: str, is_loading, on_click) -> rx.Component:
+def _btn_spinner(label: str, loading_label: str, is_loading, on_click, **kwargs) -> rx.Component:
     return rx.el.button(
         rx.cond(
             is_loading,
@@ -72,6 +69,7 @@ def _btn_spinner(label: str, loading_label: str, is_loading, on_click) -> rx.Com
         on_click=on_click, disabled=is_loading,
         class_name="px-4 py-2 text-sm bg-sky-600 text-white font-medium rounded-lg "
                    "hover:bg-sky-700 disabled:bg-sky-400 disabled:cursor-not-allowed transition cursor-pointer",
+        **kwargs,
     )
 
 
@@ -167,7 +165,7 @@ def _modal_nuevo_usuario() -> rx.Component:
                     ),
                     rx.el.button(rx.icon("x", size=18), on_click=ConfiguracionState.cerrar_modal_usuario,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     _campo("Nombre completo *", "text", ConfiguracionState.form_u_nombre,
@@ -177,6 +175,35 @@ def _modal_nuevo_usuario() -> rx.Component:
                     _select("Rol *", ConfiguracionState.form_u_rol, ConfiguracionState.set_form_u_rol,
                             [("recepcionista", "Recepcionista"), ("profesional", "Profesional"),
                              ("administracion", "Administrador"), ("contador", "Contador")]),
+                    # Acceso a sucursales (solo para roles no-admin con múltiples sedes)
+                    rx.cond(
+                        (ConfiguracionState.form_u_rol != "administracion") &
+                        (ConfiguracionState.sedes_form.length() > 1),
+                        rx.el.div(
+                            rx.el.label(
+                                "Acceso a sucursales",
+                                class_name="block text-xs font-medium text-gray-600 mb-2",
+                            ),
+                            rx.el.p(
+                                "Sin selección = solo accede a la sucursal principal",
+                                class_name="text-xs text-gray-400 mb-2",
+                            ),
+                            rx.foreach(
+                                ConfiguracionState.sedes_form,
+                                lambda sede: rx.el.label(
+                                    rx.el.input(
+                                        type="checkbox",
+                                        checked=ConfiguracionState.form_u_sede_ids.contains(sede["id"]),
+                                        on_change=lambda _: ConfiguracionState.toggle_u_sede(sede["id"]),
+                                        class_name="mr-2 accent-sky-600",
+                                    ),
+                                    sede["nombre"],
+                                    class_name="flex items-center text-sm text-gray-700 cursor-pointer py-1",
+                                ),
+                            ),
+                            class_name="border border-gray-200 rounded-lg px-3 py-2",
+                        ),
+                    ),
                     _campo_pw("Contraseña *",         ConfiguracionState.form_u_password,
                               ConfiguracionState.set_form_u_password),
                     _campo_pw("Confirmar contraseña *", ConfiguracionState.form_u_password2,
@@ -191,7 +218,9 @@ def _modal_nuevo_usuario() -> rx.Component:
                                             "rounded-lg hover:bg-gray-50 transition cursor-pointer"),
                     _btn_spinner("Crear usuario", "Creando...",
                                  ConfiguracionState.is_saving_usuario,
-                                 ConfiguracionState.guardar_usuario),
+                                 ConfiguracionState.guardar_usuario,
+                                 data_modal_submit="1",
+                                 title="Crear usuario (Ctrl+Enter)"),
                     class_name="flex gap-3 justify-end mt-5",
                 ),
                 class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 z-50",
@@ -223,7 +252,7 @@ def _modal_password() -> rx.Component:
                     ),
                     rx.el.button(rx.icon("x", size=18), on_click=ConfiguracionState.cerrar_modal_password,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     _campo_pw("Nueva contraseña *",      ConfiguracionState.form_pw_nueva,
@@ -240,7 +269,9 @@ def _modal_password() -> rx.Component:
                                             "rounded-lg hover:bg-gray-50 transition cursor-pointer"),
                     _btn_spinner("Guardar", "Guardando...",
                                  ConfiguracionState.is_saving_pw,
-                                 ConfiguracionState.guardar_password),
+                                 ConfiguracionState.guardar_password,
+                                 data_modal_submit="1",
+                                 title="Guardar contraseña (Ctrl+Enter)"),
                     class_name="flex gap-3 justify-end mt-5",
                 ),
                 class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 z-50",
@@ -264,7 +295,7 @@ def _modal_sede() -> rx.Component:
                     ),
                     rx.el.button(rx.icon("x", size=18), on_click=ConfiguracionState.cerrar_modal_sede,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     _campo("Nombre *",    "text",  ConfiguracionState.form_sede_nombre,
@@ -299,6 +330,8 @@ def _modal_sede() -> rx.Component:
                                 "Guardar"),
                         on_click=ConfiguracionState.guardar_sede,
                         disabled=ConfiguracionState.is_saving_sede,
+                        data_modal_submit="1",
+                        title="Guardar (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg "
                                    "hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
                     ),
@@ -323,7 +356,7 @@ def _modal_impuesto() -> rx.Component:
                              class_name="text-lg font-semibold text-gray-900"),
                     rx.el.button(rx.icon("x", size=18), on_click=ConfiguracionState.cerrar_modal_impuesto,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     _select("Tipo de impuesto", ConfiguracionState.form_it_tipo,
@@ -351,7 +384,9 @@ def _modal_impuesto() -> rx.Component:
                                             "rounded-lg hover:bg-gray-50 transition cursor-pointer"),
                     _btn_spinner("Guardar tasa", "Guardando...",
                                  ConfiguracionState.is_saving_it,
-                                 ConfiguracionState.guardar_impuesto),
+                                 ConfiguracionState.guardar_impuesto,
+                                 data_modal_submit="1",
+                                 title="Guardar tasa (Ctrl+Enter)"),
                     class_name="flex gap-3 justify-end mt-5",
                 ),
                 class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 z-50",
@@ -488,8 +523,12 @@ def _seccion_empresa() -> rx.Component:
                            class_name="text-sm text-gray-600"),
                 rx.el.span(ConfiguracionState.form_margen_global + "%",
                            class_name="text-sm font-bold text-green-600 ml-1"),
-                rx.el.span(" — precio de compra $10 genera precio de venta $",
+                rx.el.span(" — precio de compra $10 genera precio de venta ",
                            class_name="text-xs text-gray-400 ml-2"),
+                rx.el.span(
+                    "$", ConfiguracionState.precio_ejemplo_venta,
+                    class_name="text-xs font-semibold text-green-700",
+                ),
                 class_name="flex items-center mt-3 p-3 bg-green-50 rounded-lg border border-green-100",
             ),
             rx.cond(ConfiguracionState.margenes_error   != "", _alert(ConfiguracionState.margenes_error,   "red")),
@@ -1278,13 +1317,9 @@ def configuracion_page() -> rx.Component:
         _modal_impuesto(),
         _modal_permisos_rol(),
 
-        # Encabezado
-        rx.el.div(
-            rx.el.h1("Configuracion del Sistema",
-                     class_name="text-xl font-semibold text-gray-900"),
-            rx.el.p("Gestiona usuarios, monedas, unidades y metodos de pago desde un solo lugar.",
-                    class_name="text-sm text-gray-500 mt-0.5"),
-            class_name="mb-6",
+        page_header(
+            "Configuración del Sistema",
+            "Gestiona usuarios, monedas, unidades y métodos de pago desde un solo lugar.",
         ),
 
         # Guard: solo admins

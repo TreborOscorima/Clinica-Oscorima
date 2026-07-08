@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from clinica_app.database import get_session
+import reflex as rx
+
+from clinica_app.database import get_async_session
 from clinica_app.services import promociones as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -37,6 +39,7 @@ class PromocionesState(BaseState):
     form_fecha_fin:    str  = ""
     form_error:        str  = ""
     is_saving:         bool = False
+    is_loading:        bool = False
 
     # ── Modal eliminar ─────────────────────────────────────────────────────────
     modal_eliminar: bool = False
@@ -45,14 +48,21 @@ class PromocionesState(BaseState):
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def on_mount(self):
-        return self.require_auth() or self.cargar()
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async for s in self.cargar():
+            yield s
 
-    def cargar(self):
-        with get_session() as session:
-            result = svc.listar(
+    async def cargar(self):
+        self.is_loading = True
+        yield
+        async with get_async_session() as session:
+            result = await svc.listar(
                 session,
                 self.clinica_id,
+                sede_id=self.sede_actual_id,
                 solo_activas=self.solo_activas,
                 q=self.busqueda,
                 page=self.page,
@@ -62,31 +72,36 @@ class PromocionesState(BaseState):
         self.total         = result["total"]
         self.total_pages   = result["pages"]
         self.total_activas = result["total_activas"]
+        self.is_loading = False
 
     # ── Filtros ────────────────────────────────────────────────────────────────
 
-    def set_busqueda(self, v: str):
+    async def set_busqueda(self, v: str):
         self.busqueda = v
         self.page = 1
         if len(v) >= 2 or v == "":
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def toggle_solo_activas(self):
+    async def toggle_solo_activas(self):
         self.solo_activas = not self.solo_activas
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
     # ── Paginación ─────────────────────────────────────────────────────────────
 
-    def next_page(self):
+    async def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def prev_page(self):
+    async def prev_page(self):
         if self.page > 1:
             self.page -= 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Modal formulario ───────────────────────────────────────────────────────
 
@@ -144,11 +159,11 @@ class PromocionesState(BaseState):
         }
 
         try:
-            with get_session() as session:
+            async with get_async_session() as session:
                 if self.editando:
-                    svc.actualizar(session, self.clinica_id, int(self.promo_sel["id"]), payload)
+                    await svc.actualizar(session, self.clinica_id, int(self.promo_sel["id"]), payload, sede_id=self.sede_actual_id)
                 else:
-                    svc.crear(session, self.clinica_id, payload)
+                    await svc.crear(session, self.clinica_id, payload, sede_id=self.sede_actual_id)
         except (ServiceError, Exception) as exc:
             self.form_error = str(exc)
             self.is_saving  = False
@@ -156,17 +171,19 @@ class PromocionesState(BaseState):
 
         self.is_saving  = False
         self.modal_form = False
-        self.cargar()
+        async for s in self.cargar():
+            yield s
 
     # ── Toggle activo ──────────────────────────────────────────────────────────
 
-    def toggle_activo(self, promo: dict):
-        try:
-            with get_session() as session:
-                svc.toggle_activo(session, self.clinica_id, int(promo["id"]))
-        except Exception:
-            pass
-        self.cargar()
+    async def toggle_activo(self, promo: dict):
+        async with get_async_session() as session:
+            try:
+                await svc.toggle_activo(session, self.clinica_id, int(promo["id"]), sede_id=self.sede_actual_id)
+            except Exception:
+                pass
+        async for s in self.cargar():
+            yield s
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 
@@ -181,11 +198,36 @@ class PromocionesState(BaseState):
     async def ejecutar_eliminar(self):
         self.is_saving = True
         yield
-        try:
-            with get_session() as session:
-                svc.eliminar(session, self.clinica_id, self.eliminar_id)
-        except Exception:
-            pass
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar(session, self.clinica_id, self.eliminar_id, sede_id=self.sede_actual_id)
+            except Exception:
+                pass
         self.is_saving      = False
         self.modal_eliminar = False
-        self.cargar()
+        async for s in self.cargar():
+            yield s
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    async def handle_modal_form_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_form()
+        elif key == "Enter" and self.modal_form and not self.is_saving:
+            async for s in self.guardar():
+                yield s
+
+    async def handle_modal_eliminar_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_eliminar()
+        elif key == "Enter" and self.modal_eliminar and not self.is_saving:
+            async for s in self.ejecutar_eliminar():
+                yield s
+
+    async def handle_tabla_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.prev_page():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.next_page():
+                yield s

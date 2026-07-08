@@ -21,6 +21,7 @@ class TipoNota(str, Enum):
 class NotaClinica(TenantSQLModel, table=True):
     __tablename__ = "notas_clinicas"
 
+    sede_id:        int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     paciente_id:    int       = Field(foreign_key="pacientes.id", nullable=False, index=True)
     turno_id:       int | None = Field(default=None, foreign_key="turnos.id", nullable=True, index=True)
     profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import reflex as rx
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import reportes as svc
 from clinica_app.state.base import BaseState
 
@@ -22,24 +22,32 @@ class ReportesState(BaseState):
 
     # ── Estado de generación ──────────────────────────────────────────────────
     is_generating: bool = False
+    is_loading:    bool = False
     archivo:       str  = ""
     gen_error:     str  = ""
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def on_mount(self):
-        return self.require_auth() or self._cargar_kpis()
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async for s in self._cargar_kpis():
+            yield s
 
-    def _cargar_kpis(self):
+    async def _cargar_kpis(self):
+        self.is_loading = True
+        yield
         try:
-            with get_session() as session:
-                kpis = svc.kpis_mes(session, self.clinica_id)
+            async with get_async_session() as session:
+                kpis = await svc.kpis_mes(session, self.clinica_id, sede_id=self.sede_actual_id)
             self.kpi_ingresos         = kpis["ingresos"]
             self.kpi_egresos          = kpis["egresos"]
             self.kpi_turnos           = str(kpis["turnos"])
             self.kpi_pacientes_nuevos = str(kpis["pacientes_nuevos"])
         except Exception:
             pass
+        self.is_loading = False
 
     # ── Setters ────────────────────────────────────────────────────────────────
 
@@ -66,7 +74,7 @@ class ReportesState(BaseState):
             params["hasta"] = self.fecha_hasta
 
         try:
-            filename = svc.generar_reporte(self.clinica_id, self.tipo_reporte, params)
+            filename = svc.generar_reporte(self.clinica_id, self.tipo_reporte, params, sede_id=self.sede_actual_id)
             self.archivo = filename
         except Exception as exc:
             self.gen_error = str(exc)

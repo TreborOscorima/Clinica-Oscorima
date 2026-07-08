@@ -22,11 +22,12 @@ class TipoMov(str, Enum):
 class Producto(SQLModel, table=True):
     __tablename__ = "inv_productos"
     __table_args__ = (
-        UniqueConstraint("clinica_id", "sku", name="uq_inv_productos_clinica_sku"),
+        UniqueConstraint("clinica_id", "sede_id", "sku", name="uq_inv_productos_clinica_sede_sku"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     sku: str | None = Field(default=None, max_length=60, index=True, nullable=True)
     nombre: str = Field(max_length=180, nullable=False, index=True)
     precio_costo: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
@@ -60,6 +61,7 @@ class MovimientoStock(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     fecha: datetime | None = Field(
         default_factory=_utcnow,
         sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True),
@@ -80,11 +82,12 @@ class MovimientoStock(SQLModel, table=True):
 class Proveedor(SQLModel, table=True):
     __tablename__ = "inv_proveedores"
     __table_args__ = (
-        UniqueConstraint("clinica_id", "nombre", name="uq_inv_proveedores_clinica_nombre"),
+        UniqueConstraint("clinica_id", "sede_id", "nombre", name="uq_inv_proveedores_clinica_sede_nombre"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombre: str = Field(max_length=180, nullable=False, index=True)
     documento: str | None = Field(default=None, max_length=30, nullable=True)
     email: str | None = Field(default=None, max_length=120, nullable=True)
@@ -109,11 +112,12 @@ class Proveedor(SQLModel, table=True):
 class Compra(SQLModel, table=True):
     __tablename__ = "inv_compras"
     __table_args__ = (
-        UniqueConstraint("clinica_id", "tipo_doc", "numero", name="uq_inv_compras_clinica_doc_numero"),
+        UniqueConstraint("clinica_id", "sede_id", "tipo_doc", "numero", name="uq_inv_compras_clinica_sede_doc_numero"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     fecha: datetime | None = Field(
         default_factory=_utcnow,
         sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True),

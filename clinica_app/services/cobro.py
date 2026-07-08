@@ -5,8 +5,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel import Session
 
 from clinica_app.models.caja import (
     CajaMovimiento,
@@ -57,33 +57,36 @@ def _dump(c: Comprobante, items: list[ComprobanteItem] | None = None) -> dict[st
     }
 
 
-def _numero(session: Session, clinica_id: int) -> str:
-    """Genera un número de comprobante único: REC-{clinica_id}-{YYYYMMDD}-{seq:04d}."""
+async def _numero(session: AsyncSession, clinica_id: int) -> str:
     hoy = datetime.now(timezone.utc).strftime("%Y%m%d")
     prefix = f"REC-{clinica_id}-{hoy}-"
-    count: int = session.execute(
-        select(func.count()).select_from(
-            select(Comprobante).where(
-                Comprobante.clinica_id == clinica_id,
-                Comprobante.numero.like(f"{prefix}%"),
-            ).subquery()
+    count: int = (
+        await session.execute(
+            select(func.count()).select_from(
+                select(Comprobante).where(
+                    Comprobante.clinica_id == clinica_id,
+                    Comprobante.numero.like(f"{prefix}%"),
+                ).subquery()
+            )
         )
     ).scalar_one()
     return f"{prefix}{count + 1:04d}"
 
 
-def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any], sede_id: int = 0) -> dict[str, Any]:
     paciente_id = payload.get("paciente_id")
     if not paciente_id:
         raise ServiceError("paciente_id requerido")
 
-    paciente = session.exec(
-        select(Paciente).where(
-            Paciente.id == paciente_id,
-            Paciente.clinica_id == clinica_id,
-            Paciente.is_active.is_(True),
+    paciente = (
+        await session.execute(
+            select(Paciente).where(
+                Paciente.id == paciente_id,
+                Paciente.clinica_id == clinica_id,
+                Paciente.is_active.is_(True),
+            )
         )
-    ).first()
+    ).scalars().first()
     if not paciente:
         raise NotFoundError("Paciente no encontrado")
 
@@ -123,10 +126,11 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
         raise ServiceError("El descuento no puede ser negativo")
     total_neto = max(Decimal("0"), total_bruto - descuento_global)
 
-    numero = _numero(session, clinica_id)
+    numero = await _numero(session, clinica_id)
 
     comp = Comprobante(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         tipo=payload.get("tipo") or "recibo",
         numero=numero,
         paciente_id=paciente_id,
@@ -137,7 +141,7 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
         observacion=payload.get("observacion"),
     )
     session.add(comp)
-    session.flush()
+    await session.flush()
 
     items_db: list[ComprobanteItem] = []
     for p in processed:
@@ -153,9 +157,9 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
         session.add(ci)
         items_db.append(ci)
         if p["tipo"] == "producto" and p["ref_id"]:
-            _descontar_stock(session, clinica_id, p["ref_id"], p["cantidad"], comp.id)
+            await _descontar_stock(session, clinica_id, p["ref_id"], p["cantidad"], comp.id)
 
-    session.flush()
+    await session.flush()
 
     es_cuotas  = bool(payload.get("es_cuotas"))
     num_cuotas = max(1, int(payload.get("num_cuotas") or 1))
@@ -174,32 +178,34 @@ def crear(session: Session, clinica_id: int, payload: dict[str, Any]) -> dict[st
         session.add(deuda)
         if anticipo > 0:
             _ingreso(session, clinica_id, anticipo, forma_pago, paciente_id, comp.id,
-                     f"Anticipo cuotas {numero}")
+                     f"Anticipo cuotas {numero}", sede_id=sede_id)
             deuda.pagado = anticipo
             deuda.saldo  = max(Decimal("0"), total_neto - anticipo)
             if deuda.saldo == 0:
                 deuda.estado = "cancelado"
     else:
         _ingreso(session, clinica_id, total_neto, forma_pago, paciente_id, comp.id,
-                 f"Cobro {numero}")
+                 f"Cobro {numero}", sede_id=sede_id)
 
-    session.flush()
+    await session.flush()
     return _dump(comp, items_db)
 
 
 def _ingreso(
-    session: Session,
+    session: AsyncSession,
     clinica_id: int,
     monto: Decimal,
     metodo: MetodoPago,
     paciente_id: int,
     comprobante_id: int,
     observacion: str,
+    sede_id: int = 0,
 ) -> None:
     if monto <= 0:
         return
     session.add(CajaMovimiento(
         clinica_id=clinica_id,
+        sede_id=sede_id or None,
         tipo=TipoMovimiento.INGRESO,
         monto=monto,
         metodo_pago=metodo,
@@ -209,20 +215,22 @@ def _ingreso(
     ))
 
 
-def _descontar_stock(
-    session: Session,
+async def _descontar_stock(
+    session: AsyncSession,
     clinica_id: int,
     producto_id: int,
     cantidad: Decimal,
     comprobante_id: int,
 ) -> None:
-    prod = session.exec(
-        select(Producto).where(
-            Producto.id == producto_id,
-            Producto.clinica_id == clinica_id,
-            Producto.is_active.is_(True),
+    prod = (
+        await session.execute(
+            select(Producto).where(
+                Producto.id == producto_id,
+                Producto.clinica_id == clinica_id,
+                Producto.is_active.is_(True),
+            )
         )
-    ).first()
+    ).scalars().first()
     if not prod:
         return
     nuevo_stock = (prod.stock_actual or Decimal("0")) - cantidad
@@ -238,9 +246,10 @@ def _descontar_stock(
     ))
 
 
-def listar(
-    session: Session,
+async def listar(
+    session: AsyncSession,
     clinica_id: int,
+    sede_id: int = 0,
     paciente_id: int | None = None,
     page: int = 1,
     per_page: int = 20,
@@ -249,17 +258,22 @@ def listar(
         Comprobante.clinica_id == clinica_id,
         Comprobante.is_active.is_(True),
     )
+    if sede_id:
+        stmt = stmt.where(Comprobante.sede_id == sede_id)
     if paciente_id:
         stmt = stmt.where(Comprobante.paciente_id == paciente_id)
 
-    total: int = session.execute(
-        select(func.count()).select_from(stmt.subquery())
+    total: int = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
-    items = session.exec(
-        stmt.order_by(Comprobante.fecha.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-    ).all()
+    items = (
+        await session.execute(
+            stmt.order_by(Comprobante.fecha.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
+    ).scalars().all()
+
     return {
         "data":     [_dump(c) for c in items],
         "page":     page,
@@ -269,30 +283,36 @@ def listar(
     }
 
 
-def obtener(session: Session, clinica_id: int, comp_id: int) -> dict[str, Any]:
-    comp = session.exec(
-        select(Comprobante).where(
-            Comprobante.clinica_id == clinica_id,
-            Comprobante.id == comp_id,
-        )
-    ).first()
+async def obtener(session: AsyncSession, clinica_id: int, comp_id: int, sede_id: int = 0) -> dict[str, Any]:
+    stmt = select(Comprobante).where(
+        Comprobante.clinica_id == clinica_id,
+        Comprobante.id == comp_id,
+        Comprobante.is_active.is_(True),
+    )
+    if sede_id:
+        stmt = stmt.where(Comprobante.sede_id == sede_id)
+    comp = (await session.execute(stmt)).scalars().first()
     if not comp:
         raise NotFoundError("Comprobante no encontrado")
-    items = session.exec(
-        select(ComprobanteItem).where(ComprobanteItem.comprobante_id == comp_id)
-    ).all()
+    items = (
+        await session.execute(
+            select(ComprobanteItem).where(ComprobanteItem.comprobante_id == comp_id)
+        )
+    ).scalars().all()
     return _dump(comp, list(items))
 
 
-def anular(session: Session, clinica_id: int, comp_id: int) -> None:
-    comp = session.exec(
-        select(Comprobante).where(
-            Comprobante.clinica_id == clinica_id,
-            Comprobante.id == comp_id,
-            Comprobante.is_active.is_(True),
+async def anular(session: AsyncSession, clinica_id: int, comp_id: int) -> None:
+    comp = (
+        await session.execute(
+            select(Comprobante).where(
+                Comprobante.clinica_id == clinica_id,
+                Comprobante.id == comp_id,
+                Comprobante.is_active.is_(True),
+            )
         )
-    ).first()
+    ).scalars().first()
     if not comp:
         raise NotFoundError("Comprobante no encontrado")
     comp.soft_delete()
-    session.flush()
+    await session.flush()

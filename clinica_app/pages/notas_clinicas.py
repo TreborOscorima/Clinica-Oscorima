@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.notas_clinicas import NotasClinicasState
 
 _TIPOS = ["evolucion", "anamnesis", "diagnostico", "indicacion", "otro"]
@@ -64,7 +65,7 @@ def _modal_nota() -> rx.Component:
                         on_click=NotasClinicasState.cerrar_modal,
                         class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
                     ),
-                    class_name="flex items-center justify-between mb-5",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 # Paciente info
                 rx.el.div(
@@ -81,7 +82,7 @@ def _modal_nota() -> rx.Component:
                         rx.el.option("Diagnóstico", value="diagnostico"),
                         rx.el.option("Indicación",  value="indicacion"),
                         rx.el.option("Otro",        value="otro"),
-                        value=NotasClinicasState.form_tipo,
+                        default_value=NotasClinicasState.form_tipo,
                         on_change=NotasClinicasState.set_form_tipo,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                     ),
@@ -90,30 +91,26 @@ def _modal_nota() -> rx.Component:
                 # Turno ID (opcional)
                 rx.el.div(
                     rx.el.label("ID de turno (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.debounce_input(
-                        rx.el.input(
-                            type="text",
-                            placeholder="Ej: 42",
-                            value=NotasClinicasState.form_turno_id,
-                            on_change=NotasClinicasState.set_form_turno_id,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
-                        ),
-                        debounce_timeout=300,
+                    
+                    rx.el.input(
+                        type="text",
+                        placeholder="Ej: 42",
+                        default_value=NotasClinicasState.form_turno_id,
+                        on_change=NotasClinicasState.set_form_turno_id,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                     ),
                     class_name="mb-4",
                 ),
                 # Contenido
                 rx.el.div(
                     rx.el.label("Contenido *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.debounce_input(
-                        rx.el.textarea(
-                            placeholder="Escribí la nota clínica aquí…",
-                            value=NotasClinicasState.form_contenido,
-                            on_change=NotasClinicasState.set_form_contenido,
-                            rows=6,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
-                        ),
-                        debounce_timeout=300,
+                    
+                    rx.el.textarea(
+                        placeholder="Escribí la nota clínica aquí…",
+                        default_value=NotasClinicasState.form_contenido,
+                        on_change=NotasClinicasState.set_form_contenido,
+                        rows=6,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
                     ),
                     class_name="mb-4",
                 ),
@@ -144,6 +141,8 @@ def _modal_nota() -> rx.Component:
                         ),
                         on_click=NotasClinicasState.guardar,
                         disabled=NotasClinicasState.is_saving,
+                        data_modal_submit="1",
+                        title="Guardar nota (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
                     ),
                     class_name="flex gap-3 justify-end",
@@ -205,29 +204,21 @@ def _fila_nota(n: dict) -> rx.Component:
 def notas_clinicas_page() -> rx.Component:
     return shell(
         _modal_nota(),
-        # Header
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Historia Clínica", class_name="text-xl font-semibold text-gray-900"),
-                rx.el.p(
-                    rx.cond(
-                        NotasClinicasState.paciente_nombre != "",
-                        NotasClinicasState.paciente_nombre,
-                        "Seleccioná un paciente desde la ficha",
-                    ),
-                    class_name="text-sm text-gray-500",
-                ),
-            ),
-            rx.cond(
+        page_header(
+            "Historia Clínica",
+            "Evoluciones, diagnósticos e indicaciones por paciente",
+            action=rx.cond(
                 NotasClinicasState.paciente_id != 0,
                 rx.el.button(
                     rx.icon("plus", size=16),
-                    "Nueva nota",
+                    rx.el.span("Nueva nota", class_name="ml-1.5"),
                     on_click=NotasClinicasState.abrir_nueva,
-                    class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer",
+                    data_new_action="1",
+                    title="Nueva nota (N)",
+                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
                 ),
+                rx.fragment(),
             ),
-            class_name="flex items-center justify-between mb-6",
         ),
         # Sin paciente seleccionado
         rx.cond(

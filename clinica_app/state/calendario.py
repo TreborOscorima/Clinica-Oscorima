@@ -5,7 +5,7 @@ from typing import Any
 
 import reflex as rx
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.state.base import BaseState
 
 _DIAS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
@@ -32,6 +32,7 @@ class CalendarioState(BaseState):
     form_fecha_hora:     str  = ""
     form_error:          str  = ""
     is_saving:           bool = False
+    is_loading:          bool = False
     pacientes_cat:       list[dict] = []
     servicios_cat:       list[dict] = []
 
@@ -104,33 +105,46 @@ class CalendarioState(BaseState):
     def _lunes_de(self, d: date) -> date:
         return d - timedelta(days=d.weekday())
 
-    def on_mount(self):
-        if redir := self.require_auth():
-            return redir
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
         hoy = date.today()
         self.semana_inicio = self._lunes_de(hoy).isoformat()
-        self._cargar_catalogos()
-        self.cargar()
+        await self._cargar_catalogos()
+        async for s in self.cargar():
+            yield s
 
-    def _cargar_catalogos(self):
+    async def _cargar_catalogos(self):
         from clinica_app.models.paciente import Paciente
         from clinica_app.models.profesional import Profesional
         from clinica_app.models.servicio import Servicio
         from sqlmodel import select
-        with get_session() as session:
-            pacs = session.exec(
-                select(Paciente).where(
-                    Paciente.clinica_id == self.clinica_id,
-                    Paciente.is_active.is_(True),
-                ).limit(300)
-            ).all()
-            profs = session.exec(select(Profesional).limit(100)).all()
-            servs = session.exec(
-                select(Servicio).where(
-                    Servicio.clinica_id == self.clinica_id,
-                    Servicio.is_active.is_(True),
-                ).limit(200)
-            ).all()
+        async with get_async_session() as session:
+            stmt_pacs = select(Paciente).where(
+                Paciente.clinica_id == self.clinica_id,
+                Paciente.is_active.is_(True),
+            )
+            if self.sede_actual_id:
+                stmt_pacs = stmt_pacs.where(Paciente.sede_id == self.sede_actual_id)
+            pacs = (await session.execute(stmt_pacs.limit(300))).scalars().all()
+
+            stmt_profs = select(Profesional).where(
+                Profesional.clinica_id == self.clinica_id,
+                Profesional.is_active.is_(True),
+            )
+            if self.sede_actual_id:
+                stmt_profs = stmt_profs.where(Profesional.sede_id == self.sede_actual_id)
+            profs = (await session.execute(stmt_profs.limit(100))).scalars().all()
+
+            stmt_servs = select(Servicio).where(
+                Servicio.clinica_id == self.clinica_id,
+                Servicio.is_active.is_(True),
+            )
+            if self.sede_actual_id:
+                stmt_servs = stmt_servs.where(Servicio.sede_id == self.sede_actual_id)
+            servs = (await session.execute(stmt_servs.limit(200))).scalars().all()
+
             self.pacientes_cat = [{"id": str(p.id), "nombre": p.nombre} for p in pacs]
             self.profesionales_cat = [
                 {"id": str(p.id), "nombre": f"{p.nombres} {p.apellidos}"}
@@ -138,15 +152,18 @@ class CalendarioState(BaseState):
             ]
             self.servicios_cat = [{"id": str(s.id), "nombre": s.nombre} for s in servs]
 
-    def cargar(self):
+    async def cargar(self):
         if not self.semana_inicio:
             return
+        self.is_loading = True
+        yield
         try:
             inicio_date = date.fromisoformat(self.semana_inicio)
             fin_date    = inicio_date + timedelta(days=7)
             inicio_dt   = datetime(inicio_date.year, inicio_date.month, inicio_date.day, 0, 0, 0)
             fin_dt      = datetime(fin_date.year,    fin_date.month,    fin_date.day,    0, 0, 0)
         except ValueError:
+            self.is_loading = False
             return
 
         from clinica_app.models.turno import Turno
@@ -155,7 +172,7 @@ class CalendarioState(BaseState):
         from sqlmodel import select
         from sqlalchemy.orm import selectinload
 
-        with get_session() as session:
+        async with get_async_session() as session:
             stmt = (
                 select(Turno)
                 .options(
@@ -171,13 +188,15 @@ class CalendarioState(BaseState):
                 )
                 .order_by(Turno.fecha_hora)
             )
+            if self.sede_actual_id:
+                stmt = stmt.where(Turno.sede_id == self.sede_actual_id)
             if self.filtro_profesional_id:
                 try:
                     stmt = stmt.where(Turno.profesional_id == int(self.filtro_profesional_id))
                 except ValueError:
                     pass
 
-            turnos = session.exec(stmt).all()
+            turnos = (await session.execute(stmt)).scalars().all()
             self.turnos_semana = [
                 {
                     "id":                t.id,
@@ -193,32 +212,37 @@ class CalendarioState(BaseState):
                 }
                 for t in turnos
             ]
+        self.is_loading = False
 
     # ── Navegación ─────────────────────────────────────────────────────────────
 
-    def semana_anterior(self):
+    async def semana_anterior(self):
         try:
             d = date.fromisoformat(self.semana_inicio) - timedelta(weeks=1)
             self.semana_inicio = d.isoformat()
-            self.cargar()
+            async for s in self.cargar():
+                yield s
         except ValueError:
             pass
 
-    def semana_siguiente(self):
+    async def semana_siguiente(self):
         try:
             d = date.fromisoformat(self.semana_inicio) + timedelta(weeks=1)
             self.semana_inicio = d.isoformat()
-            self.cargar()
+            async for s in self.cargar():
+                yield s
         except ValueError:
             pass
 
-    def ir_a_hoy(self):
+    async def ir_a_hoy(self):
         self.semana_inicio = self._lunes_de(date.today()).isoformat()
-        self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    def set_filtro_profesional_id(self, v: str):
+    async def set_filtro_profesional_id(self, v: str):
         self.filtro_profesional_id = v
-        self.cargar()
+        async for s in self.cargar():
+            yield s
 
     # ── Modal nuevo turno ──────────────────────────────────────────────────────
 
@@ -257,8 +281,8 @@ class CalendarioState(BaseState):
             "fecha_hora":     self.form_fecha_hora,
         }
         try:
-            with get_session() as session:
-                svc.crear(session, self.clinica_id, payload, created_by_id=self.user_id)
+            async with get_async_session() as session:
+                await svc.crear(session, self.clinica_id, payload, created_by_id=self.user_id, sede_id=self.sede_actual_id)
         except ServiceError as exc:
             self.form_error = str(exc)
             self.is_saving  = False
@@ -266,4 +290,19 @@ class CalendarioState(BaseState):
 
         self.is_saving   = False
         self.modal_nuevo = False
-        self.cargar()
+        async for s in self.cargar():
+            yield s
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    def handle_modal_key(self, key: str):
+        if key == "Escape":
+            self.modal_nuevo = False
+
+    async def handle_nav_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.semana_anterior():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.semana_siguiente():
+                yield s

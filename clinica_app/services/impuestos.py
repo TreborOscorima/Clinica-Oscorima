@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from clinica_app.models.base import tenant_select
 from clinica_app.models.impuesto_tasa import ImpuestoTasa
@@ -37,15 +38,15 @@ def _dump(t: ImpuestoTasa) -> dict[str, Any]:
     }
 
 
-def listar(session: Session, clinica_id: int) -> list[dict]:
-    rows = session.exec(
+async def listar(session: AsyncSession, clinica_id: int) -> list[dict]:
+    rows = (await session.execute(
         tenant_select(ImpuestoTasa, clinica_id)
         .order_by(ImpuestoTasa.tipo_impuesto, ImpuestoTasa.nombre)
-    ).all()
+    )).scalars().all()
     return [_dump(t) for t in rows]
 
 
-def crear(session: Session, clinica_id: int, payload: dict) -> dict:
+async def crear(session: AsyncSession, clinica_id: int, payload: dict) -> dict:
     tipo   = (payload.get("tipo_impuesto") or "IVA").strip().upper()
     nombre = (payload.get("nombre") or "").strip()
     try:
@@ -59,7 +60,7 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
 
     is_default = bool(payload.get("is_default", False))
     if is_default:
-        _quitar_default(session, clinica_id)
+        await _quitar_default(session, clinica_id)
 
     t = ImpuestoTasa(
         clinica_id=clinica_id,
@@ -69,18 +70,18 @@ def crear(session: Session, clinica_id: int, payload: dict) -> dict:
         is_default=is_default,
     )
     session.add(t)
-    session.flush()
+    await session.flush()
     return _dump(t)
 
 
-def actualizar(session: Session, clinica_id: int, tid: int, payload: dict) -> dict:
-    t = session.exec(
+async def actualizar(session: AsyncSession, clinica_id: int, tid: int, payload: dict) -> dict:
+    t = (await session.execute(
         select(ImpuestoTasa).where(
             ImpuestoTasa.id         == tid,
             ImpuestoTasa.clinica_id == clinica_id,
             ImpuestoTasa.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not t:
         raise NotFoundError("Tasa no encontrada")
     try:
@@ -91,50 +92,50 @@ def actualizar(session: Session, clinica_id: int, tid: int, payload: dict) -> di
         t.nombre = nombre
     if tipo := (payload.get("tipo_impuesto") or "").strip():
         t.tipo_impuesto = tipo.upper()
-    session.flush()
+    await session.flush()
     return _dump(t)
 
 
-def set_default(session: Session, clinica_id: int, tid: int) -> None:
-    _quitar_default(session, clinica_id)
-    t = session.exec(
+async def set_default(session: AsyncSession, clinica_id: int, tid: int) -> None:
+    await _quitar_default(session, clinica_id)
+    t = (await session.execute(
         select(ImpuestoTasa).where(
             ImpuestoTasa.id         == tid,
             ImpuestoTasa.clinica_id == clinica_id,
         )
-    ).first()
+    )).scalars().first()
     if not t:
         raise NotFoundError("Tasa no encontrada")
     t.is_default = True
-    session.flush()
+    await session.flush()
 
 
-def eliminar(session: Session, clinica_id: int, tid: int) -> None:
-    t = session.exec(
+async def eliminar(session: AsyncSession, clinica_id: int, tid: int) -> None:
+    t = (await session.execute(
         select(ImpuestoTasa).where(
             ImpuestoTasa.id         == tid,
             ImpuestoTasa.clinica_id == clinica_id,
             ImpuestoTasa.is_active.is_(True),
         )
-    ).first()
+    )).scalars().first()
     if not t:
         raise NotFoundError("Tasa no encontrada")
     if t.is_default:
         raise ServiceError("No se puede eliminar la tasa por defecto. Seleccioná otra primero.")
     t.soft_delete()
-    session.flush()
+    await session.flush()
 
 
-def cargar_pais(session: Session, clinica_id: int, pais: str) -> None:
+async def cargar_pais(session: AsyncSession, clinica_id: int, pais: str) -> None:
     defaults = _PAIS_DEFAULTS.get(pais.lower())
     if not defaults:
         raise ServiceError(f"País no soportado: {pais}")
-    for t in session.exec(
+    for t in (await session.execute(
         select(ImpuestoTasa).where(
             ImpuestoTasa.clinica_id == clinica_id,
             ImpuestoTasa.is_active.is_(True),
         )
-    ).all():
+    )).scalars().all():
         t.soft_delete()
     for tipo, nombre, porcentaje, is_default in defaults:
         session.add(ImpuestoTasa(
@@ -144,15 +145,15 @@ def cargar_pais(session: Session, clinica_id: int, pais: str) -> None:
             porcentaje=porcentaje,
             is_default=is_default,
         ))
-    session.flush()
+    await session.flush()
 
 
-def _quitar_default(session: Session, clinica_id: int) -> None:
-    for t in session.exec(
+async def _quitar_default(session: AsyncSession, clinica_id: int) -> None:
+    for t in (await session.execute(
         select(ImpuestoTasa).where(
             ImpuestoTasa.clinica_id  == clinica_id,
             ImpuestoTasa.is_active.is_(True),
             ImpuestoTasa.is_default.is_(True),
         )
-    ).all():
+    )).scalars().all():
         t.is_default = False

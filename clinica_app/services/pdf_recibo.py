@@ -191,27 +191,29 @@ def generar_recibo_pdf(
     return filename
 
 
-def obtener_datos_comprobante(session, clinica_id: int, comprobante_id: int) -> tuple[dict, str]:
+async def obtener_datos_comprobante(session, clinica_id: int, comprobante_id: int) -> tuple[dict, str]:
     """Devuelve (comprobante_dict, paciente_nombre)."""
     from clinica_app.models.caja import Comprobante, ComprobanteItem
     from clinica_app.models.paciente import Paciente
     from sqlmodel import select
 
-    comp = session.exec(
+    comp = (await session.execute(
         select(Comprobante).where(
             Comprobante.id == comprobante_id,
             Comprobante.clinica_id == clinica_id,
         )
-    ).first()
+    )).scalars().first()
     if comp is None:
         raise ValueError(f"Comprobante {comprobante_id} no encontrado")
 
-    items = session.exec(
+    items = (await session.execute(
         select(ComprobanteItem).where(ComprobanteItem.comprobante_id == comprobante_id)
-    ).all()
+    )).scalars().all()
     paciente_nombre = ""
     if comp.paciente_id:
-        pac = session.exec(select(Paciente).where(Paciente.id == comp.paciente_id)).first()
+        pac = (await session.execute(
+            select(Paciente).where(Paciente.id == comp.paciente_id)
+        )).scalars().first()
         if pac:
             paciente_nombre = pac.nombre
 

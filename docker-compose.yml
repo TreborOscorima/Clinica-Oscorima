@@ -1,76 +1,109 @@
-version: "3.9"
+# =============================================================================
+# docker-compose.yml — WaykiSAC Clínica producción
+#
+# Stack 100% independiente de Sistema-de-Ventas y TUWAYKIFOOD — DB, red y
+# proceso propios. Misma mecánica de arranque que esos dos sistemas.
+#
+# PRIMERA VEZ:
+#   1. cp .env.example .env && editar (MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY)
+#   2. Crear red NPM si no existe: docker network create nginx-proxy-manager_default
+#   3. bash scripts/deploy-prod.sh
+#
+# NPM (Proxy Host):
+#   Domain: clinica.tuwayki.app | Forward: wayki_clinica:3000 | WebSockets ON
+#
+# Uso normal: bash scripts/deploy-prod.sh
+# Para local: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+# =============================================================================
 
 services:
-
-  # ─── MySQL (RDS-compatible) ─────────────────────────────────────────────────
-  db:
+  clinica_mysql:
     image: mysql:8.0
+    container_name: clinica_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-rootpass}
-      MYSQL_DATABASE:      ${MYSQL_DB:-clinica_estetica}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD requerido en .env}
+      MYSQL_DATABASE: ${MYSQL_DB:-clinica_db}
+      MYSQL_USER: ${MYSQL_USER:-clinica}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD requerido en .env}
     volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3307:3306"
+      - clinica_mysql_data:/var/lib/mysql
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-name-resolve
+      - --max_connections=100
+      - --innodb_buffer_pool_size=128M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -h localhost -u root -e 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - clinica_internal
 
-  # ─── Redis (ElastiCache-compatible) ─────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── App Reflex ─────────────────────────────────────────────────────────────
-  app:
+  wayki_clinica:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:3000"   # Frontend Next.js compilado
-      - "8000:8000"   # Backend FastAPI / WebSocket de Reflex
-    environment:
-      DATABASE_URL:  "mysql+pymysql://${MYSQL_USER:-root}:${MYSQL_PASSWORD:-rootpass}@db:3306/${MYSQL_DB:-clinica_estetica}?charset=utf8mb4"
-      REDIS_URL:     "redis://redis:6379/0"
-      SECRET_KEY:    "${SECRET_KEY:-change-me-in-production}"
-      SQLMODEL_ECHO: "false"
+    image: wayki_clinica:latest
+    container_name: wayki_clinica
+    restart: on-failure:10
     depends_on:
-      db:
+      clinica_mysql:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - exports_data:/app/exports
-
-  # ─── Worker RQ (reportes en background) ─────────────────────────────────────
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      DATABASE_URL:      "mysql+pymysql://${MYSQL_USER:-root}:${MYSQL_PASSWORD:-rootpass}@db:3306/${MYSQL_DB:-clinica_estetica}?charset=utf8mb4"
-      REDIS_URL:         "redis://redis:6379/0"
-      REPORT_EXPORT_DIR: "/app/exports"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      ENV: prod
+      MYSQL_HOST: clinica_mysql
+      MYSQL_PORT: "3306"
+      FRONTEND_PORT: "3000"
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-https://clinica.tuwayki.app}
+      REPORT_EXPORT_DIR: /app/exports
     volumes:
-      - exports_data:/app/exports
+      - clinica_web:/app/.web
+      - clinica_exports:/app/exports
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 300s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    networks:
+      - clinica_internal
+      - clinica_npm_network
 
 volumes:
-  mysql_data:
-  exports_data:
+  clinica_mysql_data:
+  clinica_web:
+  clinica_exports:
+
+networks:
+  clinica_internal:
+    driver: bridge
+
+  clinica_npm_network:
+    external: true
+    name: nginx-proxy-manager_default

@@ -13,6 +13,7 @@ class Profesional(TenantSQLModel, table=True):
         UniqueConstraint("clinica_id", "matricula", name="uq_prof_clinica_matricula"),
     )
 
+    sede_id:     int | None    = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombres:     str           = Field(max_length=120, nullable=False)
     apellidos:   str           = Field(max_length=120, nullable=False)
     dni:         str | None    = Field(default=None, max_length=40,  nullable=True, index=True)

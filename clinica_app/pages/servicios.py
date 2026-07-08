@@ -3,20 +3,10 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
+from clinica_app.components.ui import page_header
 from clinica_app.state.servicios import ServiciosState
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-_CAT_COLORS: dict[str, str] = {}  # colores por categoría (se asignan dinámicamente)
-
-_BADGE_COLORS = [
-    "bg-sky-100 text-sky-700",
-    "bg-purple-100 text-purple-700",
-    "bg-emerald-100 text-emerald-700",
-    "bg-orange-100 text-orange-700",
-    "bg-pink-100 text-pink-700",
-    "bg-teal-100 text-teal-700",
-]
 
 
 def _label(text: str, required: bool = False) -> rx.Component:
@@ -28,34 +18,28 @@ def _label(text: str, required: bool = False) -> rx.Component:
 
 
 def _input(placeholder: str, value, on_change, type_: str = "text") -> rx.Component:
-    return rx.debounce_input(
-        rx.el.input(
-            placeholder=placeholder,
-            value=value,
-            on_change=on_change,
-            type=type_,
-            class_name=(
-                "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
-                "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-            ),
+    return rx.el.input(
+        placeholder=placeholder,
+        default_value=value,
+        on_change=on_change,
+        type=type_,
+        class_name=(
+            "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg "
+            "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
         ),
-        debounce_timeout=300,
     )
 
 
 def _textarea(placeholder: str, value, on_change, rows: int = 3) -> rx.Component:
-    return rx.debounce_input(
-        rx.el.textarea(
-            placeholder=placeholder,
-            value=value,
-            on_change=on_change,
-            rows=rows,
-            class_name=(
-                "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none "
-                "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-            ),
+    return rx.el.textarea(
+        placeholder=placeholder,
+        default_value=value,
+        on_change=on_change,
+        rows=rows,
+        class_name=(
+            "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none "
+            "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
         ),
-        debounce_timeout=300,
     )
 
 
@@ -83,7 +67,7 @@ def _modal() -> rx.Component:
                         on_click=ServiciosState.cerrar_modal,
                         class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
                     ),
-                    class_name="flex items-center justify-between mb-6",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 # form
                 rx.el.div(
@@ -102,7 +86,7 @@ def _modal() -> rx.Component:
                                     ServiciosState.categorias_cat,
                                     lambda c: rx.el.option(c, value=c),
                                 ),
-                                value=ServiciosState.form_categoria,
+                                default_value=ServiciosState.form_categoria,
                                 on_change=ServiciosState.set_form_categoria,
                                 class_name="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
                             ),
@@ -172,6 +156,8 @@ def _modal() -> rx.Component:
                         ),
                         on_click=ServiciosState.guardar,
                         disabled=ServiciosState.is_saving,
+                        data_modal_submit="1",
+                        title="Guardar (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
                     ),
                     class_name="flex gap-3 justify-end mt-6",
@@ -226,7 +212,7 @@ def _card(srv: dict) -> rx.Component:
         rx.el.div(
             rx.el.div(
                 rx.icon("dollar-sign", size=14, class_name="text-emerald-600 mr-0.5"),
-                rx.el.span("$ ", srv["precio"], class_name="text-sm font-semibold text-emerald-700"),
+                rx.el.span(srv["precio"], class_name="text-sm font-semibold text-emerald-700"),
                 class_name="flex items-center",
             ),
             rx.el.div(
@@ -248,39 +234,30 @@ def _card(srv: dict) -> rx.Component:
 def servicios_page() -> rx.Component:
     return shell(
         _modal(),
-        # header
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Servicios", class_name="text-2xl font-bold text-gray-900"),
-                rx.el.p(
-                    ServiciosState.total.to(str) + " servicios",
-                    class_name="text-sm text-gray-500 mt-0.5",
-                ),
-            ),
-            rx.el.button(
-                rx.icon("plus", size=16, class_name="mr-2"),
-                "Nuevo servicio",
+        page_header(
+            "Servicios",
+            "Catálogo de servicios médicos y estéticos",
+            action=rx.el.button(
+                rx.icon("plus", size=16),
+                rx.el.span("Nuevo servicio", class_name="ml-1.5"),
                 on_click=ServiciosState.abrir_nuevo,
-                class_name=(
-                    "flex items-center px-4 py-2 bg-sky-600 text-white text-sm "
-                    "font-medium rounded-lg hover:bg-sky-700 cursor-pointer"
-                ),
+                data_new_action="1",
+                title="Nuevo servicio (N)",
+                class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
             ),
-            class_name="flex items-start justify-between mb-6",
         ),
         # filtros
         rx.el.div(
             # buscador
             rx.el.div(
                 rx.icon("search", size=16, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"),
-                rx.debounce_input(
-                    rx.el.input(
-                        placeholder="Buscar servicio…",
-                        value=ServiciosState.busqueda,
-                        on_change=ServiciosState.set_busqueda,
-                        class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
-                    ),
-                    debounce_timeout=300,
+                
+                rx.el.input(
+                    placeholder="Buscar servicio…",
+                    on_change=ServiciosState.set_busqueda,
+                    data_search_input="1",
+                    title="Buscar (/)",
+                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
                 ),
                 class_name="relative flex-1",
             ),
@@ -291,7 +268,7 @@ def servicios_page() -> rx.Component:
                     ServiciosState.categorias_cat,
                     lambda c: rx.el.option(c, value=c),
                 ),
-                value=ServiciosState.filtro_cat,
+                default_value=ServiciosState.filtro_cat,
                 on_change=ServiciosState.set_filtro_cat,
                 class_name="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white",
             ),

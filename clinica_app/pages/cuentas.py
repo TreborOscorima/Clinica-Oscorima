@@ -5,6 +5,7 @@ import reflex as rx
 from clinica_app.components.badge import estado_badge
 from clinica_app.components.layout import shell
 from clinica_app.components.stat_card import stat_card
+from clinica_app.components.ui import page_header
 from clinica_app.state.cuentas import CuentasState
 
 
@@ -148,16 +149,14 @@ def _modal_pago() -> rx.Component:
                         rx.el.label("Monto a pagar *", class_name="block text-sm font-medium text-gray-700 mb-1"),
                         rx.el.div(
                             rx.el.span("$", class_name="text-gray-500 text-sm px-3"),
-                            rx.debounce_input(
-                                rx.el.input(
-                                    type="text",
-                                    input_mode="decimal",
-                                    value=CuentasState.form_monto,
-                                    on_change=CuentasState.set_form_monto,
-                                    placeholder="0.00",
-                                    class_name="flex-1 py-2 pr-3 text-sm outline-none",
-                                ),
-                                debounce_timeout=300,
+                            
+                            rx.el.input(
+                                type="text",
+                                input_mode="decimal",
+                                default_value=CuentasState.form_monto,
+                                on_change=CuentasState.set_form_monto,
+                                placeholder="0.00",
+                                class_name="flex-1 py-2 pr-3 text-sm outline-none",
                             ),
                             class_name="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
                         ),
@@ -170,7 +169,7 @@ def _modal_pago() -> rx.Component:
                             rx.el.option("Tarjeta",        value="tarjeta"),
                             rx.el.option("Transferencia",  value="transferencia"),
                             rx.el.option("Otro",           value="otro"),
-                            value=CuentasState.form_metodo,
+                            default_value=CuentasState.form_metodo,
                             on_change=CuentasState.set_form_metodo,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -178,15 +177,13 @@ def _modal_pago() -> rx.Component:
                     # Observación
                     rx.el.div(
                         rx.el.label("Observación", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.debounce_input(
-                            rx.el.input(
-                                type="text",
-                                value=CuentasState.form_obs,
-                                on_change=CuentasState.set_form_obs,
-                                placeholder="Opcional…",
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
-                            ),
-                            debounce_timeout=300,
+                        
+                        rx.el.input(
+                            type="text",
+                            default_value=CuentasState.form_obs,
+                            on_change=CuentasState.set_form_obs,
+                            placeholder="Opcional…",
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
                     ),
                     class_name="space-y-4",
@@ -219,6 +216,8 @@ def _modal_pago() -> rx.Component:
                         ),
                         on_click=CuentasState.confirmar_pago,
                         disabled=CuentasState.is_saving,
+                        data_modal_submit="1",
+                        title="Confirmar pago (Ctrl+Enter)",
                         class_name="px-5 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-60 cursor-pointer",
                     ),
                     class_name="flex justify-end gap-3 mt-6",
@@ -237,17 +236,7 @@ def _modal_pago() -> rx.Component:
 def cuentas_page() -> rx.Component:
     return shell(
         _modal_pago(),
-        # Header
-        rx.el.div(
-            rx.el.div(
-                rx.el.h1("Cuentas Corrientes", class_name="text-2xl font-bold text-gray-900"),
-                rx.el.p(
-                    CuentasState.total.to(str), " deudas encontradas",
-                    class_name="text-sm text-gray-500 mt-0.5",
-                ),
-            ),
-            class_name="flex items-center justify-between mb-6",
-        ),
+        page_header("Cuentas Corrientes", "Gestioná saldos pendientes y pagos en cuotas"),
         # KPIs
         rx.el.div(
             stat_card(
@@ -279,14 +268,13 @@ def cuentas_page() -> rx.Component:
             # Búsqueda
             rx.el.div(
                 rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
-                rx.debounce_input(
-                    rx.el.input(
-                        placeholder="Buscar paciente…",
-                        value=CuentasState.busqueda,
-                        on_change=CuentasState.set_busqueda,
-                        class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-56",
-                    ),
-                    debounce_timeout=300,
+                
+                rx.el.input(
+                    placeholder="Buscar paciente…",
+                    on_change=CuentasState.set_busqueda,
+                    data_search_input="1",
+                    title="Buscar (/)",
+                    class_name="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-56",
                 ),
                 class_name="relative",
             ),

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import reflex as rx
 
-from clinica_app.database import get_session
+from clinica_app.database import get_async_session
 from clinica_app.services import cuentas as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -40,17 +40,25 @@ class CuentasState(BaseState):
     form_obs:    str  = ""
     form_error:  str  = ""
     is_saving:   bool = False
+    is_loading:  bool = False
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
-    def on_mount(self):
-        return self.require_auth() or self.cargar()
+    async def on_mount(self):
+        if not self.is_authenticated:
+            yield rx.redirect("/login")
+            return
+        async for s in self.cargar():
+            yield s
 
-    def cargar(self):
-        with get_session() as session:
-            result = svc.listar(
+    async def cargar(self):
+        self.is_loading = True
+        yield
+        async with get_async_session() as session:
+            result = await svc.listar(
                 session,
                 self.clinica_id,
+                sede_id=self.sede_actual_id,
                 estado=self.filtro_estado,
                 paciente_q=self.busqueda,
                 page=self.page,
@@ -61,31 +69,36 @@ class CuentasState(BaseState):
         self.total_pages    = result["pages"]
         self.total_deudores = result["total_deudores"]
         self.total_saldo    = result["total_saldo"]
+        self.is_loading = False
 
     # ── Filtros ────────────────────────────────────────────────────────────────
 
-    def set_filtro_estado(self, v: str):
+    async def set_filtro_estado(self, v: str):
         self.filtro_estado = v
         self.page = 1
-        return self.cargar()
+        async for s in self.cargar():
+            yield s
 
-    def set_busqueda(self, v: str):
+    async def set_busqueda(self, v: str):
         self.busqueda = v
         self.page = 1
         if len(v) >= 2 or v == "":
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Paginación ─────────────────────────────────────────────────────────────
 
-    def next_page(self):
+    async def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
-    def prev_page(self):
+    async def prev_page(self):
         if self.page > 1:
             self.page -= 1
-            return self.cargar()
+            async for s in self.cargar():
+                yield s
 
     # ── Modal pago ─────────────────────────────────────────────────────────────
 
@@ -112,14 +125,15 @@ class CuentasState(BaseState):
         yield
 
         try:
-            with get_session() as session:
-                svc.registrar_pago(
+            async with get_async_session() as session:
+                await svc.registrar_pago(
                     session,
                     self.clinica_id,
                     int(self.deuda_sel["id"]),
                     self.form_monto,
                     self.form_metodo,
                     self.form_obs.strip(),
+                    sede_id=self.sede_actual_id,
                 )
         except (ServiceError, Exception) as exc:
             self.form_error = str(exc)
@@ -129,4 +143,22 @@ class CuentasState(BaseState):
         self.is_saving  = False
         self.modal_pago = False
         self.deuda_sel  = _DEUDA_VACIA
-        self.cargar()
+        async for s in self.cargar():
+            yield s
+
+    # ── Atajos de teclado ──────────────────────────────────────────────────────
+
+    async def handle_modal_key(self, key: str):
+        if key == "Escape":
+            self.cerrar_pago()
+        elif key == "Enter" and self.modal_pago and not self.is_saving:
+            async for s in self.confirmar_pago():
+                yield s
+
+    async def handle_tabla_key(self, key: str):
+        if key == "ArrowLeft":
+            async for s in self.prev_page():
+                yield s
+        elif key == "ArrowRight":
+            async for s in self.next_page():
+                yield s

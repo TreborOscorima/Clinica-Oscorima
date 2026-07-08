@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session, select
 
-from clinica_app.database import _engine
+from clinica_app.database import _sync_engine as _engine
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.turno import EstadoTurno, Turno
 from clinica_app.services import notificaciones as notif

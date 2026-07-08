@@ -29,6 +29,7 @@ class Comprobante(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     tipo: str | None = Field(default="recibo", max_length=20, nullable=True)
     numero: str | None = Field(default=None, max_length=40, nullable=True, unique=True)
     fecha: datetime | None = Field(
@@ -64,6 +65,7 @@ class CajaMovimiento(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     fecha: datetime | None = Field(
         default=None, sa_column=Column(DateTime, default=_utcnow, index=True, nullable=True)
     )
@@ -91,11 +93,12 @@ class CajaMovimiento(SQLModel, table=True):
 class CierreCaja(SQLModel, table=True):
     __tablename__ = "cierres_caja"
     __table_args__ = (
-        UniqueConstraint("clinica_id", "fecha", name="uq_cierres_caja_clinica_fecha"),
+        UniqueConstraint("clinica_id", "sede_id", "fecha", name="uq_cierres_caja_clinica_sede_fecha"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     fecha: date | None = Field(
         default=None, sa_column=Column(Date, default=date.today, nullable=True)
     )
@@ -144,6 +147,7 @@ class DeudaPaciente(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     paciente_id: int = Field(foreign_key="pacientes.id", nullable=False, index=True)
     comprobante_id: int = Field(foreign_key="comprobantes.id", nullable=False, index=True)
     total: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))

@@ -15,6 +15,7 @@ class Paciente(TenantSQLModel, table=True):
         UniqueConstraint("clinica_id", "email", name="uq_pacientes_clinica_email"),
     )
 
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombre: str = Field(max_length=180, nullable=False, index=True)
     documento: str | None = Field(default=None, max_length=40, nullable=True, index=True)
     direccion: str | None = Field(default=None, max_length=200, nullable=True)

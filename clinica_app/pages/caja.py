@@ -5,6 +5,7 @@ import reflex as rx
 from clinica_app.components.badge import estado_badge
 from clinica_app.components.layout import shell
 from clinica_app.components.stat_card import stat_card
+from clinica_app.components.ui import page_header
 from clinica_app.state.caja import CajaState
 
 
@@ -18,7 +19,7 @@ def _modal_movimiento() -> rx.Component:
                     rx.el.h2("Nuevo movimiento", class_name="text-lg font-semibold text-gray-900"),
                     rx.el.button(rx.icon("x", size=18), on_click=CajaState.cerrar_modal,
                                  class_name="text-gray-400 hover:text-gray-600 cursor-pointer"),
-                    class_name="flex items-center justify-between mb-6",
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
                     # Tipo
@@ -51,15 +52,13 @@ def _modal_movimiento() -> rx.Component:
                         rx.el.label("Monto *", class_name="block text-sm font-medium text-gray-700 mb-1"),
                         rx.el.div(
                             rx.el.span("$", class_name="text-gray-500 text-sm px-3"),
-                            rx.debounce_input(
-                                rx.el.input(
-                                    type="text", input_mode="decimal",
-                                    value=CajaState.form_monto,
-                                    on_change=CajaState.set_form_monto,
-                                    placeholder="0.00",
-                                    class_name="flex-1 py-2 pr-3 outline-none text-sm",
-                                ),
-                                debounce_timeout=300,
+                            
+                            rx.el.input(
+                                type="text", input_mode="decimal",
+                                default_value=CajaState.form_monto,
+                                on_change=CajaState.set_form_monto,
+                                placeholder="0.00",
+                                class_name="flex-1 py-2 pr-3 outline-none text-sm",
                             ),
                             class_name="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-sky-500",
                         ),
@@ -72,7 +71,7 @@ def _modal_movimiento() -> rx.Component:
                             rx.el.option("Tarjeta", value="tarjeta"),
                             rx.el.option("Transferencia", value="transferencia"),
                             rx.el.option("Otro", value="otro"),
-                            value=CajaState.form_metodo,
+                            default_value=CajaState.form_metodo,
                             on_change=CajaState.set_form_metodo,
                             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                         ),
@@ -80,14 +79,12 @@ def _modal_movimiento() -> rx.Component:
                     # Observación
                     rx.el.div(
                         rx.el.label("Observación", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.debounce_input(
-                            rx.el.textarea(
-                                value=CajaState.form_observacion,
-                                on_change=CajaState.set_form_observacion,
-                                rows=2, placeholder="Opcional...",
-                                class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
-                            ),
-                            debounce_timeout=300,
+                        
+                        rx.el.textarea(
+                            default_value=CajaState.form_observacion,
+                            on_change=CajaState.set_form_observacion,
+                            rows=2, placeholder="Opcional...",
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
                         ),
                     ),
                     class_name="space-y-4",
@@ -105,6 +102,8 @@ def _modal_movimiento() -> rx.Component:
                                           "Guardando...", class_name="flex items-center"),
                                 "Guardar"),
                         on_click=CajaState.guardar_movimiento, disabled=CajaState.is_saving,
+                        data_modal_submit="1",
+                        title="Guardar (Ctrl+Enter)",
                         class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
                     ),
                     class_name="flex gap-3 justify-end mt-6",
@@ -212,6 +211,8 @@ def _modal_cierre() -> rx.Component:
                             ),
                             on_click=CajaState.confirmar_cierre,
                             disabled=CajaState.is_cerrando,
+                            data_modal_submit="1",
+                            title="Confirmar cierre (Ctrl+Enter)",
                             class_name="flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 cursor-pointer",
                         ),
                     ),
@@ -228,23 +229,26 @@ def caja_page() -> rx.Component:
     return shell(
         _modal_movimiento(),
         _modal_cierre(),
-        # Encabezado
-        rx.el.div(
-            rx.el.h1("Caja", class_name="text-xl font-semibold text-gray-900"),
-            rx.el.div(
+        page_header(
+            "Caja",
+            "Registra ingresos, egresos y cierres del día",
+            action=rx.el.div(
                 rx.el.button(
-                    rx.icon("lock", size=15), "Cierre del día",
+                    rx.icon("lock", size=15),
+                    rx.el.span("Cierre del día", class_name="ml-1.5"),
                     on_click=CajaState.abrir_cierre,
-                    class_name="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer",
+                    class_name="inline-flex items-center px-4 py-2 text-sm font-medium border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer",
                 ),
                 rx.el.button(
-                    rx.icon("plus", size=16), "Nuevo movimiento",
+                    rx.icon("plus", size=16),
+                    rx.el.span("Nuevo movimiento", class_name="ml-1.5"),
                     on_click=CajaState.abrir_modal,
-                    class_name="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer",
+                    data_new_action="1",
+                    title="Nuevo movimiento (N)",
+                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
                 ),
                 class_name="flex items-center gap-3",
             ),
-            class_name="flex items-center justify-between mb-6",
         ),
         # KPIs del día
         rx.el.div(
