@@ -65,9 +65,9 @@ def dashboard_page() -> rx.Component:
                     rx.el.p(f"$ {DashboardState.ingresos_mes}", class_name="text-xl font-bold text-green-700 mt-1"),
                     rx.el.div(
                         rx.el.span(DashboardState.variacion_pct, "%", class_name=rx.cond(
-                            DashboardState.variacion_pct.startswith("+"),
-                            "text-xs font-medium text-green-600",
+                            DashboardState.variacion_pct.startswith("-"),
                             "text-xs font-medium text-red-600",
+                            "text-xs font-medium text-green-600",
                         )),
                         rx.el.span(" vs mes anterior", class_name="text-xs text-gray-400 ml-1"),
                         class_name="flex items-center mt-1",

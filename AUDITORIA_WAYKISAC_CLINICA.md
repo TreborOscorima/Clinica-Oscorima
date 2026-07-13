@@ -117,21 +117,11 @@ Forward `wayki_clinica:3000`, WebSockets **ON**, red `nginx-proxy-manager_defaul
 
 ### 🔴 CRÍTICOS (corregir antes de producción)
 
-**S1. `/api/recibo/pdf` sin autenticación — IDOR entre clínicas**
-`clinica_app/clinica_app.py` (`_generar_pdf_recibo`): acepta `?comp_id=X&clinica_id=Y`
-por query string sin validar sesión. Cualquier persona puede enumerar IDs y descargar
-recibos (nombres de pacientes + montos) de **cualquier clínica**.
-*Fix sugerido:* firmar un token de un solo uso con `SECRET_KEY` (ej.
-`hmac.new(SECRET_KEY, f"{clinica_id}:{comp_id}:{expiry}")`) generado por el State al
-hacer clic en "Descargar PDF", y validarlo en el endpoint. Alternativa: generar el PDF
-dentro del event handler y entregarlo con `rx.download`.
+**S1.** ~~`/api/recibo/pdf` sin autenticación~~ ✅ RESUELTO — token HMAC firmado (TTL 120s)
+en `services/download_token.py`, validado en endpoint; `clinica_id` del token vs query param.
 
-**S2. `/api/reportes/descargar/{filename}` sin autenticación**
-`clinica_app/clinica_app.py` (`_descargar_reporte`): los Excel exportados (datos de
-pacientes, caja, turnos) se sirven a quien conozca/adivine el filename. Los nombres
-son predecibles (tipo + timestamp). `os.path.basename` evita path traversal, pero no
-hay control de acceso ni de tenant.
-*Fix:* mismo esquema de token firmado que S1, o `rx.download` con los bytes en memoria.
+**S2.** ~~`/api/reportes/descargar/{filename}` sin autenticación~~ ✅ RESUELTO — mismo
+esquema de token firmado HMAC que S1.
 
 **S3. ~~RBAC decorativo — los permisos por rol NO se aplican~~ ✅ RESUELTO**
 `services/permisos.py` carga `PermisoRol` al login → `BaseState._permisos` (cache) +
@@ -145,30 +135,16 @@ en `services/permisos.py` y `state/configuracion.py` filtran por `clinica_id`.
 
 ### 🟠 ALTOS
 
-**S5. Numeración de comprobantes con carrera (race condition)**
-`services/cobro.py` `_numero()`: calcula `COUNT(*)+1` de los comprobantes del día. Dos
-cobros simultáneos (dos recepcionistas) obtienen el mismo número → recibos duplicados,
-problema fiscal.
-*Fix:* tabla de contadores con `SELECT ... FOR UPDATE`, o constraint UNIQUE en
-`comprobantes.numero` + retry en `IntegrityError`.
+**S5.** ~~Numeración de comprobantes con race condition~~ ✅ RESUELTO — `_numero()` usa
+`SELECT MAX(numero) ... FOR UPDATE` + `Comprobante.numero` con UNIQUE constraint.
 
-**S6. Generación de Excel bloquea todo el servidor**
-`state/reportes.py` (handler `generar_reporte`) llama `svc.generar_reporte(...)` que es
-**síncrono** (openpyxl + engine síncrono, `tasks/reportes.py`) dentro del event loop
-async de Reflex. Mientras se genera un reporte grande, la app entera se congela para
-todos los usuarios (los WebSockets no procesan eventos).
-*Fix mínimo (1 línea):* `filename = await asyncio.to_thread(svc.generar_reporte, ...)`.
-Lo mismo aplica a `services/pdf_recibo.py` si `generar_recibo_pdf` (reportlab, sync) se
-llama desde un handler.
+**S6.** ~~Generación de Excel bloquea todo el servidor~~ ✅ RESUELTO — `state/reportes.py`
+usa `await asyncio.to_thread(svc.generar_reporte, ...)` y `clinica_app.py` usa
+`await asyncio.to_thread(generar_recibo_pdf, ...)` para PDF.
 
-**S7. Drift de esquema: `create_all` + ALTER manuales vs Alembic**
-`clinica_app/clinica_app.py` ejecuta al importar: `SQLModel.metadata.create_all()` y
-`_migrate_columns()` (ALTERs ad-hoc para `clinicas.margen_global`, `sedes.margen_local`,
-etc.). Esas columnas **no existen en ninguna revisión Alembic**. El entrypoint Docker
-corre `alembic upgrade head` y luego el import complementa — funciona, pero el estado
-del esquema ya no es reproducible desde las migraciones.
-*Fix:* `alembic revision --autogenerate -m "sync drift"` para capturar las columnas
-faltantes; luego eliminar `_migrate_columns()` y (en prod) el `create_all`.
+**S7.** ~~Drift de esquema: `create_all` + ALTER manuales vs Alembic~~ ✅ RESUELTO —
+`_migrate_columns()` eliminado; columnas `margen_global`/`margen_local` capturadas en
+migración `074568f4cfb8`. `create_all` permanece como fallback dev (normal en Reflex).
 
 **S8. Venta descuenta stock sin validar**
 `services/cobro.py` `_descontar_stock()`: si el producto no existe **retorna en
@@ -238,17 +214,14 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 
 **Hallazgos:**
 
-- **F1 (bug de datos):** `pages/dashboard.py:80` — la tarjeta **Egresos del mes** muestra
-  `"Mes anterior: $ {ingresos_mes_ant}"` (ingresos en la card de egresos). Falta var
-  `egresos_mes_ant` en `state/dashboard.py` o cambiar el label.
-- **F2 (accesibilidad):** `rxconfig.py` meta viewport con `maximum-scale=1` bloquea el
-  zoom en móviles — malo para usuarios con baja visión. Quitar `maximum-scale=1`.
+- **F1:** ~~tarjeta Egresos mostraba var de ingresos~~ ✅ RESUELTO — usa `egresos_mes_ant`.
+- **F2:** ~~viewport `maximum-scale=1` bloqueaba zoom~~ ✅ RESUELTO — viewport sin restricción.
 - **F3 (mantenibilidad):** ~~páginas monolíticas~~ ✅ RESUELTO — `compras.py` dividido en
   `pages/compras/` (5 submódulos) y `configuracion.py` dividido en `pages/configuracion/`
   (9 submódulos). Imports en `clinica_app.py` sin cambios.
 - **F4:** ~~fuente Inter desde Google Fonts CDN~~ ✅ RESUELTO — self-hosted en `assets/fonts/`.
-- **F5:** variación % del dashboard pinta rojo cuando es "0%" (solo verde si empieza
-  con "+") — caso borde menor.
+- **F5:** ~~variación 0% pintaba rojo~~ ✅ RESUELTO — lógica invertida: rojo solo si
+  empieza con "-", verde para 0% y positivos.
 - **F6:** el gráfico de barras artesanal (divs) funciona; si se piden más gráficos,
   wrappear recharts en vez de crecer el hack.
 - **F7:** ~~sidebar muestra TODOS los módulos a todos los roles~~ ✅ RESUELTO con S3.
@@ -265,21 +238,25 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 
 ---
 
-## 6. ROADMAP PRIORIZADO (para la próxima sesión — IA o humano)
+## 6. ROADMAP PRIORIZADO
 
-1. **Commitear el trabajo pendiente** (83 archivos + los cambios Docker de hoy).
-   Sugerencia: un commit para el estado actual de la app, otro para la mecánica Docker.
-2. **Seguridad crítica:** S1 y S2 (endpoints sin auth) — medio día.
-3. ~~**RBAC real:** S3 + S4~~ ✅ COMPLETADO — `clinica_id` en permisos + enforcement en States y sidebar.
-4. **S5** (numeración comprobantes) y **S6** (`asyncio.to_thread` en reportes/PDF) — horas.
-5. **Alembic sync** (S7): revisión autogenerada del drift; borrar `_migrate_columns()`.
-6. **Probar Docker local** (`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`
-   → http://localhost:3004, login, cobrar, generar PDF/Excel) y luego **deploy AWS** con
-   `scripts/deploy-prod.sh` (crear rama de deploy si se quiere calcar el flujo
-   `docker-deploy-prod` de Ventas/Food; el script acepta `BRANCH=`).
-7. Fixes menores: F1 (egresos dashboard), F2 (viewport), S9 (purga LoginIntento),
-   S11 (truncado bcrypt), borrar `Dockerfile.worker`, `=1.13.0`, `start_redis.bat`.
-8. Después: dividir páginas monolíticas (F3), CI con pytest, headers en NPM (S14).
+### ✅ Completados
+1. ~~Commitear trabajo pendiente~~ — todo commiteado y pusheado.
+2. ~~S1 + S2 (endpoints sin auth)~~ — tokens HMAC firmados.
+3. ~~S3 + S4 (RBAC real)~~ — `clinica_id` en permisos + enforcement en States y sidebar.
+4. ~~S5 (race condition comprobantes)~~ — `SELECT ... FOR UPDATE` + UNIQUE.
+5. ~~S6 (`asyncio.to_thread`)~~ — reportes Excel y PDF ya async.
+6. ~~S7 (drift Alembic)~~ — `_migrate_columns()` eliminado, columnas en migraciones.
+7. ~~F1-F5, S9-S14, F3-F4, F7~~ — todos resueltos o documentados.
+8. ~~Archivos basura~~ — `Dockerfile.worker`, `=1.13.0`, `start_redis.bat` ya eliminados.
+
+### Pendientes
+- **S8 (decisión de negocio):** ¿permitir stock negativo o bloquear venta sin stock?
+  Actualmente permite stock negativo silenciosamente (`services/cobro.py:_descontar_stock`).
+- **Docker local**: probar build completo y flujo login → cobrar → PDF/Excel.
+- **Deploy AWS**: primer deploy con `scripts/deploy-prod.sh` + configurar NPM.
+- **S14 (infraestructura)**: aplicar headers de seguridad en NPM (documentado arriba).
+- **CI**: GitHub Actions con pytest (tests en `tests/`).
 
 ## 7. Notas operativas para quien continúe
 
