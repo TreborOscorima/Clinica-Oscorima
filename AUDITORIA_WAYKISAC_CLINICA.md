@@ -180,15 +180,12 @@ aviso. Decisión de negocio pendiente: ¿bloquear venta sin stock o permitir con
 - **S9.** ~~`LoginIntento` nunca se purga~~ ✅ RESUELTO — purge oportunista > 24h en cada login.
 - **S10.** ~~`app._api` es API privada~~ ✅ RESUELTO — migrado a `rx.App(api_transformer=...)`.
 - **S11.** `models/user.py` `set_password`: `raw[:72]` trunca por *caracteres*; bcrypt
-  limita 72 *bytes*. Un password con multibyte (ñ, emoji) >72 bytes lanza excepción en
-  `checkpw` → capturada → login falla. Truncar con `raw.encode()[:72]`.
-- **S12.** Email de usuario único **global** (`uq_usuarios_email`): el mismo email no
-  puede existir en dos clínicas. Es coherente con el login sin selector de tenant —
-  decisión de diseño, dejar documentado.
-- **S13.** 83 archivos modificados sin commit en `main` (trabajo de varias sesiones).
-  Riesgo real de pérdida. **Commitear ya** (ver roadmap).
+  limita 72 *bytes*. ✅ YA CORRECTO — el código usa `raw.encode("utf-8")[:72]` (bytes).
+- **S12.** Email de usuario único **global** (`uq_usuarios_email`) — decisión de diseño
+  coherente con login sin selector de tenant. ✅ DOCUMENTADO, no requiere fix.
+- **S13.** ~~83 archivos sin commit~~ ✅ RESUELTO — todo commiteado y pusheado.
 - **S14.** Headers de seguridad (HSTS, X-Frame-Options, etc.): agregarlos en NPM
-  (Advanced config del Proxy Host), igual que en los otros dos sistemas.
+  (Advanced config del Proxy Host). ⚠️ INFRAESTRUCTURA — no es cambio de código.
 
 ### ✅ Lo que está BIEN en seguridad
 - `.env` correctamente en `.gitignore` y `.dockerignore`; sin secretos commiteados.
@@ -240,8 +237,7 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
   zoom en móviles — malo para usuarios con baja visión. Quitar `maximum-scale=1`.
 - **F3 (mantenibilidad):** páginas monolíticas: `pages/configuracion.py` (1.257 líneas),
   `pages/compras.py` (1.012). Dividir en submódulos por tab (`pages/configuracion/…`).
-- **F4:** fuente Inter desde Google Fonts CDN — en consultorio con internet inestable la
-  UI carga con fallback. Considerar self-host en `assets/`.
+- **F4:** ~~fuente Inter desde Google Fonts CDN~~ ✅ RESUELTO — self-hosted en `assets/fonts/`.
 - **F5:** variación % del dashboard pinta rojo cuando es "0%" (solo verde si empieza
   con "+") — caso borde menor.
 - **F6:** el gráfico de barras artesanal (divs) funciona; si se piden más gráficos,
