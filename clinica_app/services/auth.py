@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func, select as sa_select
+from sqlalchemy import delete as sa_delete, func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -20,7 +20,20 @@ async def _registrar_intento_fallido(email: str) -> None:
         async with get_async_session() as s:
             s.add(LoginIntento(email=email))
     except Exception:
-        pass  # No debe bloquear el flujo de auth
+        pass
+
+
+async def _purgar_intentos_antiguos() -> None:
+    """Elimina registros > 24h en sesión independiente. No bloquea auth si falla."""
+    from clinica_app.database import get_async_session
+    try:
+        limite = (datetime.now(timezone.utc) - timedelta(hours=24)).replace(tzinfo=None)
+        async with get_async_session() as s:
+            await s.execute(
+                sa_delete(LoginIntento).where(LoginIntento.created_at < limite)
+            )
+    except Exception:
+        pass
 
 
 async def autenticar(session: AsyncSession, email: str, password: str) -> User:
@@ -32,6 +45,9 @@ async def autenticar(session: AsyncSession, email: str, password: str) -> User:
     from clinica_app.config import LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SECS
 
     email = email.strip().lower()
+
+    # ── Purge oportunista: limpia registros > 24h ─────────────────────────────
+    await _purgar_intentos_antiguos()
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
     ventana = datetime.now(timezone.utc) - timedelta(seconds=LOGIN_WINDOW_SECS)

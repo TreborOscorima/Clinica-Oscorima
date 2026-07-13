@@ -42,54 +42,17 @@ from clinica_app.pages.notas_clinicas    import notas_clinicas_page
 from clinica_app.pages.calendario        import calendario_page
 
 
-app = rx.App(
-    stylesheets=[
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-    ],
-    style={
-        "font_family": "Inter, sans-serif",
-        "background_color": "#f9fafb",
-    },
-)
-
-# ── Rutas públicas ────────────────────────────────────────────────────────────
-app.add_page(login_page, route="/login")
-
-# ── Módulo Gestión ────────────────────────────────────────────────────────────
-app.add_page(dashboard_page,     route="/")
-app.add_page(pacientes_page,     route="/pacientes")
-app.add_page(profesionales_page, route="/profesionales")
-app.add_page(turnos_page,        route="/turnos")
-app.add_page(servicios_page,     route="/servicios")
-
-# ── Módulo Operaciones ────────────────────────────────────────────────────────
-app.add_page(cobro_page,         route="/cobro")
-app.add_page(caja_page,          route="/caja")
-app.add_page(inventario_page,    route="/inventario")
-app.add_page(reportes_page,      route="/reportes")
-
-# ── Admin ─────────────────────────────────────────────────────────────────────
-app.add_page(configuracion_page, route="/configuracion")
-
-app.add_page(cuentas_page,        route="/cuentas")
-app.add_page(compras_page,        route="/compras")
-app.add_page(promociones_page,    route="/promociones")
-app.add_page(notas_clinicas_page, route="/historia-clinica")
-app.add_page(calendario_page,     route="/calendario")
-
+# ── API handlers ─────────────────────────────────────────────────────────────
 
 async def _health_check(request: Request) -> JSONResponse:
-    """Health check para AWS ALB / ECS."""
     return JSONResponse({"status": "ok"})
 
 
 async def _api_ping(request: Request) -> JSONResponse:
-    """Ping liviano — usado por el HEALTHCHECK del contenedor Docker."""
     return JSONResponse({"status": "ok"})
 
 
 async def _api_health(request: Request) -> JSONResponse:
-    """Health con identidad de app — usado por deploy-prod.sh vía NPM."""
     return JSONResponse({"status": "ok", "app": "waykisac-clinica"})
 
 
@@ -112,7 +75,6 @@ async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
 
 
 async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
-    """Genera y descarga el PDF de un comprobante. ?comp_id=X&clinica_id=Y&token=T"""
     auth = validar_token(request.query_params.get("token", ""))
     if auth is None:
         return JSONResponse({"error": "No autorizado"}, status_code=401)
@@ -148,8 +110,49 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
         return JSONResponse({"error": "Error interno"}, status_code=500)
 
 
-app._api.add_route("/health", _health_check)
-app._api.add_route("/api/ping", _api_ping)
-app._api.add_route("/api/health", _api_health)
-app._api.add_route("/api/reportes/descargar/{filename}", _descargar_reporte)
-app._api.add_route("/api/recibo/pdf", _generar_pdf_recibo)
+# ── App + api_transformer ────────────────────────────────────────────────────
+
+def _api_transformer(api):
+    api.add_route("/health", _health_check)
+    api.add_route("/api/ping", _api_ping)
+    api.add_route("/api/health", _api_health)
+    api.add_route("/api/reportes/descargar/{filename}", _descargar_reporte)
+    api.add_route("/api/recibo/pdf", _generar_pdf_recibo)
+    return api
+
+
+app = rx.App(
+    stylesheets=[
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+    ],
+    style={
+        "font_family": "Inter, sans-serif",
+        "background_color": "#f9fafb",
+    },
+    api_transformer=_api_transformer,
+)
+
+# ── Rutas públicas ────────────────────────────────────────────────────────────
+app.add_page(login_page, route="/login")
+
+# ── Módulo Gestión ────────────────────────────────────────────────────────────
+app.add_page(dashboard_page,     route="/")
+app.add_page(pacientes_page,     route="/pacientes")
+app.add_page(profesionales_page, route="/profesionales")
+app.add_page(turnos_page,        route="/turnos")
+app.add_page(servicios_page,     route="/servicios")
+
+# ── Módulo Operaciones ────────────────────────────────────────────────────────
+app.add_page(cobro_page,         route="/cobro")
+app.add_page(caja_page,          route="/caja")
+app.add_page(inventario_page,    route="/inventario")
+app.add_page(reportes_page,      route="/reportes")
+
+# ── Admin ─────────────────────────────────────────────────────────────────────
+app.add_page(configuracion_page, route="/configuracion")
+
+app.add_page(cuentas_page,        route="/cuentas")
+app.add_page(compras_page,        route="/compras")
+app.add_page(promociones_page,    route="/promociones")
+app.add_page(notas_clinicas_page, route="/historia-clinica")
+app.add_page(calendario_page,     route="/calendario")

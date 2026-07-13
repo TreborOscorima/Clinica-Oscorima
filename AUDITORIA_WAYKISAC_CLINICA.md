@@ -177,10 +177,8 @@ aviso. Decisión de negocio pendiente: ¿bloquear venta sin stock o permitir con
 
 ### 🟡 MEDIOS
 
-- **S9.** `LoginIntento` nunca se purga → la tabla crece para siempre. Agregar DELETE de
-  registros > 24h (al validar login o cron).
-- **S10.** `app._api` es API privada de Reflex — puede romperse en upgrades. Migrar a
-  `rx.App(api_transformer=...)` cuando se toque ese código.
+- **S9.** ~~`LoginIntento` nunca se purga~~ ✅ RESUELTO — purge oportunista > 24h en cada login.
+- **S10.** ~~`app._api` es API privada~~ ✅ RESUELTO — migrado a `rx.App(api_transformer=...)`.
 - **S11.** `models/user.py` `set_password`: `raw[:72]` trunca por *caracteres*; bcrypt
   limita 72 *bytes*. Un password con multibyte (ñ, emoji) >72 bytes lanza excepción en
   `checkpw` → capturada → login falla. Truncar con `raw.encode()[:72]`.
