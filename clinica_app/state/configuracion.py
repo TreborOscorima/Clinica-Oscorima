@@ -170,7 +170,7 @@ class ConfiguracionState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
-        if not self.is_admin:
+        if not self.tiene_permiso("configuracion"):
             yield rx.redirect("/")
             return
         await self._cargar()
@@ -737,7 +737,10 @@ class ConfiguracionState(BaseState):
         async with get_async_session() as session:
             registros = (
                 await session.execute(
-                    select(PermisoRol).where(PermisoRol.role == RoleEnum(rol))
+                    select(PermisoRol).where(
+                        PermisoRol.clinica_id == self.clinica_id,
+                        PermisoRol.role == RoleEnum(rol),
+                    )
                 )
             ).scalars().all()
         idx     = {r.module: r for r in registros}
@@ -763,6 +766,7 @@ class ConfiguracionState(BaseState):
             p = (
                 await session.execute(
                     select(PermisoRol).where(
+                        PermisoRol.clinica_id == self.clinica_id,
                         PermisoRol.role   == RoleEnum(rol),
                         PermisoRol.module == module,
                     )
@@ -770,6 +774,7 @@ class ConfiguracionState(BaseState):
             ).scalars().first()
             if p is None:
                 p = PermisoRol(
+                    clinica_id=self.clinica_id,
                     role=RoleEnum(rol), module=module,
                     can_read=(rol == "administracion"),
                     can_write=(rol == "administracion"),
@@ -787,7 +792,11 @@ class ConfiguracionState(BaseState):
         from sqlmodel import select
 
         async with get_async_session() as session:
-            registros = (await session.execute(select(PermisoRol))).scalars().all()
+            registros = (
+                await session.execute(
+                    select(PermisoRol).where(PermisoRol.clinica_id == self.clinica_id)
+                )
+            ).scalars().all()
         idx = {(r.role.value, r.module): r for r in registros}
         matrix = []
         for mod_key, mod_label in self._MODULOS:
@@ -807,6 +816,7 @@ class ConfiguracionState(BaseState):
             p = (
                 await session.execute(
                     select(PermisoRol).where(
+                        PermisoRol.clinica_id == self.clinica_id,
                         PermisoRol.role   == RoleEnum(role),
                         PermisoRol.module == module,
                     )
@@ -814,6 +824,7 @@ class ConfiguracionState(BaseState):
             ).scalars().first()
             if p is None:
                 p = PermisoRol(
+                    clinica_id=self.clinica_id,
                     role=RoleEnum(role), module=module,
                     can_read=True, can_write=(role == "administracion"),
                 )

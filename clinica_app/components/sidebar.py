@@ -84,31 +84,32 @@ def _logo() -> rx.Component:
     )
 
 
+def _nav_if(module: str, label: str, icon: str, href: str) -> rx.Component:
+    return rx.cond(
+        BaseState.modulos_permitidos.contains(module),
+        _nav_item(label, icon, href),
+    )
+
+
 def _nav_links() -> rx.Component:
     return rx.el.nav(
         _section("Gestión"),
-        _nav_item("Dashboard",        "layout-dashboard",  "/"),
-        _nav_item("Pacientes",         "users",             "/pacientes"),
-        _nav_item("Historia Clínica",  "clipboard-list",    "/historia-clinica"),
-        _nav_item("Profesionales",     "user-check",        "/profesionales"),
-        _nav_item("Calendario",        "calendar-days",     "/calendario"),
-        _nav_item("Turnos",            "calendar-clock",    "/turnos"),
-        _nav_item("Servicios",         "stethoscope",       "/servicios"),
+        _nav_if("dashboard",     "Dashboard",        "layout-dashboard",  "/"),
+        _nav_if("pacientes",     "Pacientes",        "users",             "/pacientes"),
+        _nav_if("historia",      "Historia Clínica", "clipboard-list",    "/historia-clinica"),
+        _nav_if("profesionales", "Profesionales",    "user-check",        "/profesionales"),
+        _nav_if("calendario",    "Calendario",       "calendar-days",     "/calendario"),
+        _nav_if("turnos",        "Turnos",           "calendar-clock",    "/turnos"),
+        _nav_if("servicios",     "Servicios",        "stethoscope",       "/servicios"),
         _section("Operaciones"),
-        _nav_item("Punto de Cobro",   "credit-card",      "/cobro"),
-        _nav_item("Caja",             "wallet",           "/caja"),
-        _nav_item("Cuentas Ctes.",    "file-text",        "/cuentas"),
-        _nav_item("Compras",          "shopping-cart",    "/compras"),
-        _nav_item("Inventario",       "package",          "/inventario"),
-        _nav_item("Promociones",      "tag",              "/promociones"),
-        _nav_item("Reportes",         "bar-chart-2",      "/reportes"),
-        rx.cond(
-            BaseState.is_admin,
-            rx.el.div(
-                _section("Admin"),
-                _nav_item("Configuración", "settings", "/configuracion"),
-            ),
-        ),
+        _nav_if("cobro",         "Punto de Cobro",   "credit-card",       "/cobro"),
+        _nav_if("caja",          "Caja",             "wallet",            "/caja"),
+        _nav_if("cuentas",       "Cuentas Ctes.",    "file-text",         "/cuentas"),
+        _nav_if("compras",       "Compras",          "shopping-cart",     "/compras"),
+        _nav_if("inventario",    "Inventario",       "package",           "/inventario"),
+        _nav_if("promociones",   "Promociones",      "tag",              "/promociones"),
+        _nav_if("reportes",      "Reportes",         "bar-chart-2",       "/reportes"),
+        _nav_if("configuracion", "Configuración",    "settings",          "/configuracion"),
         class_name="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2",
     )
 

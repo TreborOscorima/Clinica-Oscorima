@@ -48,6 +48,9 @@ class InventarioState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("inventario"):
+            yield rx.redirect("/")
+            return
         async with get_async_session() as session:
             from clinica_app.services.configuracion import obtener_clinica
             c = await obtener_clinica(session, self.clinica_id)
@@ -152,6 +155,9 @@ class InventarioState(BaseState):
         self.form_error        = ""
 
     async def guardar_producto(self):
+        if not self.tiene_permiso("inventario", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

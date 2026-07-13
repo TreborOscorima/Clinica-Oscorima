@@ -109,6 +109,9 @@ class CalendarioState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("calendario"):
+            yield rx.redirect("/")
+            return
         hoy = date.today()
         self.semana_inicio = self._lunes_de(hoy).isoformat()
         await self._cargar_catalogos()

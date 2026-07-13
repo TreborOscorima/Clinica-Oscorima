@@ -48,6 +48,9 @@ class CuentasState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("cuentas"):
+            yield rx.redirect("/")
+            return
         async for s in self.cargar():
             yield s
 

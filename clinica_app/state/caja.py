@@ -47,6 +47,9 @@ class CajaState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("caja"):
+            yield rx.redirect("/")
+            return
         await self._cargar_resumen()
         async for s in self.cargar():
             yield s
@@ -119,6 +122,9 @@ class CajaState(BaseState):
         self.modal_abierto = False
 
     async def guardar_movimiento(self):
+        if not self.tiene_permiso("caja", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

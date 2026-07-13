@@ -74,6 +74,9 @@ class CobroState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("cobro"):
+            yield rx.redirect("/")
+            return
         await self._cargar_catalogos()
         await self._cargar_promociones()
         await self._precargar_turno()
@@ -376,6 +379,9 @@ class CobroState(BaseState):
     # ── Confirmar cobro ────────────────────────────────────────────────────────
 
     async def confirmar_cobro(self):
+        if not self.tiene_permiso("cobro", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

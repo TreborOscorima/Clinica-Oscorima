@@ -39,6 +39,9 @@ class NotasClinicasState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("historia"):
+            yield rx.redirect("/")
+            return
         await self._cargar_catalogos()
         # Leer paciente_id desde query param ?paciente_id=X
         pid_str = self.router.url.query_parameters.get("paciente_id", "")
@@ -146,6 +149,9 @@ class NotasClinicasState(BaseState):
         self.modal_abierto = False
 
     async def guardar(self):
+        if not self.tiene_permiso("historia", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

@@ -56,6 +56,7 @@ class UsuarioSede(BaseSQLModel, table=True):
 class PermisoRol(BaseSQLModel, table=True):
     __tablename__ = "permisos_rol"
 
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
     role: RoleEnum = Field(
         sa_column=Column(SAEnum(RoleEnum), nullable=False)
     )
@@ -63,4 +64,6 @@ class PermisoRol(BaseSQLModel, table=True):
     can_read: bool = Field(default=True)
     can_write: bool = Field(default=False)
 
-    __table_args__ = (UniqueConstraint("role", "module", name="uq_permisos_rol"),)
+    __table_args__ = (
+        UniqueConstraint("clinica_id", "role", "module", name="uq_permisos_rol_clinica"),
+    )

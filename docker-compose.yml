@@ -63,6 +63,8 @@ services:
     depends_on:
       clinica_mysql:
         condition: service_healthy
+    ports:
+      - "3004:3000"
     env_file:
       - .env
     environment:

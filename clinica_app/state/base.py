@@ -25,6 +25,10 @@ class BaseState(rx.State):
     sede_actual_id:     int  = 0
     sede_actual_nombre: str  = ""
 
+    # RBAC — permisos cacheados al login
+    _permisos: dict[str, dict[str, bool]] = {}
+    modulos_permitidos: list[str] = []
+
     @rx.var(cache=False)
     def download_token(self) -> str:
         if not self.is_authenticated:
@@ -42,6 +46,18 @@ class BaseState(rx.State):
     @rx.var
     def is_profesional(self) -> bool:
         return self.user_role == "profesional"
+
+    def tiene_permiso(self, module: str, write: bool = False) -> bool:
+        perm = self._permisos.get(module)
+        if perm is None:
+            return False
+        if write:
+            return perm.get("write", False)
+        return perm.get("read", False)
+
+    def _aplicar_permisos(self, permisos: dict[str, dict[str, bool]]) -> None:
+        self._permisos = permisos
+        self.modulos_permitidos = [m for m, p in permisos.items() if p.get("read")]
 
     @rx.var
     def rol_display(self) -> str:
@@ -67,6 +83,11 @@ class BaseState(rx.State):
     def require_admin(self):
         """Retorna redirect si no es admin, None si OK."""
         if not self.is_admin:
+            return rx.redirect("/")
+
+    def require_permiso(self, module: str, write: bool = False):
+        """Retorna redirect si no tiene permiso, None si OK."""
+        if not self.tiene_permiso(module, write):
             return rx.redirect("/")
 
     def logout(self):

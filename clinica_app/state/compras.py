@@ -119,6 +119,9 @@ class ComprasState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("compras"):
+            yield rx.redirect("/")
+            return
         async for s in self.cargar():
             yield s
 
@@ -327,6 +330,9 @@ class ComprasState(BaseState):
         return f"{total:.2f}"
 
     async def guardar_compra(self):
+        if not self.tiene_permiso("compras", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

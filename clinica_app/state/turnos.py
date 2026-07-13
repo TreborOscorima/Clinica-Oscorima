@@ -52,6 +52,9 @@ class TurnosState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("turnos"):
+            yield rx.redirect("/")
+            return
         await self._cargar_catalogos()
         async for s in self.cargar():
             yield s
@@ -174,6 +177,9 @@ class TurnosState(BaseState):
         self.modal_nuevo = False
 
     async def guardar_turno(self):
+        if not self.tiene_permiso("turnos", write=True):
+            self.form_error = "Sin permiso de escritura"
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

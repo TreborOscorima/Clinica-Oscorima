@@ -5,6 +5,7 @@ import reflex as rx
 from clinica_app.database import get_async_session
 from clinica_app.services.auth import autenticar, datos_usuario, sedes_para_usuario
 from clinica_app.services.exceptions import ServiceError
+from clinica_app.services.permisos import cargar_permisos
 from clinica_app.state.base import BaseState
 
 
@@ -45,6 +46,9 @@ class AuthState(BaseState):
                 sedes = await sedes_para_usuario(
                     session, datos["clinica_id"], datos["id"], is_admin
                 )
+                permisos = await cargar_permisos(
+                    session, datos["clinica_id"], datos["rol"]
+                )
         except ServiceError as exc:
             self.error_msg  = str(exc)
             self.is_loading = False
@@ -59,6 +63,7 @@ class AuthState(BaseState):
         self.profesional_id   = datos["profesional_id"]
         self.is_authenticated = True
         self.is_loading       = False
+        self._aplicar_permisos(permisos)
         self.sedes_disponibles = sedes
 
         if len(sedes) == 1:

@@ -47,6 +47,9 @@ class DashboardState(BaseState):
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return
+        if not self.tiene_permiso("dashboard"):
+            yield rx.redirect("/login")
+            return
         async for s in self.cargar():
             yield s
 
