@@ -33,7 +33,7 @@ config = rx.Config(
     show_built_with_reflex=False,
     # Meta tags para PWA y mobile
     head_components=[
-        rx.el.meta(name="viewport",         content="width=device-width, initial-scale=1, maximum-scale=1"),
+        rx.el.meta(name="viewport",         content="width=device-width, initial-scale=1"),
         rx.el.meta(name="theme-color",      content="#0284c7"),
         rx.el.meta(name="mobile-web-app-capable", content="yes"),
         rx.el.meta(name="apple-mobile-web-app-capable", content="yes"),

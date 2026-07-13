@@ -24,38 +24,6 @@ import clinica_app.models  # noqa: F401 — registra todos los modelos antes del
 # Crea las tablas que no existen (no toca las existentes)
 SQLModel.metadata.create_all(_engine)
 
-
-def _migrate_columns() -> None:
-    """Agrega columnas nuevas a tablas existentes sin romper datos. Seguro de re-ejecutar."""
-    from sqlalchemy import text
-    from sqlalchemy.exc import OperationalError
-
-    def _add(conn, table: str, col: str, definition: str) -> None:
-        try:
-            conn.execute(text(f"ALTER TABLE `{table}` ADD COLUMN `{col}` {definition}"))
-        except OperationalError as exc:
-            if "Duplicate column name" in str(exc) or "1060" in str(exc):
-                pass
-            else:
-                raise
-
-    with _engine.connect() as conn:
-        # Nuevas columnas en `clinicas`
-        _add(conn, "clinicas", "direccion_fiscal",        "VARCHAR(240) NULL")
-        _add(conn, "clinicas", "zona_horaria",            "VARCHAR(80) NULL")
-        _add(conn, "clinicas", "rubro",                   "VARCHAR(80) NULL")
-        _add(conn, "clinicas", "mensaje_recibo",          "VARCHAR(240) NULL")
-        _add(conn, "clinicas", "papel_impresion",         "VARCHAR(20) NULL DEFAULT '80mm'")
-        _add(conn, "clinicas", "ancho_recibo",            "INT NULL")
-        _add(conn, "clinicas", "margen_global",           "DOUBLE NOT NULL DEFAULT 50.0")
-        _add(conn, "clinicas", "mostrar_impuesto_recibo", "TINYINT(1) NOT NULL DEFAULT 0")
-        # Nuevas columnas en `sedes`
-        _add(conn, "sedes", "margen_local", "DOUBLE NULL")
-        conn.commit()
-
-
-_migrate_columns()
-
 from clinica_app.pages.login             import login_page
 from clinica_app.pages.dashboard         import dashboard_page
 from clinica_app.pages.pacientes         import pacientes_page

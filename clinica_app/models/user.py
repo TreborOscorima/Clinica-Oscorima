@@ -33,13 +33,13 @@ class User(TenantSQLModel, table=True):
     profesional_id: int | None = Field(default=None, foreign_key="profesionales.id", nullable=True)
 
     def set_password(self, raw: str) -> None:
-        pwd_bytes = raw[:72].encode("utf-8")
+        pwd_bytes = raw.encode("utf-8")[:72]
         salt = bcrypt.gensalt()
         self.password_hash = bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
     def check_password(self, raw: str) -> bool:
         try:
-            return bcrypt.checkpw(raw[:72].encode("utf-8"), self.password_hash.encode("utf-8"))
+            return bcrypt.checkpw(raw.encode("utf-8")[:72], self.password_hash.encode("utf-8"))
         except Exception:
             return False
 

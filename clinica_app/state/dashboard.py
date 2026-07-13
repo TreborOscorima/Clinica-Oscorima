@@ -37,6 +37,7 @@ class DashboardState(BaseState):
     egresos_mes:      str = "0.00"
     saldo_mes:        str = "0.00"
     ingresos_mes_ant: str = "0.00"
+    egresos_mes_ant:  str = "0.00"
     variacion_pct:    str = "0"
     top_servicios_margen: list[dict] = []
 
@@ -205,7 +206,9 @@ class DashboardState(BaseState):
             mes_ant_fin = inicio_mes - timedelta(seconds=1)
             mes_ant_ini = mes_ant_fin.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             ing_ant = await _suma_caja(TipoMovimiento.INGRESO, mes_ant_ini, mes_ant_fin)
+            egr_ant = await _suma_caja(TipoMovimiento.EGRESO,  mes_ant_ini, mes_ant_fin)
             self.ingresos_mes_ant = f"{ing_ant:.2f}"
+            self.egresos_mes_ant  = f"{egr_ant:.2f}"
             if ing_ant > 0:
                 pct = ((ing_mes - ing_ant) / ing_ant) * 100
                 self.variacion_pct = f"{pct:+.1f}"

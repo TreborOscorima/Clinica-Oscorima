@@ -77,7 +77,7 @@ def dashboard_page() -> rx.Component:
                 rx.el.div(
                     rx.el.p("Egresos del mes", class_name="text-xs text-gray-500 uppercase tracking-wide"),
                     rx.el.p(f"$ {DashboardState.egresos_mes}", class_name="text-xl font-bold text-red-600 mt-1"),
-                    rx.el.p(f"Mes anterior: $ {DashboardState.ingresos_mes_ant}", class_name="text-xs text-gray-400 mt-1"),
+                    rx.el.p(f"Mes anterior: $ {DashboardState.egresos_mes_ant}", class_name="text-xs text-gray-400 mt-1"),
                     class_name="bg-white rounded-xl border border-gray-100 shadow-sm p-4",
                 ),
                 rx.el.div(

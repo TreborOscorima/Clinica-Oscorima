@@ -58,19 +58,24 @@ def _dump(c: Comprobante, items: list[ComprobanteItem] | None = None) -> dict[st
 
 
 async def _numero(session: AsyncSession, clinica_id: int) -> str:
+    from sqlalchemy import text
     hoy = datetime.now(timezone.utc).strftime("%Y%m%d")
     prefix = f"REC-{clinica_id}-{hoy}-"
-    count: int = (
+    row = (
         await session.execute(
-            select(func.count()).select_from(
-                select(Comprobante).where(
-                    Comprobante.clinica_id == clinica_id,
-                    Comprobante.numero.like(f"{prefix}%"),
-                ).subquery()
+            select(func.max(Comprobante.numero))
+            .where(
+                Comprobante.clinica_id == clinica_id,
+                Comprobante.numero.like(f"{prefix}%"),
             )
+            .with_for_update()
         )
-    ).scalar_one()
-    return f"{prefix}{count + 1:04d}"
+    ).scalar_one_or_none()
+    if row:
+        last_seq = int(row.rsplit("-", 1)[-1])
+    else:
+        last_seq = 0
+    return f"{prefix}{last_seq + 1:04d}"
 
 
 async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any], sede_id: int = 0) -> dict[str, Any]:
