@@ -149,6 +149,7 @@ async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any],
     await session.flush()
 
     items_db: list[ComprobanteItem] = []
+    stock_warnings: list[str] = []
     for p in processed:
         ci = ComprobanteItem(
             comprobante_id=comp.id,
@@ -162,7 +163,9 @@ async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any],
         session.add(ci)
         items_db.append(ci)
         if p["tipo"] == "producto" and p["ref_id"]:
-            await _descontar_stock(session, clinica_id, p["ref_id"], p["cantidad"], comp.id)
+            warn = await _descontar_stock(session, clinica_id, p["ref_id"], p["cantidad"], comp.id)
+            if warn:
+                stock_warnings.append(warn)
 
     await session.flush()
 
@@ -193,7 +196,10 @@ async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any],
                  f"Cobro {numero}", sede_id=sede_id)
 
     await session.flush()
-    return _dump(comp, items_db)
+    result = _dump(comp, items_db)
+    if stock_warnings:
+        result["stock_warnings"] = stock_warnings
+    return result
 
 
 def _ingreso(
@@ -226,7 +232,8 @@ async def _descontar_stock(
     producto_id: int,
     cantidad: Decimal,
     comprobante_id: int,
-) -> None:
+) -> str | None:
+    """Descuenta stock y retorna warning si el saldo queda en 0 o negativo."""
     prod = (
         await session.execute(
             select(Producto).where(
@@ -237,7 +244,7 @@ async def _descontar_stock(
         )
     ).scalars().first()
     if not prod:
-        return
+        return None
     nuevo_stock = (prod.stock_actual or Decimal("0")) - cantidad
     prod.stock_actual = nuevo_stock
     session.add(MovimientoStock(
@@ -249,6 +256,11 @@ async def _descontar_stock(
         motivo="Venta",
         referencia=f"comp:{comprobante_id}",
     ))
+    if nuevo_stock < 0:
+        return f"{prod.nombre}: stock negativo ({nuevo_stock})"
+    if nuevo_stock == 0:
+        return f"{prod.nombre}: sin stock"
+    return None
 
 
 async def listar(

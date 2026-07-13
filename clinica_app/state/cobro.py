@@ -60,9 +60,10 @@ class CobroState(BaseState):
     promo_sel_id:         str        = ""
 
     # ── Último comprobante ─────────────────────────────────────────────────────
-    modal_recibo: bool       = False
-    ultimo_comp:  dict       = _COMP_VACIO
-    ultimo_items: list[dict] = []
+    modal_recibo:   bool       = False
+    ultimo_comp:    dict       = _COMP_VACIO
+    ultimo_items:   list[dict] = []
+    stock_warnings: list[str]  = []
 
     # ── UI general ─────────────────────────────────────────────────────────────
     form_error: str  = ""
@@ -428,13 +429,15 @@ class CobroState(BaseState):
 
         pac_nombre   = self.pac_nombre_sel
         items_recibo = result.pop("items", [])
+        warnings     = result.pop("stock_warnings", [])
         result["paciente_nombre"] = pac_nombre
 
         self.is_saving = False
         self._limpiar_pos()
-        self.ultimo_comp  = result
-        self.ultimo_items = items_recibo
-        self.modal_recibo = True
+        self.ultimo_comp    = result
+        self.ultimo_items   = items_recibo
+        self.stock_warnings = warnings
+        self.modal_recibo   = True
 
     def _limpiar_pos(self):
         self.carrito          = []

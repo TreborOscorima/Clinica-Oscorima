@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, docker-deploy-prod]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Create minimal .env for rxconfig
+        run: |
+          cat > .env <<'EOF'
+          ENV=test
+          MYSQL_HOST=localhost
+          MYSQL_PORT=3306
+          MYSQL_USER=test
+          MYSQL_PASSWORD=test
+          MYSQL_DB=test
+          SECRET_KEY=ci-test-key-not-for-production-32ch
+          EOF
+
+      - name: Syntax check all Python files
+        run: python -m py_compile clinica_app/clinica_app.py
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short

@@ -510,6 +510,22 @@ def _modal_recibo() -> rx.Component:
                     class_name="font-mono",
                     id="print-receipt",
                 ),
+                # Aviso de stock bajo (fuera del recibo imprimible)
+                rx.cond(
+                    CobroState.stock_warnings.length() > 0,
+                    rx.el.div(
+                        rx.el.div(
+                            rx.icon("triangle-alert", size=14, class_name="shrink-0 text-amber-600"),
+                            rx.el.span("Alerta de stock", class_name="text-xs font-semibold text-amber-700 ml-1.5"),
+                            class_name="flex items-center mb-1.5",
+                        ),
+                        rx.foreach(
+                            CobroState.stock_warnings,
+                            lambda w: rx.el.p(w, class_name="text-xs text-amber-600 pl-5"),
+                        ),
+                        class_name="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg",
+                    ),
+                ),
                 class_name="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 z-50 max-h-screen overflow-y-auto",
             ),
             class_name="fixed inset-0 flex items-center justify-center z-50 p-4",

@@ -146,10 +146,10 @@ usa `await asyncio.to_thread(svc.generar_reporte, ...)` y `clinica_app.py` usa
 `_migrate_columns()` eliminado; columnas `margen_global`/`margen_local` capturadas en
 migración `074568f4cfb8`. `create_all` permanece como fallback dev (normal en Reflex).
 
-**S8. Venta descuenta stock sin validar**
-`services/cobro.py` `_descontar_stock()`: si el producto no existe **retorna en
-silencio** (se cobra el ítem sin movimiento de stock) y permite **stock negativo** sin
-aviso. Decisión de negocio pendiente: ¿bloquear venta sin stock o permitir con warning?
+**S8.** ~~Venta descuenta stock sin validar~~ ✅ RESUELTO — `_descontar_stock()` retorna
+warnings de stock negativo/agotado; `crear()` los incluye en el resultado; el modal de
+recibo en `pages/cobro.py` muestra alerta visual amber. No bloquea la venta (decisión
+de negocio: una clínica no puede dejar de atender por falta de stock).
 
 ### 🟡 MEDIOS
 
@@ -251,12 +251,13 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 8. ~~Archivos basura~~ — `Dockerfile.worker`, `=1.13.0`, `start_redis.bat` ya eliminados.
 
 ### Pendientes
-- **S8 (decisión de negocio):** ¿permitir stock negativo o bloquear venta sin stock?
-  Actualmente permite stock negativo silenciosamente (`services/cobro.py:_descontar_stock`).
+- ~~**S8 (stock)**~~ ✅ — warnings de stock negativo/agotado en modal recibo post-venta.
+- ~~**CI**~~ ✅ — `.github/workflows/ci.yml` (Python 3.13, pytest, push a main/docker-deploy-prod).
 - **Docker local**: probar build completo y flujo login → cobrar → PDF/Excel.
 - **Deploy AWS**: primer deploy con `scripts/deploy-prod.sh` + configurar NPM.
 - **S14 (infraestructura)**: aplicar headers de seguridad en NPM (documentado arriba).
-- **CI**: GitHub Actions con pytest (tests en `tests/`).
+- **Tests**: los tests actuales usan `svc.autenticar` síncrono pero la función es async;
+  migrar a `pytest-asyncio` o crear wrappers síncronos para testing.
 
 ## 7. Notas operativas para quien continúe
 
