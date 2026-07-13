@@ -1,5 +1,5 @@
 from clinica_app.models.clinica import Clinica
-from clinica_app.models.user import User, RoleEnum, PermisoRol
+from clinica_app.models.user import User, RoleEnum, PermisoRol, UsuarioSede
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.profesional import Profesional
 from clinica_app.models.servicio import Servicio, ServicioPrecioHist
@@ -24,7 +24,7 @@ from clinica_app.models.metodo_pago_config import MetodoPagoConfig
 from clinica_app.models.impuesto_tasa import ImpuestoTasa
 
 __all__ = [
-    "Clinica", "User", "RoleEnum", "PermisoRol",
+    "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
     "Paciente", "Profesional", "Servicio", "ServicioPrecioHist", "ServicioInsumo",
     "Turno", "EstadoTurno", "TurnoServicio",
     "Comprobante", "CajaMovimiento", "CierreCaja",

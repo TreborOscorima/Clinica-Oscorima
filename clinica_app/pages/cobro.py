@@ -444,7 +444,7 @@ def _modal_recibo() -> rx.Component:
                     rx.el.a(
                         rx.icon("file-down", size=15, class_name="mr-1.5"),
                         "PDF",
-                        href=f"/api/recibo/pdf?comp_id={CobroState.ultimo_comp['id']}&clinica_id={CobroState.clinica_id}",
+                        href=f"/api/recibo/pdf?comp_id={CobroState.ultimo_comp['id']}&clinica_id={CobroState.clinica_id}&token={CobroState.download_token}",
                         target="_blank",
                         class_name="flex items-center px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 cursor-pointer",
                     ),

@@ -7,6 +7,7 @@ Arrancar en desarrollo:
 Arrancar en producción:
     reflex run --env prod
 """
+import asyncio
 import os
 
 import reflex as rx
@@ -17,6 +18,7 @@ from starlette.responses import FileResponse, JSONResponse
 from clinica_app.config import REPORT_EXPORT_DIR
 from clinica_app.database import get_async_session as _get_async_session
 from clinica_app.database import _sync_engine as _engine
+from clinica_app.services.download_token import validar_token
 import clinica_app.models  # noqa: F401 — registra todos los modelos antes del create_all
 
 # Crea las tablas que no existen (no toca las existentes)
@@ -124,6 +126,10 @@ async def _api_health(request: Request) -> JSONResponse:
 
 
 async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
+    auth = validar_token(request.query_params.get("token", ""))
+    if auth is None:
+        return JSONResponse({"error": "No autorizado"}, status_code=401)
+
     filename = os.path.basename(request.path_params.get("filename", ""))
     if not filename:
         return JSONResponse({"error": "not found"}, status_code=404)
@@ -138,7 +144,12 @@ async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
 
 
 async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
-    """Genera y descarga el PDF de un comprobante. ?comp_id=X&clinica_id=Y"""
+    """Genera y descarga el PDF de un comprobante. ?comp_id=X&clinica_id=Y&token=T"""
+    auth = validar_token(request.query_params.get("token", ""))
+    if auth is None:
+        return JSONResponse({"error": "No autorizado"}, status_code=401)
+    token_user_id, token_clinica_id = auth
+
     try:
         comp_id   = int(request.query_params.get("comp_id", 0))
         clinica_id = int(request.query_params.get("clinica_id", 0))
@@ -148,12 +159,15 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
     if not comp_id or not clinica_id:
         return JSONResponse({"error": "comp_id y clinica_id requeridos"}, status_code=400)
 
+    if clinica_id != token_clinica_id:
+        return JSONResponse({"error": "No autorizado para esta clínica"}, status_code=403)
+
     try:
         from clinica_app.services.pdf_recibo import generar_recibo_pdf, obtener_datos_comprobante
         from clinica_app.config import CLINICA_NOMBRE
         async with _get_async_session() as session:
             comp_dict, pac_nombre = await obtener_datos_comprobante(session, clinica_id, comp_id)
-        filename = generar_recibo_pdf(comp_dict, pac_nombre, CLINICA_NOMBRE)
+        filename = await asyncio.to_thread(generar_recibo_pdf, comp_dict, pac_nombre, CLINICA_NOMBRE)
         path = os.path.join(REPORT_EXPORT_DIR, filename)
         if not os.path.isfile(path):
             return JSONResponse({"error": "PDF no generado"}, status_code=500)

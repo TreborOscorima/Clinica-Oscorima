@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import reflex as rx
 
+from clinica_app.services.download_token import crear_token
+
 
 class BaseState(rx.State):
     """
@@ -22,6 +24,12 @@ class BaseState(rx.State):
     sidebar_open:       bool = False
     sede_actual_id:     int  = 0
     sede_actual_nombre: str  = ""
+
+    @rx.var(cache=False)
+    def download_token(self) -> str:
+        if not self.is_authenticated:
+            return ""
+        return crear_token(self.user_id, self.clinica_id)
 
     @rx.var
     def is_admin(self) -> bool:

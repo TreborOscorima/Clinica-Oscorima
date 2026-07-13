@@ -56,14 +56,47 @@ if [[ $WAITED -ge $MAX_WAIT ]]; then
 fi
 ok "MySQL disponible"
 
-# ─── 2. Migraciones Alembic ─────────────────────────────────────────────────
+# ─── 2. Esquema de base de datos ───────────────────────────────────────────
 SKIP_MIGRATE="${SKIP_MIGRATE:-false}"
 if [[ "$SKIP_MIGRATE" != "true" ]]; then
-    info "Ejecutando migraciones Alembic..."
-    if ! alembic upgrade head; then
-        fail "Migraciones fallaron — abortando arranque"
+    # Detectar si la DB está vacía (primer deploy / volumen nuevo)
+    TABLE_COUNT=$(python3 -c "
+import pymysql, os
+conn = pymysql.connect(
+    host=os.getenv('MYSQL_HOST','clinica_mysql'),
+    port=int(os.getenv('MYSQL_PORT','3306')),
+    user=os.getenv('MYSQL_USER','clinica'),
+    password=os.getenv('MYSQL_PASSWORD',''),
+    database=os.getenv('MYSQL_DB','clinica_db')
+)
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s', (os.getenv('MYSQL_DB','clinica_db'),))
+print(cur.fetchone()[0])
+conn.close()
+" 2>/dev/null || echo "0")
+
+    if [[ "$TABLE_COUNT" -eq 0 ]]; then
+        info "DB vacía detectada — creando esquema completo con SQLModel create_all..."
+        python3 -c "
+from clinica_app.models import *
+from clinica_app.database import _sync_engine
+from sqlmodel import SQLModel
+SQLModel.metadata.create_all(_sync_engine)
+print('create_all OK')
+"
+        if [[ $? -ne 0 ]]; then
+            fail "create_all falló — abortando"
+        fi
+        info "Marcando Alembic head (stamp)..."
+        alembic stamp head || fail "alembic stamp head falló"
+        ok "Esquema creado + Alembic stamp head OK"
+    else
+        info "DB existente ($TABLE_COUNT tablas) — ejecutando migraciones Alembic..."
+        if ! alembic upgrade head; then
+            fail "Migraciones fallaron — abortando arranque"
+        fi
+        ok "Migraciones aplicadas correctamente"
     fi
-    ok "Migraciones aplicadas correctamente"
 else
     warn "Migraciones saltadas (SKIP_MIGRATE=true)"
 fi

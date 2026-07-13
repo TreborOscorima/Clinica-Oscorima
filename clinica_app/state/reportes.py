@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import reflex as rx
 
 from clinica_app.database import get_async_session
@@ -74,7 +76,7 @@ class ReportesState(BaseState):
             params["hasta"] = self.fecha_hasta
 
         try:
-            filename = svc.generar_reporte(self.clinica_id, self.tipo_reporte, params, sede_id=self.sede_actual_id)
+            filename = await asyncio.to_thread(svc.generar_reporte, self.clinica_id, self.tipo_reporte, params, sede_id=self.sede_actual_id)
             self.archivo = filename
         except Exception as exc:
             self.gen_error = str(exc)
@@ -83,9 +85,11 @@ class ReportesState(BaseState):
 
     # ── Computed vars ──────────────────────────────────────────────────────────
 
-    @rx.var
+    @rx.var(cache=False)
     def archivo_url(self) -> str:
-        return "/api/reportes/descargar/" + self.archivo
+        from clinica_app.services.download_token import crear_token
+        token = crear_token(self.user_id, self.clinica_id)
+        return f"/api/reportes/descargar/{self.archivo}?token={token}"
 
     @rx.var
     def reporte_listo(self) -> bool:
