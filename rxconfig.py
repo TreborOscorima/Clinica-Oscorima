@@ -11,10 +11,8 @@ load_dotenv()
 ENV = (os.getenv("ENV") or "dev").strip().lower()
 IS_PROD = ENV in {"prod", "production"}
 
-# En Docker el compose inyecta FRONTEND_PORT=3000 y PUBLIC_API_URL con el dominio.
-# En desarrollo nativo (reflex run) queda el puerto 3003 de siempre.
 FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "3003"))
-API_URL = os.getenv("PUBLIC_API_URL", f"http://localhost:{FRONTEND_PORT}")
+API_URL = os.getenv("PUBLIC_API_URL")
 
 if IS_PROD:
     for _var in ("MYSQL_PASSWORD", "SECRET_KEY"):
@@ -24,7 +22,7 @@ if IS_PROD:
 config = rx.Config(
     app_name="clinica_app",
     frontend_port=FRONTEND_PORT,
-    api_url=API_URL,
+    **({"api_url": API_URL} if API_URL else {}),
     plugins=[
         rx.plugins.TailwindV4Plugin(),
     ],
