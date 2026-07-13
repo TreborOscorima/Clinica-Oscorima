@@ -184,8 +184,16 @@ aviso. Decisión de negocio pendiente: ¿bloquear venta sin stock o permitir con
 - **S12.** Email de usuario único **global** (`uq_usuarios_email`) — decisión de diseño
   coherente con login sin selector de tenant. ✅ DOCUMENTADO, no requiere fix.
 - **S13.** ~~83 archivos sin commit~~ ✅ RESUELTO — todo commiteado y pusheado.
-- **S14.** Headers de seguridad (HSTS, X-Frame-Options, etc.): agregarlos en NPM
-  (Advanced config del Proxy Host). ⚠️ INFRAESTRUCTURA — no es cambio de código.
+- **S14.** Headers de seguridad (HSTS, X-Frame-Options, etc.): ✅ DOCUMENTADO — configurar
+  en NPM → Proxy Host → Advanced → Custom Nginx Configuration:
+  ```
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+  ```
+  ⚠️ INFRAESTRUCTURA — no es cambio de código, aplicar manualmente en NPM.
 
 ### ✅ Lo que está BIEN en seguridad
 - `.env` correctamente en `.gitignore` y `.dockerignore`; sin secretos commiteados.
@@ -235,8 +243,9 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
   `egresos_mes_ant` en `state/dashboard.py` o cambiar el label.
 - **F2 (accesibilidad):** `rxconfig.py` meta viewport con `maximum-scale=1` bloquea el
   zoom en móviles — malo para usuarios con baja visión. Quitar `maximum-scale=1`.
-- **F3 (mantenibilidad):** páginas monolíticas: `pages/configuracion.py` (1.257 líneas),
-  `pages/compras.py` (1.012). Dividir en submódulos por tab (`pages/configuracion/…`).
+- **F3 (mantenibilidad):** ~~páginas monolíticas~~ ✅ RESUELTO — `compras.py` dividido en
+  `pages/compras/` (5 submódulos) y `configuracion.py` dividido en `pages/configuracion/`
+  (9 submódulos). Imports en `clinica_app.py` sin cambios.
 - **F4:** ~~fuente Inter desde Google Fonts CDN~~ ✅ RESUELTO — self-hosted en `assets/fonts/`.
 - **F5:** variación % del dashboard pinta rojo cuando es "0%" (solo verde si empieza
   con "+") — caso borde menor.
