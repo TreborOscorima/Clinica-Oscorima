@@ -133,22 +133,15 @@ son predecibles (tipo + timestamp). `os.path.basename` evita path traversal, per
 hay control de acceso ni de tenant.
 *Fix:* mismo esquema de token firmado que S1, o `rx.download` con los bytes en memoria.
 
-**S3. RBAC decorativo — los permisos por rol NO se aplican**
-La tabla `PermisoRol` (`models/user.py`) se administra desde Configuración → Permisos,
-pero **ningún** State/página/servicio la consulta (verificado por grep: solo
-`state/configuracion.py` la lee para pintarla). El único control real es:
-`shell()` exige login y el link + `on_mount` de Configuración exigen admin
-(`state/configuracion.py:173`). Resultado: un usuario rol `profesional` o `contador`
-puede entrar a `/caja`, `/cobro`, `/compras`, `/cuentas`, anular comprobantes y
-registrar egresos manuales navegando directo a la URL.
-*Fix:* helper en `BaseState` (ej. `tiene_permiso(module, write=False)`) que cachee
-`PermisoRol` al login, llamado en cada `on_mount` de State y en los handlers de
-escritura; ocultar además los links del sidebar según permiso.
+**S3. ~~RBAC decorativo — los permisos por rol NO se aplican~~ ✅ RESUELTO**
+`services/permisos.py` carga `PermisoRol` al login → `BaseState._permisos` (cache) +
+`modulos_permitidos` (var reactiva). `tiene_permiso(module, write)` se usa en `on_mount`
+de las 15 páginas y en write guards de handlers críticos. Sidebar filtra links con
+`rx.cond(BaseState.modulos_permitidos.contains(module))`. Auto-seed de defaults por rol.
 
-**S4. `PermisoRol` es global — cruza tenants**
-La tabla no tiene `clinica_id`: si el admin de la clínica A cambia un permiso, se lo
-cambia a **todas** las clínicas del SaaS.
-*Fix:* agregar `clinica_id` a `permisos_rol` (+ migración) y filtrar por él.
+**S4. ~~`PermisoRol` es global — cruza tenants~~ ✅ RESUELTO**
+`clinica_id` agregado a `permisos_rol` (migración `a1b2c3d4e5f6`). Todos los queries
+en `services/permisos.py` y `state/configuracion.py` filtran por `clinica_id`.
 
 ### 🟠 ALTOS
 
@@ -255,8 +248,7 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
   con "+") — caso borde menor.
 - **F6:** el gráfico de barras artesanal (divs) funciona; si se piden más gráficos,
   wrappear recharts en vez de crecer el hack.
-- **F7:** sidebar muestra TODOS los módulos a todos los roles (salvo Configuración).
-  Cuando se implemente S3 (RBAC), filtrar links por permiso — mejora seguridad **y** UX.
+- **F7:** ~~sidebar muestra TODOS los módulos a todos los roles~~ ✅ RESUELTO con S3.
 
 **Patrones Reflex críticos del proyecto (respetarlos al continuar):**
 1. `session.execute()` (no `session.exec()`) para agregados con subquery (`.scalar_one()`).
@@ -275,7 +267,7 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 1. **Commitear el trabajo pendiente** (83 archivos + los cambios Docker de hoy).
    Sugerencia: un commit para el estado actual de la app, otro para la mecánica Docker.
 2. **Seguridad crítica:** S1 y S2 (endpoints sin auth) — medio día.
-3. **RBAC real:** S3 + S4 (`clinica_id` en permisos + enforcement en States y sidebar) — 1 día.
+3. ~~**RBAC real:** S3 + S4~~ ✅ COMPLETADO — `clinica_id` en permisos + enforcement en States y sidebar.
 4. **S5** (numeración comprobantes) y **S6** (`asyncio.to_thread` en reportes/PDF) — horas.
 5. **Alembic sync** (S7): revisión autogenerada del drift; borrar `_migrate_columns()`.
 6. **Probar Docker local** (`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`
