@@ -14,6 +14,7 @@ import reflex as rx
 from sqlmodel import SQLModel
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
+from starlette.routing import Route, Router
 
 from clinica_app.config import REPORT_EXPORT_DIR
 from clinica_app.database import get_async_session as _get_async_session
@@ -110,15 +111,26 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
         return JSONResponse({"error": "Error interno"}, status_code=500)
 
 
-# ── App + api_transformer ────────────────────────────────────────────────────
+# ── ASGI middleware: intercepta /api/* antes del SPA fallback ────────────────
 
-def _api_transformer(api):
-    api.add_route("/health", _health_check)
-    api.add_route("/api/ping", _api_ping)
-    api.add_route("/api/health", _api_health)
-    api.add_route("/api/reportes/descargar/{filename}", _descargar_reporte)
-    api.add_route("/api/recibo/pdf", _generar_pdf_recibo)
-    return api
+_custom_api = Router(routes=[
+    Route("/api/ping", _api_ping),
+    Route("/api/health", _api_health),
+    Route("/api/reportes/descargar/{filename}", _descargar_reporte),
+    Route("/api/recibo/pdf", _generar_pdf_recibo),
+    Route("/health", _health_check),
+])
+
+
+def _api_transformer(asgi_app):
+    async def middleware(scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if path.startswith("/api/") or path == "/health":
+                await _custom_api(scope, receive, send)
+                return
+        await asgi_app(scope, receive, send)
+    return middleware
 
 
 app = rx.App(

@@ -67,11 +67,42 @@ async def cargar_permisos(
                 )
             )
         ).scalars().all()
+    else:
+        existing = {r.module for r in registros}
+        missing = set(MODULOS) - existing
+        if missing:
+            await _seedear_modulos_faltantes(
+                session, clinica_id, role, missing
+            )
+            registros = (
+                await session.execute(
+                    select(PermisoRol).where(
+                        PermisoRol.clinica_id == clinica_id,
+                        PermisoRol.role == RoleEnum(role),
+                    )
+                )
+            ).scalars().all()
 
     return {
         r.module: {"read": r.can_read, "write": r.can_write}
         for r in registros
     }
+
+
+async def _seedear_modulos_faltantes(
+    session: AsyncSession, clinica_id: int, role: str, missing: set[str]
+) -> None:
+    defaults = _DEFAULTS.get(role, {})
+    for module in missing:
+        can_read, can_write = defaults.get(module, (False, False))
+        session.add(PermisoRol(
+            clinica_id=clinica_id,
+            role=RoleEnum(role),
+            module=module,
+            can_read=can_read,
+            can_write=can_write,
+        ))
+    await session.flush()
 
 
 async def seedear_permisos_rol(
