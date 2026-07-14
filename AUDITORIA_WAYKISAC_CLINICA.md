@@ -253,11 +253,11 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 ### Pendientes
 - ~~**S8 (stock)**~~ ✅ — warnings de stock negativo/agotado en modal recibo post-venta.
 - ~~**CI**~~ ✅ — `.github/workflows/ci.yml` (Python 3.13, pytest, push a main/docker-deploy-prod).
-- **Docker local**: probar build completo y flujo login → cobrar → PDF/Excel.
+- ~~**Docker local**~~ ✅ — build + login + cobro + PDF verificados en `localhost:3004`.
+  Fix: RBAC módulos faltantes auto-seeded; API routes via ASGI middleware (single-port).
 - **Deploy AWS**: primer deploy con `scripts/deploy-prod.sh` + configurar NPM.
 - **S14 (infraestructura)**: aplicar headers de seguridad en NPM (documentado arriba).
-- **Tests**: los tests actuales usan `svc.autenticar` síncrono pero la función es async;
-  migrar a `pytest-asyncio` o crear wrappers síncronos para testing.
+- ~~**Tests**~~ ✅ — 35 tests migrados a `pytest-asyncio` con `aiosqlite` (0 failures).
 
 ## 7. Notas operativas para quien continúe
 
@@ -265,6 +265,7 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
   obligatorias `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `SECRET_KEY` (≥32 chars) —
   `rxconfig.py` y `deploy-prod.sh` fallan si faltan.
 - El contenedor sirve **todo en el puerto 3000** (`--single-port`); NPM hace TLS y proxy.
+  Las rutas custom (`/api/*`) funcionan via ASGI middleware (intercepta antes del SPA fallback).
   El healthcheck interno es `GET /api/ping`; el externo `GET /api/health` debe devolver
   `{"status":"ok","app":"waykisac-clinica"}`.
 - El entrypoint corre `alembic upgrade head` en cada arranque (`SKIP_MIGRATE=true` lo salta).
