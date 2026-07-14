@@ -1,49 +1,61 @@
-"""Fixtures compartidas para todos los tests."""
+"""Fixtures compartidas para todos los tests (async con aiosqlite)."""
 from __future__ import annotations
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlmodel import SQLModel
 
 from clinica_app.models import *  # noqa: F401,F403
 
 
 @pytest.fixture(scope="session")
-def engine():
-    eng = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    SQLModel.metadata.create_all(eng)
-    return eng
+def event_loop():
+    import asyncio
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
-@pytest.fixture
-def session(engine):
-    with Session(engine) as s:
+@pytest_asyncio.fixture(scope="session")
+async def engine():
+    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with eng.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    yield eng
+    await eng.dispose()
+
+
+@pytest_asyncio.fixture
+async def session(engine):
+    async with AsyncSession(engine) as s:
         yield s
-        s.rollback()
+        await s.rollback()
 
 
-@pytest.fixture
-def clinica(session):
+@pytest_asyncio.fixture
+async def clinica(session):
     from clinica_app.models.clinica import Clinica
     c = Clinica(nombre="Test Clínica", slug="test-clinica")
     session.add(c)
-    session.flush()
+    await session.flush()
     return c
 
 
-@pytest.fixture
-def paciente(session, clinica):
+@pytest_asyncio.fixture
+async def paciente(session, clinica):
     from clinica_app.models.paciente import Paciente
     p = Paciente(clinica_id=clinica.id, nombre="Ana Test", documento="99000001")
     session.add(p)
-    session.flush()
+    await session.flush()
     return p
 
 
-@pytest.fixture
-def admin_user(session, clinica):
+@pytest_asyncio.fixture
+async def admin_user(session, clinica):
     from clinica_app.models.user import RoleEnum, User
     u = User(clinica_id=clinica.id, nombre="Admin", email="admin@test.com", rol=RoleEnum.ADMIN)
     u.set_password("secret123")
     session.add(u)
-    session.flush()
+    await session.flush()
     return u

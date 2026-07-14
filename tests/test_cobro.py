@@ -29,35 +29,35 @@ def _payload_minimo(paciente_id: int) -> dict:
     }
 
 
-def test_crear_comprobante_basico(session, clinica, paciente):
-    res = svc.crear(session, clinica.id, _payload_minimo(paciente.id))
+async def test_crear_comprobante_basico(session, clinica, paciente):
+    res = await svc.crear(session, clinica.id, _payload_minimo(paciente.id))
     assert res["total"] == "100.00"
     assert res["numero"].startswith("REC-")
     assert len(res["items"]) == 1
 
 
-def test_crear_sin_paciente(session, clinica):
-    payload = _payload_minimo(999)  # id inexistente
+async def test_crear_sin_paciente(session, clinica):
+    payload = _payload_minimo(999)
     with pytest.raises(Exception):
-        svc.crear(session, clinica.id, payload)
+        await svc.crear(session, clinica.id, payload)
 
 
-def test_crear_sin_items(session, clinica, paciente):
+async def test_crear_sin_items(session, clinica, paciente):
     payload = _payload_minimo(paciente.id)
     payload["items"] = []
     with pytest.raises(ServiceError):
-        svc.crear(session, clinica.id, payload)
+        await svc.crear(session, clinica.id, payload)
 
 
-def test_descuento_reduce_total(session, clinica, paciente):
+async def test_descuento_reduce_total(session, clinica, paciente):
     payload = _payload_minimo(paciente.id)
     payload["descuento_global"] = "20"
-    res = svc.crear(session, clinica.id, payload)
+    res = await svc.crear(session, clinica.id, payload)
     assert Decimal(res["total"]) == Decimal("80.00")
     assert Decimal(res["descuento_global"]) == Decimal("20.00")
 
 
-def test_multiples_items(session, clinica, paciente):
+async def test_multiples_items(session, clinica, paciente):
     payload = {
         "paciente_id": paciente.id,
         "items": [
@@ -72,11 +72,11 @@ def test_multiples_items(session, clinica, paciente):
         "num_cuotas": 1,
         "cuota_inicial": "0",
     }
-    res = svc.crear(session, clinica.id, payload)
-    assert Decimal(res["total"]) == Decimal("130.00")  # 2*50 + 30
+    res = await svc.crear(session, clinica.id, payload)
+    assert Decimal(res["total"]) == Decimal("130.00")
 
 
-def test_pago_en_cuotas_genera_deuda(session, clinica, paciente):
+async def test_pago_en_cuotas_genera_deuda(session, clinica, paciente):
     from clinica_app.models.caja import DeudaPaciente
     from sqlmodel import select
 
@@ -85,10 +85,11 @@ def test_pago_en_cuotas_genera_deuda(session, clinica, paciente):
     payload["num_cuotas"]    = 3
     payload["cuota_inicial"] = "30"
 
-    svc.crear(session, clinica.id, payload)
+    await svc.crear(session, clinica.id, payload)
 
-    deuda = session.exec(
+    result = await session.execute(
         select(DeudaPaciente).where(DeudaPaciente.paciente_id == paciente.id)
-    ).first()
+    )
+    deuda = result.scalars().first()
     assert deuda is not None
-    assert deuda.saldo == Decimal("70.00")  # 100 - 30 anticipo
+    assert deuda.saldo == Decimal("70.00")
