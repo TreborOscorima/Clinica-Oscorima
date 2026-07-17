@@ -94,16 +94,26 @@ def _panel_detalle() -> rx.Component:
                             rx.foreach(
                                 PacientesState.historial_comprobantes,
                                 lambda c: rx.el.div(
-                                    rx.el.span(c["numero"], class_name="text-xs font-mono text-gray-500"),
                                     rx.el.div(
-                                        rx.el.span(c["fecha"], class_name="text-xs text-gray-500"),
-                                        rx.el.span(
-                                            "$ ", c["total"],
-                                            class_name="text-xs font-semibold text-green-700",
+                                        rx.el.span(c["numero"], class_name="text-xs font-mono text-gray-500"),
+                                        rx.el.div(
+                                            rx.el.span(c["fecha"], class_name="text-xs text-gray-500"),
+                                            rx.el.span(
+                                                "$ ", c["total"],
+                                                class_name="text-xs font-semibold text-green-700",
+                                            ),
+                                            class_name="flex items-center gap-3",
                                         ),
-                                        class_name="flex items-center gap-3",
+                                        class_name="flex-1 flex items-center justify-between",
                                     ),
-                                    class_name="flex items-center justify-between py-2 border-b border-gray-100 last:border-0",
+                                    rx.el.a(
+                                        rx.icon("file-down", size=14),
+                                        href=f"/api/recibo/pdf?comp_id={c['id']}&clinica_id={PacientesState.clinica_id}&token={PacientesState.download_token}",
+                                        target="_blank",
+                                        title="Descargar PDF",
+                                        class_name="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer shrink-0",
+                                    ),
+                                    class_name="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0",
                                 ),
                             ),
                         ),

@@ -239,6 +239,7 @@ class PacientesState(BaseState):
             comprobantes = (await session.execute(q_comp)).scalars().all()
             self.historial_comprobantes = [
                 {
+                    "id":         str(c.id),
                     "numero":     c.numero or f"#{c.id}",
                     "fecha":      c.fecha.strftime("%d/%m/%Y") if c.fecha else "",
                     "total":      f"{float(c.total or 0):.2f}",

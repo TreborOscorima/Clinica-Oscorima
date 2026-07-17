@@ -4,11 +4,15 @@ import reflex as rx
 
 from clinica_app.database import get_async_session
 from clinica_app.services import caja as svc
+from clinica_app.services import cobro as cobro_svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
 
 
 class CajaState(BaseState):
+
+    # ── Pestaña activa ────────────────────────────────────────────────────────
+    tab_caja: str = "movimientos"
 
     movimientos:  list[dict] = []
     total:        int        = 0
@@ -40,6 +44,15 @@ class CajaState(BaseState):
     cierre_msg:    str        = ""
     is_cerrando:   bool       = False
     ver_historial: bool       = False
+
+    # ── Pestaña Comprobantes ──────────────────────────────────────────────────
+    comprobantes:       list[dict] = []
+    comp_total:         int        = 0
+    comp_page:          int        = 1
+    comp_total_pages:   int        = 1
+    comp_busqueda:      str        = ""
+    comp_filtro_pago:   str        = ""
+    comp_is_loading:    bool       = False
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
@@ -206,6 +219,58 @@ class CajaState(BaseState):
             self.cierre_error = str(exc)
         self.is_cerrando = False
 
+    # ── Pestaña activa ────────────────────────────────────────────────────────
+
+    async def set_tab_caja(self, tab: str):
+        self.tab_caja = tab
+        if tab == "comprobantes" and not self.comprobantes:
+            async for s in self.cargar_comprobantes():
+                yield s
+
+    # ── Comprobantes ──────────────────────────────────────────────────────────
+
+    async def cargar_comprobantes(self):
+        self.comp_is_loading = True
+        yield
+        async with get_async_session() as session:
+            result = await cobro_svc.listar(
+                session,
+                self.clinica_id,
+                sede_id=self.sede_actual_id,
+                q=self.comp_busqueda,
+                forma_pago=self.comp_filtro_pago,
+                page=self.comp_page,
+                per_page=30,
+            )
+        self.comprobantes     = result["data"]
+        self.comp_total       = result["total"]
+        self.comp_total_pages = result["pages"]
+        self.comp_is_loading  = False
+
+    async def set_comp_busqueda(self, v: str):
+        self.comp_busqueda = v
+        self.comp_page = 1
+        async for s in self.cargar_comprobantes():
+            yield s
+
+    async def set_comp_filtro_pago(self, v: str):
+        self.comp_filtro_pago = v
+        self.comp_page = 1
+        async for s in self.cargar_comprobantes():
+            yield s
+
+    async def comp_prev_page(self):
+        if self.comp_page > 1:
+            self.comp_page -= 1
+            async for s in self.cargar_comprobantes():
+                yield s
+
+    async def comp_next_page(self):
+        if self.comp_page < self.comp_total_pages:
+            self.comp_page += 1
+            async for s in self.cargar_comprobantes():
+                yield s
+
     # ── Atajos de teclado ──────────────────────────────────────────────────────
 
     def handle_modal_key(self, key: str):
@@ -218,8 +283,16 @@ class CajaState(BaseState):
 
     async def handle_tabla_key(self, key: str):
         if key == "ArrowLeft":
-            async for s in self.prev_page():
-                yield s
+            if self.tab_caja == "comprobantes":
+                async for s in self.comp_prev_page():
+                    yield s
+            else:
+                async for s in self.prev_page():
+                    yield s
         elif key == "ArrowRight":
-            async for s in self.next_page():
-                yield s
+            if self.tab_caja == "comprobantes":
+                async for s in self.comp_next_page():
+                    yield s
+            else:
+                async for s in self.next_page():
+                    yield s

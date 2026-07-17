@@ -268,6 +268,10 @@ async def listar(
     clinica_id: int,
     sede_id: int = 0,
     paciente_id: int | None = None,
+    q: str = "",
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+    forma_pago: str = "",
     page: int = 1,
     per_page: int = 20,
 ) -> dict[str, Any]:
@@ -279,6 +283,31 @@ async def listar(
         stmt = stmt.where(Comprobante.sede_id == sede_id)
     if paciente_id:
         stmt = stmt.where(Comprobante.paciente_id == paciente_id)
+    if q:
+        from sqlalchemy import String, cast, or_
+        like = f"%{q}%"
+        pac_ids = select(Paciente.id).where(
+            Paciente.clinica_id == clinica_id,
+            or_(
+                Paciente.nombre.ilike(like),
+                cast(Paciente.documento, String).ilike(like),
+            ),
+        )
+        stmt = stmt.where(
+            or_(
+                Comprobante.numero.ilike(like),
+                Comprobante.paciente_id.in_(pac_ids),
+            )
+        )
+    if desde:
+        stmt = stmt.where(Comprobante.fecha >= desde)
+    if hasta:
+        stmt = stmt.where(Comprobante.fecha <= hasta)
+    if forma_pago:
+        try:
+            stmt = stmt.where(Comprobante.forma_pago == MetodoPago(forma_pago))
+        except ValueError:
+            pass
 
     total: int = (
         await session.execute(select(func.count()).select_from(stmt.subquery()))
@@ -291,8 +320,24 @@ async def listar(
         )
     ).scalars().all()
 
+    pac_ids_set = {c.paciente_id for c in items if c.paciente_id}
+    pac_map: dict[int, str] = {}
+    if pac_ids_set:
+        pacs = (
+            await session.execute(
+                select(Paciente.id, Paciente.nombre).where(Paciente.id.in_(pac_ids_set))
+            )
+        ).all()
+        pac_map = {p.id: p.nombre for p in pacs}
+
+    data = []
+    for c in items:
+        d = _dump(c)
+        d["paciente_nombre"] = pac_map.get(c.paciente_id, "") if c.paciente_id else ""
+        data.append(d)
+
     return {
-        "data":     [_dump(c) for c in items],
+        "data":     data,
         "page":     page,
         "per_page": per_page,
         "total":    total,

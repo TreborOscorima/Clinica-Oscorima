@@ -225,39 +225,119 @@ def _modal_cierre() -> rx.Component:
     )
 
 
-def caja_page() -> rx.Component:
-    return shell(
-        _modal_movimiento(),
-        _modal_cierre(),
-        page_header(
-            "Caja",
-            "Registra ingresos, egresos y cierres del día",
-            action=rx.el.div(
-                rx.el.button(
-                    rx.icon("lock", size=15),
-                    rx.el.span("Cierre del día", class_name="ml-1.5"),
-                    on_click=CajaState.abrir_cierre,
-                    class_name="inline-flex items-center px-4 py-2 text-sm font-medium border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer",
-                ),
-                rx.el.button(
-                    rx.icon("plus", size=16),
-                    rx.el.span("Nuevo movimiento", class_name="ml-1.5"),
-                    on_click=CajaState.abrir_modal,
-                    data_new_action="1",
-                    title="Nuevo movimiento (N)",
-                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
-                ),
-                class_name="flex items-center gap-3",
+def _tab_btn(label: str, tab_value: str, icon_name: str) -> rx.Component:
+    return rx.el.button(
+        rx.icon(icon_name, size=16),
+        rx.el.span(label, class_name="ml-1.5"),
+        on_click=lambda: CajaState.set_tab_caja(tab_value),
+        class_name=rx.cond(
+            CajaState.tab_caja == tab_value,
+            "flex items-center px-4 py-2.5 text-sm font-semibold text-sky-700 border-b-2 border-sky-600 bg-white cursor-pointer",
+            "flex items-center px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300 cursor-pointer",
+        ),
+    )
+
+
+def _fila_comp(c: dict) -> rx.Component:
+    return rx.el.tr(
+        rx.el.td(
+            rx.el.span(c["numero"], class_name="text-sm font-mono text-gray-700"),
+            class_name="px-4 py-3",
+        ),
+        rx.el.td(
+            rx.el.span(c["fecha"], class_name="text-sm text-gray-600"),
+            class_name="px-4 py-3",
+        ),
+        rx.el.td(
+            rx.el.span(c["paciente_nombre"], class_name="text-sm text-gray-700"),
+            class_name="px-4 py-3",
+        ),
+        rx.el.td(
+            rx.el.span("$ ", c["total"], class_name="text-sm font-semibold text-green-700"),
+            class_name="px-4 py-3",
+        ),
+        rx.el.td(
+            rx.el.span(c["forma_pago"], class_name="text-sm text-gray-600 capitalize"),
+            class_name="px-4 py-3",
+        ),
+        rx.el.td(
+            rx.el.a(
+                rx.icon("file-down", size=15),
+                href=f"/api/recibo/pdf?comp_id={c['id']}&clinica_id={CajaState.clinica_id}&token={CajaState.download_token}",
+                target="_blank",
+                title="Descargar PDF",
+                class_name="inline-flex items-center p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer",
             ),
+            class_name="px-4 py-3",
         ),
-        # KPIs del día
+        class_name="border-t border-gray-100 hover:bg-gray-50",
+    )
+
+
+def _seccion_comprobantes() -> rx.Component:
+    return rx.el.div(
+        # Filtros
         rx.el.div(
-            stat_card("Ingresos hoy",  f"$ {CajaState.ingresos_dia}", "trending-up",   "green"),
-            stat_card("Egresos hoy",   f"$ {CajaState.egresos_dia}",  "trending-down",  "red"),
-            stat_card("Saldo del día", f"$ {CajaState.saldo_dia}",    "wallet",         "sky"),
-            stat_card("Movimientos",   CajaState.total_movs_dia,       "receipt",        "purple"),
-            class_name="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6",
+            rx.el.div(
+                rx.icon("search", size=16, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"),
+                rx.el.input(
+                    type="text",
+                    placeholder="Buscar por paciente o N. comprobante...",
+                    default_value=CajaState.comp_busqueda,
+                    on_change=CajaState.set_comp_busqueda,
+                    class_name="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                ),
+                class_name="relative flex-1",
+            ),
+            rx.el.select(
+                rx.el.option("Todos los pagos", value=""),
+                rx.el.option("Efectivo", value="efectivo"),
+                rx.el.option("Tarjeta", value="tarjeta"),
+                rx.el.option("Transferencia", value="transferencia"),
+                rx.el.option("Otro", value="otro"),
+                default_value=CajaState.comp_filtro_pago,
+                on_change=CajaState.set_comp_filtro_pago,
+                class_name="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+            ),
+            class_name="flex gap-3 mb-5",
         ),
+        # Tabla
+        rx.el.div(
+            rx.el.div(
+                rx.el.table(
+                    rx.el.thead(
+                        rx.el.tr(
+                            *[rx.el.th(h, class_name="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase")
+                              for h in ["N. Comprobante", "Fecha", "Paciente", "Total", "Pago", "PDF"]],
+                        ),
+                        class_name="bg-gray-50 border-b border-gray-200",
+                    ),
+                    rx.el.tbody(rx.foreach(CajaState.comprobantes.to(list[dict]), _fila_comp)),
+                    class_name="w-full border-collapse",
+                ),
+                class_name="overflow-x-auto",
+            ),
+            rx.cond(
+                CajaState.comp_total == 0,
+                rx.el.p("Sin comprobantes", class_name="text-sm text-gray-400 italic text-center py-8"),
+            ),
+            rx.el.div(
+                rx.el.button(rx.icon("chevron-left", size=15), "Anterior",
+                             on_click=CajaState.comp_prev_page, disabled=CajaState.comp_page <= 1,
+                             class_name="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer"),
+                rx.el.span(CajaState.comp_page, " / ", CajaState.comp_total_pages, class_name="text-sm text-gray-500"),
+                rx.el.button("Siguiente", rx.icon("chevron-right", size=15),
+                             on_click=CajaState.comp_next_page, disabled=CajaState.comp_page >= CajaState.comp_total_pages,
+                             class_name="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer"),
+                class_name="flex items-center justify-between px-4 py-3 border-t border-gray-100",
+            ),
+            class_name="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden",
+        ),
+    )
+
+
+def _seccion_movimientos() -> rx.Component:
+    return rx.el.div(
         # Filtros
         rx.el.div(
             rx.el.button("Todos", on_click=lambda: CajaState.set_filtro_tipo(""),
@@ -345,6 +425,54 @@ def caja_page() -> rx.Component:
                     ),
                 ),
             ),
+        ),
+    )
+
+
+def caja_page() -> rx.Component:
+    return shell(
+        _modal_movimiento(),
+        _modal_cierre(),
+        page_header(
+            "Caja",
+            "Registra ingresos, egresos y cierres del día",
+            action=rx.el.div(
+                rx.el.button(
+                    rx.icon("lock", size=15),
+                    rx.el.span("Cierre del día", class_name="ml-1.5"),
+                    on_click=CajaState.abrir_cierre,
+                    class_name="inline-flex items-center px-4 py-2 text-sm font-medium border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer",
+                ),
+                rx.el.button(
+                    rx.icon("plus", size=16),
+                    rx.el.span("Nuevo movimiento", class_name="ml-1.5"),
+                    on_click=CajaState.abrir_modal,
+                    data_new_action="1",
+                    title="Nuevo movimiento (N)",
+                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
+                ),
+                class_name="flex items-center gap-3",
+            ),
+        ),
+        # KPIs del día
+        rx.el.div(
+            stat_card("Ingresos hoy",  f"$ {CajaState.ingresos_dia}", "trending-up",   "green"),
+            stat_card("Egresos hoy",   f"$ {CajaState.egresos_dia}",  "trending-down",  "red"),
+            stat_card("Saldo del día", f"$ {CajaState.saldo_dia}",    "wallet",         "sky"),
+            stat_card("Movimientos",   CajaState.total_movs_dia,       "receipt",        "purple"),
+            class_name="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6",
+        ),
+        # Pestañas
+        rx.el.div(
+            _tab_btn("Movimientos", "movimientos", "arrow-left-right"),
+            _tab_btn("Comprobantes", "comprobantes", "file-text"),
+            class_name="flex border-b border-gray-200 mb-5",
+        ),
+        # Contenido según pestaña
+        rx.cond(
+            CajaState.tab_caja == "comprobantes",
+            _seccion_comprobantes(),
+            _seccion_movimientos(),
         ),
         on_mount=CajaState.on_mount,
     )
