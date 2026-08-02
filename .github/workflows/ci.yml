@@ -22,7 +22,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio aiosqlite
 
       - name: Create minimal .env for rxconfig
         run: |
@@ -37,7 +37,7 @@ jobs:
           EOF
 
       - name: Syntax check all Python files
-        run: python -m py_compile clinica_app/clinica_app.py
+        run: python -m compileall -q clinica_app tests
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
