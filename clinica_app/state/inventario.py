@@ -188,6 +188,8 @@ class InventarioState(BaseState):
             yield s
 
     async def eliminar_producto(self, prod_id: int):
+        if not self.tiene_permiso("inventario", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.eliminar_producto(session, self.clinica_id, prod_id, self.sede_actual_id)
@@ -210,6 +212,8 @@ class InventarioState(BaseState):
         self.modal_mov = False
 
     async def guardar_movimiento(self):
+        if not self.tiene_permiso("inventario", write=True):
+            return
         if not self.form_mov_cantidad:
             return
         async with get_async_session() as session:

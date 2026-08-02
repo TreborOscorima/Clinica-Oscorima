@@ -172,6 +172,8 @@ class CajaState(BaseState):
             yield s
 
     async def eliminar_movimiento(self, mov_id: int):
+        if not self.tiene_permiso("caja", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.eliminar_movimiento(session, self.clinica_id, mov_id, sede_id=self.sede_actual_id)
@@ -202,6 +204,8 @@ class CajaState(BaseState):
         self.cierres = result["data"]
 
     async def confirmar_cierre(self):
+        if not self.tiene_permiso("caja", write=True):
+            return
         self.is_cerrando  = True
         self.cierre_error = ""
         self.cierre_msg   = ""

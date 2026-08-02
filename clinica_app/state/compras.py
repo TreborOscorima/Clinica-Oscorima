@@ -392,6 +392,8 @@ class ComprasState(BaseState):
         self.modal_anular = False
 
     async def ejecutar_anular(self):
+        if not self.tiene_permiso("compras", write=True):
+            return
         self.is_saving = True
         yield
         try:
@@ -430,6 +432,8 @@ class ComprasState(BaseState):
     def set_np_stock_inicial(self, v: float): self.np_stock_inicial = str(int(v)) if v else "0"
 
     async def guardar_nuevo_prod(self):
+        if not self.tiene_permiso("compras", write=True):
+            return
         self.np_error    = ""
         self.np_is_saving = True
         yield
@@ -510,6 +514,8 @@ class ComprasState(BaseState):
         self.prov_form_error     = ""
 
     async def guardar_proveedor(self):
+        if not self.tiene_permiso("compras", write=True):
+            return
         self.prov_form_error = ""
         self.prov_is_saving  = True
         yield
@@ -548,6 +554,8 @@ class ComprasState(BaseState):
                     break
 
     async def prov_eliminar(self, prov_id: int):
+        if not self.tiene_permiso("compras", write=True):
+            return
         try:
             async with get_async_session() as session:
                 await svc.eliminar_proveedor(session, self.clinica_id, prov_id)

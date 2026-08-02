@@ -157,6 +157,8 @@ class ProfesionalesState(BaseState):
     # ── Eliminar ───────────────────────────────────────────────────────────────
 
     async def eliminar(self, prof_id: int):
+        if not self.tiene_permiso("profesionales", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, prof_id, sede_id=self.sede_actual_id)

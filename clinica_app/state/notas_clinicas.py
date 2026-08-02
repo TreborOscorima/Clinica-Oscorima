@@ -180,6 +180,8 @@ class NotasClinicasState(BaseState):
             yield s
 
     async def eliminar(self, nota_id: int):
+        if not self.tiene_permiso("historia", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, nota_id)

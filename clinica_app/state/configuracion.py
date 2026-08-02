@@ -269,6 +269,8 @@ class ConfiguracionState(BaseState):
     # ══════════════════════════════════════════════════════════════════
 
     async def guardar_empresa(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_empresa = True
         self.empresa_error     = ""
         self.empresa_success   = ""
@@ -308,6 +310,8 @@ class ConfiguracionState(BaseState):
         self.empresa_success   = "Configuración guardada correctamente"
 
     async def guardar_margenes(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_margenes = True
         self.margenes_error     = ""
         self.margenes_success   = ""
@@ -361,6 +365,8 @@ class ConfiguracionState(BaseState):
         self.modal_sede = False
 
     async def guardar_sede(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_sede  = True
         self.form_sede_error = ""
         yield
@@ -387,6 +393,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_sedes()
 
     async def eliminar_sede(self, sede_id: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import sedes as svc_sedes
         async with get_async_session() as session:
             try:
@@ -416,6 +424,8 @@ class ConfiguracionState(BaseState):
         self.modal_usuario = False
 
     async def guardar_usuario(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_usuario = True
         self.form_u_error      = ""
         yield
@@ -457,6 +467,8 @@ class ConfiguracionState(BaseState):
         self.modal_password = False
 
     async def guardar_password(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_pw    = True
         self.form_pw_error   = ""
         self.form_pw_success = ""
@@ -476,6 +488,8 @@ class ConfiguracionState(BaseState):
         self.form_pw_success = "Contraseña actualizada"
 
     async def toggle_activo_usuario(self, user_id: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.toggle_activo(session, self.clinica_id, user_id, self.user_id)
@@ -497,6 +511,8 @@ class ConfiguracionState(BaseState):
             self.monedas = await svc_m.listar(session, self.clinica_id)
 
     async def agregar_moneda(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.moneda_error = ""
         from clinica_app.services import monedas as svc_m
         try:
@@ -515,6 +531,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_monedas()
 
     async def seleccionar_moneda(self, moneda_id: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import monedas as svc_m
         async with get_async_session() as session:
             try:
@@ -524,6 +542,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_monedas()
 
     async def eliminar_moneda(self, moneda_id: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.moneda_error = ""
         from clinica_app.services import monedas as svc_m
         async with get_async_session() as session:
@@ -544,6 +564,8 @@ class ConfiguracionState(BaseState):
             self.unidades = await svc_u.listar(session, self.clinica_id)
 
     async def agregar_unidad(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.unidad_error = ""
         from clinica_app.services import unidades_medida as svc_u
         async with get_async_session() as session:
@@ -560,6 +582,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_unidades()
 
     async def toggle_unidad_decimales(self, uid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import unidades_medida as svc_u
         async with get_async_session() as session:
             try:
@@ -569,6 +593,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_unidades()
 
     async def eliminar_unidad(self, uid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import unidades_medida as svc_u
         async with get_async_session() as session:
             try:
@@ -587,6 +613,8 @@ class ConfiguracionState(BaseState):
             self.metodos_pago = await svc_mp.listar(session, self.clinica_id)
 
     async def agregar_metodo_pago(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.mp_error = ""
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
@@ -605,6 +633,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_metodos_pago()
 
     async def toggle_visible_metodo(self, mid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
@@ -614,6 +644,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_metodos_pago()
 
     async def toggle_activo_metodo(self, mid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
@@ -623,6 +655,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_metodos_pago()
 
     async def eliminar_metodo_pago(self, mid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
@@ -653,6 +687,8 @@ class ConfiguracionState(BaseState):
         self.modal_impuesto = False
 
     async def guardar_impuesto(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.is_saving_it = True
         self.it_error     = ""
         yield
@@ -678,6 +714,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_impuestos()
 
     async def eliminar_impuesto(self, tid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         self.it_error = ""
         from clinica_app.services import impuestos as svc_i
         async with get_async_session() as session:
@@ -689,6 +727,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_impuestos()
 
     async def set_default_impuesto(self, tid: int):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import impuestos as svc_i
         async with get_async_session() as session:
             try:
@@ -698,6 +738,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_impuestos()
 
     async def cargar_impuestos_pais(self, pais: str):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.services import impuestos as svc_i
         async with get_async_session() as session:
             try:
@@ -707,6 +749,8 @@ class ConfiguracionState(BaseState):
         await self._cargar_impuestos()
 
     async def toggle_mostrar_impuesto_recibo(self):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         async with get_async_session() as session:
             try:
                 nuevo_val = await svc.toggle_mostrar_impuesto(session, self.clinica_id)
@@ -756,6 +800,8 @@ class ConfiguracionState(BaseState):
         ]
 
     async def toggle_permiso_rol(self, module: str, tipo: str):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         rol = self.permisos_rol_activo
         if not rol:
             return
@@ -809,6 +855,8 @@ class ConfiguracionState(BaseState):
         self.permisos_matrix = matrix
 
     async def toggle_permiso(self, module: str, role: str, tipo: str):
+        if not self.tiene_permiso("configuracion", write=True):
+            return
         from clinica_app.models.user import PermisoRol, RoleEnum
         from sqlmodel import select
 

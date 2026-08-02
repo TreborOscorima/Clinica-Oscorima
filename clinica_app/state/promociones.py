@@ -147,6 +147,8 @@ class PromocionesState(BaseState):
     def set_form_fecha_fin(self, v: str):    self.form_fecha_fin = v
 
     async def guardar(self):
+        if not self.tiene_permiso("promociones", write=True):
+            return
         self.is_saving  = True
         self.form_error = ""
         yield
@@ -180,6 +182,8 @@ class PromocionesState(BaseState):
     # ── Toggle activo ──────────────────────────────────────────────────────────
 
     async def toggle_activo(self, promo: dict):
+        if not self.tiene_permiso("promociones", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.toggle_activo(session, self.clinica_id, int(promo["id"]), sede_id=self.sede_actual_id)
@@ -199,6 +203,8 @@ class PromocionesState(BaseState):
         self.modal_eliminar = False
 
     async def ejecutar_eliminar(self):
+        if not self.tiene_permiso("promociones", write=True):
+            return
         self.is_saving = True
         yield
         async with get_async_session() as session:

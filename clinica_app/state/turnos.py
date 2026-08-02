@@ -220,6 +220,8 @@ class TurnosState(BaseState):
         self.modal_estado = False
 
     async def guardar_estado(self):
+        if not self.tiene_permiso("turnos", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.cambiar_estado(
@@ -236,6 +238,8 @@ class TurnosState(BaseState):
             yield s
 
     async def guardar_estado_y_cobrar(self):
+        if not self.tiene_permiso("turnos", write=True):
+            return
         async with get_async_session() as session:
             try:
                 await svc.cambiar_estado(
@@ -265,6 +269,8 @@ class TurnosState(BaseState):
         self.modal_reprogramar = False
 
     async def guardar_reprogramar(self):
+        if not self.tiene_permiso("turnos", write=True):
+            return
         if not self.form_reprogramar_fecha:
             return
         async with get_async_session() as session:

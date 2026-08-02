@@ -123,6 +123,8 @@ class CuentasState(BaseState):
     def set_form_obs(self, v: str):    self.form_obs = v
 
     async def confirmar_pago(self):
+        if not self.tiene_permiso("cuentas", write=True):
+            return
         self.is_saving  = True
         self.form_error = ""
         yield

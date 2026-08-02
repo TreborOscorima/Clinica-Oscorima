@@ -266,6 +266,8 @@ class CalendarioState(BaseState):
     def set_form_fecha_hora(self, v: str):     self.form_fecha_hora = v
 
     async def guardar_turno(self):
+        if not self.tiene_permiso("turnos", write=True):
+            return
         self.is_saving  = True
         self.form_error = ""
         yield
