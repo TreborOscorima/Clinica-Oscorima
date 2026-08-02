@@ -13,7 +13,7 @@
 - Los 15 states de página tienen guard `on_mount` (auth + permiso de lectura por módulo).
 - 35 tests pasan (`pytest-asyncio` + `aiosqlite`).
 - Alembic con un solo head (`a1b2c3d4e5f6`); entrypoint corre `alembic upgrade head`.
-- Docker local sano: `tuwayki_life` (proyecto `sistema-para-clinicas`) responde `/api/health` OK en `localhost:3004`.
+- Docker local sano: `tuwayki_life` + `life_mysql` (proyecto `sistema-para-clinicas`) responde `/api/health` OK en `localhost:3004`. Subdominio de prod: `life.tuwayki.app`.
 - Multi-tenant consistente: `clinica_id` solo vive en servidor.
 
 **Corregido en esta sesión (2026-08-02):**
@@ -112,3 +112,4 @@
 | 2026-08-02 | Fix CI (pythonpath + aiosqlite + compileall) | `fix(ci): pytest no encontraba el paquete clinica_app` |
 | 2026-08-02 | 44 write-guards RBAC + test permanente `test_rbac_guards.py` | `fix(security): write-guards RBAC en todos los handlers mutadores` |
 | 2026-08-02 | Rename Docker → `tuwayki_life` / proyecto `sistema-para-clinicas` (TUWAYKILIFE), volumen MySQL migrado sin pérdida | `chore(docker): rename a tuwayki_life (TUWAYKILIFE)` |
+| 2026-08-02 | Simetría total prefijo `life_` (`life_mysql`, `life_*` volúmenes/red) + subdominio `life.tuwayki.app` | `chore(docker): life_mysql + subdominio life.tuwayki.app` |

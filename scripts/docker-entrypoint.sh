@@ -24,7 +24,7 @@ fail()  { echo -e "${RED}[ENTRYPOINT]${NC} $*"; exit 1; }
 
 # ─── 1. Esperar MySQL ───────────────────────────────────────────────────────
 # La clínica usa variables MYSQL_* (ver clinica_app/config.py)
-DB_HOST="${MYSQL_HOST:-clinica_mysql}"
+DB_HOST="${MYSQL_HOST:-life_mysql}"
 DB_PORT="${MYSQL_PORT:-3306}"
 MAX_WAIT=120
 SOCKET_TIMEOUT=5
@@ -63,7 +63,7 @@ if [[ "$SKIP_MIGRATE" != "true" ]]; then
     TABLE_COUNT=$(python3 -c "
 import pymysql, os
 conn = pymysql.connect(
-    host=os.getenv('MYSQL_HOST','clinica_mysql'),
+    host=os.getenv('MYSQL_HOST','life_mysql'),
     port=int(os.getenv('MYSQL_PORT','3306')),
     user=os.getenv('MYSQL_USER','clinica'),
     password=os.getenv('MYSQL_PASSWORD',''),

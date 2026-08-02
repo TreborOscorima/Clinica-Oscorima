@@ -21,7 +21,7 @@ comparte la **mecánica de deploy Docker + Nginx Proxy Manager (NPM)**:
 |---|---|---|---|
 | Sistema de Ventas | TreborOscorima/Sistema-de-Ventas | `tuwayki_sys` | (ventas) |
 | Food | TreborOscorima/Sistema-para-Food | `tuwayki_food:3000` | food.tuwayki.app |
-| **Clínica / TUWAYKILIFE (este repo)** | TreborOscorima/Gestion-de-Clinica | `tuwayki_life:3000` | clinica.tuwayki.app *(ajustable)* |
+| **Clínica / TUWAYKILIFE (este repo)** | TreborOscorima/Gestion-de-Clinica | `tuwayki_life:3000` | life.tuwayki.app *(ajustable)* |
 
 ### Stack
 - **Reflex 0.9.4** (Python full-stack: frontend React/Vite compilado + backend FastAPI/WebSocket)
@@ -94,7 +94,7 @@ que el código nunca usa).
 |---|---|
 | `Dockerfile` | **Reescrito**: multi-stage python 3.13-slim, usuario no-root `app`, `tini`, healthcheck `/api/ping`, CMD `reflex run --env prod --single-port` en puerto 3000 |
 | `scripts/docker-entrypoint.sh` | **Nuevo**: espera MySQL → `alembic upgrade head` → `reflex init` → shims es-toolkit (fix Vite/Rolldown, idéntico a Food) |
-| `docker-compose.yml` | **Reescrito**: servicios `clinica_mysql` + `wayki_clinica`, red interna + red externa `nginx-proxy-manager_default`, healthchecks, límites de memoria, log rotation |
+| `docker-compose.yml` | **Reescrito**: servicios `life_mysql` + `tuwayki_life`, red interna + red externa `nginx-proxy-manager_default`, healthchecks, límites de memoria, log rotation |
 | `docker-compose.local.yml` | **Nuevo**: override local — app en `3004:3000`, MySQL en `33308:3306` (evita choque con Food local 3003/33307 y dev nativo 3003) |
 | `scripts/deploy-prod.sh` | **Nuevo**: adaptado de Food — valida .env, backup MySQL, git reset a rama (default `main`), build, espera healthy, verifica `/api/health` público |
 | `.env.example` | **Reescrito**: agrega `MYSQL_ROOT_PASSWORD`, `ENV`, `PUBLIC_API_URL`, `CLINICA_NOMBRE`, SMTP/Twilio; documenta los 3 modos de arranque |
@@ -107,7 +107,7 @@ que el código nunca usa).
 en la raíz (residuo de un `pip install alembic>=1.13.0` sin comillas). También
 `start_redis.bat` quedó obsoleto.
 
-**NPM en el servidor (primer deploy):** Proxy Host → Domain `clinica.tuwayki.app`
+**NPM en el servidor (primer deploy):** Proxy Host → Domain `life.tuwayki.app`
 (o el dominio real; ajustar `PUBLIC_URL` en deploy y `PUBLIC_API_URL` en compose),
 Forward `tuwayki_life:3000`, WebSockets **ON**, red `nginx-proxy-manager_default`.
 

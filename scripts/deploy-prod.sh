@@ -15,13 +15,13 @@
 #   HEALTH_WAIT_MAX      Iteraciones de espera × 15s (default: 80 → 20 min)
 #   BACKUP_KEEP          Backups .sql.gz a conservar (default: 5)
 #   NPM_NETWORK          Red externa de NPM (default: nginx-proxy-manager_default)
-#   PUBLIC_URL           URL pública para health check (default: https://clinica.tuwayki.app)
+#   PUBLIC_URL           URL pública para health check (default: https://life.tuwayki.app)
 #
 # Requisitos en el servidor:
 #   - .env con MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY
-#   - NO definir MYSQL_HOST=localhost (compose inyecta clinica_mysql)
+#   - NO definir MYSQL_HOST=localhost (compose inyecta life_mysql)
 #   - Red externa nginx-proxy-manager_default (compartida con Ventas/Food)
-#   - NPM: Proxy Host → wayki_clinica:3000, WebSockets ON
+#   - NPM: Proxy Host → tuwayki_life:3000, WebSockets ON
 #
 # Convive con Sistema-de-Ventas y TUWAYKIFOOD — DB y red internas propias.
 # =============================================================================
@@ -44,7 +44,7 @@ BRANCH="${BRANCH:-main}"
 HEALTH_WAIT_MAX="${HEALTH_WAIT_MAX:-80}"
 BACKUP_KEEP="${BACKUP_KEEP:-5}"
 NPM_NETWORK="${NPM_NETWORK:-nginx-proxy-manager_default}"
-PUBLIC_URL="${PUBLIC_URL:-https://clinica.tuwayki.app}"
+PUBLIC_URL="${PUBLIC_URL:-https://life.tuwayki.app}"
 
 SKIP_BACKUP=false
 SKIP_BUILD=false
@@ -116,19 +116,19 @@ ok "Red NPM disponible: $NPM_NETWORK"
 if $SKIP_BACKUP; then
     warn "Backup omitido (--skip-backup)"
 else
-    if docker inspect clinica_mysql >/dev/null 2>&1; then
+    if docker inspect life_mysql >/dev/null 2>&1; then
         BACKUP_DIR="$APP_DIR/backups"
         mkdir -p "$BACKUP_DIR"
-        BACKUP="$BACKUP_DIR/clinica_db_$(date +%Y%m%d_%H%M%S).sql.gz"
-        info "Backup clinica_mysql → $BACKUP"
-        docker exec clinica_mysql sh -c \
+        BACKUP="$BACKUP_DIR/life_db_$(date +%Y%m%d_%H%M%S).sql.gz"
+        info "Backup life_mysql → $BACKUP"
+        docker exec life_mysql sh -c \
             'mysqldump -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" --single-transaction --routines --triggers --no-tablespaces' \
             | gzip > "$BACKUP"
         [[ -s "$BACKUP" ]] || { rm -f "$BACKUP"; fail "Backup vacío — abortado"; }
         ok "Backup OK ($(du -h "$BACKUP" | cut -f1))"
-        ls -t "$BACKUP_DIR"/clinica_db_*.sql.gz 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) | xargs -r rm -f
+        ls -t "$BACKUP_DIR"/life_db_*.sql.gz 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) | xargs -r rm -f
     else
-        warn "clinica_mysql no corre — backup omitido (primer deploy?)"
+        warn "life_mysql no corre — backup omitido (primer deploy?)"
     fi
 fi
 
@@ -215,7 +215,7 @@ else
         [[ -n "$health_body" ]] && echo "  Respuesta: $health_body"
         echo ""
         echo "  El contenedor está OK internamente. Si es el primer deploy, configurá NPM:"
-        echo "    Domain: clinica.tuwayki.app"
+        echo "    Domain: life.tuwayki.app"
         echo "    Forward Hostname: tuwayki_life"
         echo "    Forward Port: 3000"
         echo "    Websockets: ON"
