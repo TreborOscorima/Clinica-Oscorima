@@ -26,7 +26,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD requerido en .env}
-      MYSQL_DATABASE: ${MYSQL_DB:-clinica_db}
+      MYSQL_DATABASE: ${MYSQL_DB:-life_db}
       MYSQL_USER: ${MYSQL_USER:-clinica}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD requerido en .env}
     volumes:

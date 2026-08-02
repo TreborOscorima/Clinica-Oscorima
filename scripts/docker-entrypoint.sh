@@ -67,10 +67,10 @@ conn = pymysql.connect(
     port=int(os.getenv('MYSQL_PORT','3306')),
     user=os.getenv('MYSQL_USER','clinica'),
     password=os.getenv('MYSQL_PASSWORD',''),
-    database=os.getenv('MYSQL_DB','clinica_db')
+    database=os.getenv('MYSQL_DB','life_db')
 )
 cur = conn.cursor()
-cur.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s', (os.getenv('MYSQL_DB','clinica_db'),))
+cur.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s', (os.getenv('MYSQL_DB','life_db'),))
 print(cur.fetchone()[0])
 conn.close()
 " 2>/dev/null || echo "0")

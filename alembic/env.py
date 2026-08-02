@@ -30,7 +30,7 @@ def _get_url() -> str:
             pwd=os.getenv("MYSQL_PASSWORD", ""),
             host=os.getenv("MYSQL_HOST", "127.0.0.1"),
             port=os.getenv("MYSQL_PORT", "3306"),
-            db=os.getenv("MYSQL_DB", "clinica_estetica"),
+            db=os.getenv("MYSQL_DB", "life_db"),
         ),
     )
 

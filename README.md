@@ -21,9 +21,9 @@ Proyecto inicial **listo para correr localmente** con autenticación JWT, roles 
    ```
 3. Crea base de datos MySQL y credenciales:
    ```sql
-   CREATE DATABASE clinica_estetica CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE DATABASE life_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    CREATE USER 'clinica_user'@'localhost' IDENTIFIED BY 'clinica_pass';
-   GRANT ALL PRIVILEGES ON clinica_estetica.* TO 'clinica_user'@'localhost';
+   GRANT ALL PRIVILEGES ON life_db.* TO 'clinica_user'@'localhost';
    FLUSH PRIVILEGES;
    ```
 4. Crea archivo `.env`:
@@ -35,7 +35,7 @@ Proyecto inicial **listo para correr localmente** con autenticación JWT, roles 
    MYSQL_PASSWORD=clinica_pass
    MYSQL_HOST=127.0.0.1
    MYSQL_PORT=3306
-   MYSQL_DB=clinica_estetica
+   MYSQL_DB=life_db
    ```
 5. Inicializa la app y crea tablas:
    ```bash
