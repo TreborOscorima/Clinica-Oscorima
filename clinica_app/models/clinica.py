@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlmodel import Field
 
 from clinica_app.models.base import BaseSQLModel, SoftDeleteMixin
@@ -24,3 +26,13 @@ class Clinica(BaseSQLModel, SoftDeleteMixin, table=True):
     ancho_recibo:            int | None = Field(default=None)
     margen_global:           float      = Field(default=50.0,  sa_column_kwargs={"server_default": "50.00"})
     mostrar_impuesto_recibo: bool       = Field(default=False, sa_column_kwargs={"server_default": "0"})
+
+    # ── Licencia SaaS (gestionada por el panel Owner de TUWAYKI vía /api/admin/*) ──
+    # NOTA: `is_active` (heredado de SoftDeleteMixin) = "no borrada". El estado de
+    # suscripción vive en `licencia_activa` para no mezclar ambos conceptos.
+    plan:            str             = Field(default="trial", max_length=20, nullable=False,
+                                             sa_column_kwargs={"server_default": "trial"})
+    licencia_activa: bool            = Field(default=True, nullable=False,
+                                             sa_column_kwargs={"server_default": "1"})
+    trial_ends_at:   datetime | None = Field(default=None, nullable=True)
+    plan_expires_at: datetime | None = Field(default=None, nullable=True)

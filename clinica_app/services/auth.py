@@ -84,6 +84,20 @@ async def autenticar(session: AsyncSession, email: str, password: str) -> User:
         await _registrar_intento_fallido(email)
         raise ServiceError("Credenciales inválidas", 401)
 
+    # ── Enforcement de licencia (gestionada por el panel Owner) ───────────────
+    # Credenciales OK; ahora validamos que la clínica pueda operar. No cuenta
+    # como intento fallido: no es un problema de credenciales.
+    from clinica_app.models.clinica import Clinica
+    from clinica_app.services.planes import clinica_acceso_permitido
+
+    clinica = (await session.execute(
+        select(Clinica).where(Clinica.id == user.clinica_id)
+    )).scalars().first()
+    if clinica is not None:
+        permitido, motivo = clinica_acceso_permitido(clinica)
+        if not permitido:
+            raise ServiceError(motivo, 403)
+
     return user
 
 

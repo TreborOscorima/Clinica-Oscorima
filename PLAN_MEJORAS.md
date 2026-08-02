@@ -113,3 +113,5 @@
 | 2026-08-02 | 44 write-guards RBAC + test permanente `test_rbac_guards.py` | `fix(security): write-guards RBAC en todos los handlers mutadores` |
 | 2026-08-02 | Rename Docker → `tuwayki_life` / proyecto `sistema-para-clinicas` (TUWAYKILIFE), volumen MySQL migrado sin pérdida | `chore(docker): rename a tuwayki_life (TUWAYKILIFE)` |
 | 2026-08-02 | Simetría total prefijo `life_` (`life_mysql`, `life_*` volúmenes/red) + subdominio `life.tuwayki.app` | `chore(docker): life_mysql + subdominio life.tuwayki.app` |
+| 2026-08-02 | Schema `clinica_estetica` → `life_db` (multi-especialidad) | `chore(db): renombrar schema a life_db` |
+| 2026-08-02 | Integración panel Owner: campos de licencia en Clinica, API `/api/admin/*` (secreto compartido), bloqueo de login por suspensión/vencimiento, planes trial/standard/profesional | `feat(owner): integración con el panel Owner (TUWAYKILIFE)` |

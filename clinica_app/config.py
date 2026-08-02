@@ -51,3 +51,8 @@ NOTIF_WA_ENABLED:    bool = os.getenv("NOTIF_WA_ENABLED", "false").lower() == "t
 
 # ── Nombre de la clínica para mensajes ────────────────────────────────────────
 CLINICA_NOMBRE: str = os.getenv("CLINICA_NOMBRE", "la clínica")
+
+# ── API admin para el panel Owner de TUWAYKI (integración HTTP) ────────────────
+# Secreto compartido; debe coincidir con LIFE_ADMIN_API_SECRET del Sistema de
+# Ventas. Si está vacío, los endpoints /api/admin/* responden 401 siempre.
+LIFE_ADMIN_API_SECRET: str = os.getenv("LIFE_ADMIN_API_SECRET", "")
