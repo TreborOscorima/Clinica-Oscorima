@@ -10,11 +10,14 @@
 #   3. bash scripts/deploy-prod.sh
 #
 # NPM (Proxy Host):
-#   Domain: clinica.tuwayki.app | Forward: wayki_clinica:3000 | WebSockets ON
+#   Domain: clinica.tuwayki.app | Forward: tuwayki_life:3000 | WebSockets ON
 #
 # Uso normal: bash scripts/deploy-prod.sh
 # Para local: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 # =============================================================================
+
+# Nombre de proyecto fijo (independiente de la carpeta local) — TUWAYKILIFE.
+name: sistema-para-clinicas
 
 services:
   clinica_mysql:
@@ -53,12 +56,12 @@ services:
     networks:
       - clinica_internal
 
-  wayki_clinica:
+  tuwayki_life:
     build:
       context: .
       dockerfile: Dockerfile
-    image: wayki_clinica:latest
-    container_name: wayki_clinica
+    image: tuwayki_life:latest
+    container_name: tuwayki_life
     restart: on-failure:10
     depends_on:
       clinica_mysql:

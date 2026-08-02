@@ -21,7 +21,7 @@ comparte la **mecánica de deploy Docker + Nginx Proxy Manager (NPM)**:
 |---|---|---|---|
 | Sistema de Ventas | TreborOscorima/Sistema-de-Ventas | `tuwayki_sys` | (ventas) |
 | Food | TreborOscorima/Sistema-para-Food | `tuwayki_food:3000` | food.tuwayki.app |
-| **Clínica (este repo)** | TreborOscorima/Clinica-Oscorima | `wayki_clinica:3000` | clinica.tuwayki.app *(ajustable)* |
+| **Clínica / TUWAYKILIFE (este repo)** | TreborOscorima/Gestion-de-Clinica | `tuwayki_life:3000` | clinica.tuwayki.app *(ajustable)* |
 
 ### Stack
 - **Reflex 0.9.4** (Python full-stack: frontend React/Vite compilado + backend FastAPI/WebSocket)
@@ -109,7 +109,7 @@ en la raíz (residuo de un `pip install alembic>=1.13.0` sin comillas). También
 
 **NPM en el servidor (primer deploy):** Proxy Host → Domain `clinica.tuwayki.app`
 (o el dominio real; ajustar `PUBLIC_URL` en deploy y `PUBLIC_API_URL` en compose),
-Forward `wayki_clinica:3000`, WebSockets **ON**, red `nginx-proxy-manager_default`.
+Forward `tuwayki_life:3000`, WebSockets **ON**, red `nginx-proxy-manager_default`.
 
 ---
 

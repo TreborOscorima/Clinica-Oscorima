@@ -145,7 +145,7 @@ git reset --hard "origin/$BRANCH"
 ok "Commit: $(git log --oneline -1)"
 
 # ─── 3. Build + deploy ────────────────────────────────────────────────────────
-SERVICE=wayki_clinica
+SERVICE=tuwayki_life
 
 if $SKIP_BUILD; then
     warn "Build omitido (--skip-build)"
@@ -216,13 +216,13 @@ else
         echo ""
         echo "  El contenedor está OK internamente. Si es el primer deploy, configurá NPM:"
         echo "    Domain: clinica.tuwayki.app"
-        echo "    Forward Hostname: wayki_clinica"
+        echo "    Forward Hostname: tuwayki_life"
         echo "    Forward Port: 3000"
         echo "    Websockets: ON"
         echo "    Red: nginx-proxy-manager_default (misma que tuwayki_sys y tuwayki_food)"
         echo ""
         echo "  Verificá red del contenedor:"
-        echo "    docker inspect wayki_clinica --format '{{range \$k,\$v := .NetworkSettings.Networks}}{{printf \"%s \" \$k}}{{end}}'"
+        echo "    docker inspect tuwayki_life --format '{{range \$k,\$v := .NetworkSettings.Networks}}{{printf \"%s \" \$k}}{{end}}'"
         echo ""
         fail "Health externo no devolvió app=waykisac-clinica status=ok — revisá NPM/DNS/SSL o usá --skip-public-check"
     fi
@@ -235,6 +235,6 @@ echo -e "${GREEN}═════════════════════
 echo "  Commit:  $(git rev-parse --short HEAD)"
 echo "  Branch:  $BRANCH"
 echo "  URL:     $PUBLIC_URL"
-echo "  NPM:     wayki_clinica:3000 en red $NPM_NETWORK"
-echo "  Logs:    docker logs wayki_clinica -f"
+echo "  NPM:     tuwayki_life:3000 en red $NPM_NETWORK"
+echo "  Logs:    docker logs tuwayki_life -f"
 echo ""

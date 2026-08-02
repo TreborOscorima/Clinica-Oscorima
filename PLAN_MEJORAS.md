@@ -13,7 +13,7 @@
 - Los 15 states de página tienen guard `on_mount` (auth + permiso de lectura por módulo).
 - 35 tests pasan (`pytest-asyncio` + `aiosqlite`).
 - Alembic con un solo head (`a1b2c3d4e5f6`); entrypoint corre `alembic upgrade head`.
-- Docker local sano: `wayki_clinica` responde `/api/health` OK en `localhost:3004`.
+- Docker local sano: `tuwayki_life` (proyecto `sistema-para-clinicas`) responde `/api/health` OK en `localhost:3004`.
 - Multi-tenant consistente: `clinica_id` solo vive en servidor.
 
 **Corregido en esta sesión (2026-08-02):**
@@ -100,8 +100,8 @@
   fallback dev, pero en prod debería estar detrás de `if ENV != "prod"`.
 - es-toolkit shims en el entrypoint Docker: workaround de Reflex 0.9.x — revisar al
   actualizar Reflex.
-- Renombrar carpeta local `Sistema-Gestion-Clinica` vs repo `Clinica-Oscorima` (cosmético,
-  pero confunde a herramientas y a humanos).
+- El repo remoto se renombró a `TreborOscorima/Gestion-de-Clinica`; actualizar `origin`
+  local cuando se pueda (la URL vieja redirige por ahora).
 
 ---
 
@@ -111,3 +111,4 @@
 |-------|------|--------|
 | 2026-08-02 | Fix CI (pythonpath + aiosqlite + compileall) | `fix(ci): pytest no encontraba el paquete clinica_app` |
 | 2026-08-02 | 44 write-guards RBAC + test permanente `test_rbac_guards.py` | `fix(security): write-guards RBAC en todos los handlers mutadores` |
+| 2026-08-02 | Rename Docker → `tuwayki_life` / proyecto `sistema-para-clinicas` (TUWAYKILIFE), volumen MySQL migrado sin pérdida | `chore(docker): rename a tuwayki_life (TUWAYKILIFE)` |
