@@ -61,7 +61,7 @@ Copiar `.env.example` → `.env` y completar. Claves críticas para prod:
 
 ```ini
 ENV=prod
-SECRET_KEY=<32+ chars aleatorios>            # python -c "import secrets; print(secrets.token_hex(32))"
+AUTH_SECRET_KEY=<32+ chars aleatorios>       # python -c "import secrets; print(secrets.token_hex(32))"
 MYSQL_DB=life_db
 MYSQL_USER=clinica
 MYSQL_PASSWORD=<password>

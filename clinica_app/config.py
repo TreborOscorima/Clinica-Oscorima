@@ -25,7 +25,10 @@ ASYNC_DATABASE_URL: str = os.getenv(
 )
 
 REDIS_URL: str      = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-SECRET_KEY: str     = os.getenv("SECRET_KEY", "dev-key-CHANGE-IN-PRODUCTION")
+# Llave maestra (sesiones, firma de tokens). Nombre alineado con TUWAYKIFOOD y
+# el Sistema de Ventas (AUTH_SECRET_KEY). Se acepta SECRET_KEY como fallback
+# para no romper entornos que aún usen el nombre viejo.
+AUTH_SECRET_KEY: str = os.getenv("AUTH_SECRET_KEY") or os.getenv("SECRET_KEY", "dev-key-CHANGE-IN-PRODUCTION")
 SQLMODEL_ECHO: bool = os.getenv("SQLMODEL_ECHO", "false").lower() == "true"
 
 REPORT_EXPORT_DIR: str = os.getenv("REPORT_EXPORT_DIR", "exports")

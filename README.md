@@ -29,7 +29,7 @@ Proyecto inicial **listo para correr localmente** con autenticación JWT, roles 
 4. Crea archivo `.env`:
    ```ini
    FLASK_ENV=development
-   SECRET_KEY=super-secreto-123
+   AUTH_SECRET_KEY=super-secreto-123
    JWT_SECRET_KEY=jwt-super-secreto-123
    MYSQL_USER=clinica_user
    MYSQL_PASSWORD=clinica_pass

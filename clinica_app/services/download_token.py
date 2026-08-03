@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import time
 
-from clinica_app.config import SECRET_KEY
+from clinica_app.config import AUTH_SECRET_KEY
 
 _TTL = 120  # segundos
 
@@ -13,7 +13,7 @@ _TTL = 120  # segundos
 def crear_token(user_id: int, clinica_id: int) -> str:
     ts = str(int(time.time()))
     payload = f"{user_id}:{clinica_id}:{ts}"
-    sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    sig = hmac.new(AUTH_SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     return f"{payload}:{sig}"
 
 
@@ -36,7 +36,7 @@ def validar_token(token: str) -> tuple[int, int] | None:
         return None
 
     payload = f"{user_id}:{clinica_id}:{ts_str}"
-    expected = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    expected = hmac.new(AUTH_SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     if not hmac.compare_digest(sig, expected):
         return None
 

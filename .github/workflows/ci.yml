@@ -33,7 +33,7 @@ jobs:
           MYSQL_USER=test
           MYSQL_PASSWORD=test
           MYSQL_DB=test
-          SECRET_KEY=ci-test-key-not-for-production-32ch
+          AUTH_SECRET_KEY=ci-test-key-not-for-production-32ch
           EOF
 
       - name: Syntax check all Python files

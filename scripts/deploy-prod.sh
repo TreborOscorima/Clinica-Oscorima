@@ -18,7 +18,7 @@
 #   PUBLIC_URL           URL pública para health check (default: https://life.tuwayki.app)
 #
 # Requisitos en el servidor:
-#   - .env con MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY
+#   - .env con MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, AUTH_SECRET_KEY
 #   - NO definir MYSQL_HOST=localhost (compose inyecta life_mysql)
 #   - Red externa nginx-proxy-manager_default (compartida con Ventas/Food)
 #   - NPM: Proxy Host → tuwayki_life:3000, WebSockets ON
@@ -83,7 +83,7 @@ validate_env() {
     local env_file="$APP_DIR/.env"
     local missing=()
 
-    for var in MYSQL_PASSWORD MYSQL_ROOT_PASSWORD SECRET_KEY; do
+    for var in MYSQL_PASSWORD MYSQL_ROOT_PASSWORD AUTH_SECRET_KEY; do
         if ! grep -qE "^${var}=.+" "$env_file" 2>/dev/null; then
             missing+=("$var")
         fi
@@ -99,8 +99,8 @@ validate_env() {
     fi
 
     local secret_len
-    secret_len="$(grep -E '^SECRET_KEY=' "$env_file" | cut -d= -f2- | tr -d '[:space:]' | wc -c)"
-    [[ "$secret_len" -ge 32 ]] || fail "SECRET_KEY debe tener mínimo 32 caracteres"
+    secret_len="$(grep -E '^AUTH_SECRET_KEY=' "$env_file" | cut -d= -f2- | tr -d '[:space:]' | wc -c)"
+    [[ "$secret_len" -ge 32 ]] || fail "AUTH_SECRET_KEY debe tener mínimo 32 caracteres"
 }
 validate_env
 ok "Validación .env OK"

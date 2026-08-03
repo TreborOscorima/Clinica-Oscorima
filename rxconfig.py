@@ -15,7 +15,7 @@ FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", "3003"))
 API_URL = os.getenv("PUBLIC_API_URL")
 
 if IS_PROD:
-    for _var in ("MYSQL_PASSWORD", "SECRET_KEY"):
+    for _var in ("MYSQL_PASSWORD", "AUTH_SECRET_KEY"):
         if not os.getenv(_var):
             raise RuntimeError(f"[rxconfig] Variable obligatoria en producción: {_var}")
 

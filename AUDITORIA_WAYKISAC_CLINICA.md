@@ -41,7 +41,7 @@ comparte la **mecánica de deploy Docker + Nginx Proxy Manager (NPM)**:
 ```
 clinica_app/
 ├── clinica_app.py      # entry point: rx.App, rutas, endpoints Starlette (/health, /api/*)
-├── config.py           # env vars (MYSQL_*, SECRET_KEY, SMTP, TWILIO, etc.)
+├── config.py           # env vars (MYSQL_*, AUTH_SECRET_KEY, SMTP, TWILIO, etc.)
 ├── database.py         # engine síncrono (Alembic/CLI) + asíncrono (event handlers)
 ├── models/             # SQLModel — 1 archivo por dominio; TenantSQLModel agrega clinica_id
 ├── services/           # lógica de negocio async; SIEMPRE reciben (session, clinica_id, ...)
@@ -71,7 +71,7 @@ python -m reflex run          # → http://localhost:3003
 ```
 **Docker local:**
 ```bash
-cp .env.example .env   # completar MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY
+cp .env.example .env   # completar MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, AUTH_SECRET_KEY
 docker network create nginx-proxy-manager_default   # una sola vez
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 # → http://localhost:3004  (MySQL en localhost:33308)
@@ -98,7 +98,7 @@ que el código nunca usa).
 | `docker-compose.local.yml` | **Nuevo**: override local — app en `3004:3000`, MySQL en `33308:3306` (evita choque con Food local 3003/33307 y dev nativo 3003) |
 | `scripts/deploy-prod.sh` | **Nuevo**: adaptado de Food — valida .env, backup MySQL, git reset a rama (default `main`), build, espera healthy, verifica `/api/health` público |
 | `.env.example` | **Reescrito**: agrega `MYSQL_ROOT_PASSWORD`, `ENV`, `PUBLIC_API_URL`, `CLINICA_NOMBRE`, SMTP/Twilio; documenta los 3 modos de arranque |
-| `rxconfig.py` | Env-driven: `FRONTEND_PORT` (3003 nativo / 3000 Docker), `api_url` desde `PUBLIC_API_URL`, **fail-hard en prod si faltan `MYSQL_PASSWORD` o `SECRET_KEY`**, telemetría off en prod |
+| `rxconfig.py` | Env-driven: `FRONTEND_PORT` (3003 nativo / 3000 Docker), `api_url` desde `PUBLIC_API_URL`, **fail-hard en prod si faltan `MYSQL_PASSWORD` o `AUTH_SECRET_KEY`**, telemetría off en prod |
 | `clinica_app/clinica_app.py` | Agregados `/api/ping` (healthcheck contenedor) y `/api/health` (devuelve `app: waykisac-clinica`, usado por deploy-prod.sh) |
 | `requirements.txt` | **Agregados `aiomysql` y `greenlet`** (estaban instalados a mano — la imagen Docker no arrancaba sin ellos) y `twilio`; **removidos `redis` y `rq`** (no se usan en ningún archivo) |
 
@@ -262,7 +262,7 @@ globales (Alt+1..7, N, /, Esc, Ctrl+Enter) — nivel superior al típico CRUD.
 ## 7. Notas operativas para quien continúe
 
 - Variables de entorno: ver `.env.example` (completo y comentado). En prod son
-  obligatorias `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `SECRET_KEY` (≥32 chars) —
+  obligatorias `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `AUTH_SECRET_KEY` (≥32 chars) —
   `rxconfig.py` y `deploy-prod.sh` fallan si faltan.
 - El contenedor sirve **todo en el puerto 3000** (`--single-port`); NPM hace TLS y proxy.
   Las rutas custom (`/api/*`) funcionan via ASGI middleware (intercepta antes del SPA fallback).

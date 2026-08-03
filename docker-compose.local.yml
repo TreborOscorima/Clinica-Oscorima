@@ -8,7 +8,7 @@
 #   WaykiSAC Clínica : http://localhost:3004
 #   MySQL            : localhost:33308 (usuario clinica / MYSQL_PASSWORD)
 #
-# Mínimo en .env: MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, SECRET_KEY
+# Mínimo en .env: MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, AUTH_SECRET_KEY
 # Nota: no usar 3003 (dev nativo de la clínica ni Food local) ni 33307 (Food).
 #
 # Requiere la red externa (una sola vez, igual que Ventas/Food):
