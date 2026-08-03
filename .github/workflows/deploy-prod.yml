@@ -1,0 +1,90 @@
+# =============================================================================
+# Deploy producción TUWAYKILIFE — GitHub Actions (SSH → EC2)
+#
+# Mismo patrón que TUWAYKIFOOD. Dispara SOLO al pushear a la rama
+# docker-deploy-prod o manualmente (workflow_dispatch). Un push a main NO
+# despliega (solo corre CI).
+#
+# Secrets en Settings → Secrets and variables → Actions:
+#   DEPLOY_SSH_HOST         IP o hostname del EC2
+#   DEPLOY_SSH_USER         Usuario SSH (ej. ubuntu)
+#   DEPLOY_SSH_PRIVATE_KEY  Clave privada OpenSSH (.pem, contenido completo)
+#   DEPLOY_APP_DIR          Ruta del proyecto en el server (ej. /home/ubuntu/sist-life-trebor)
+#
+# Opcional:
+#   DEPLOY_SSH_PORT         Puerto SSH (default 22 si no se define)
+# =============================================================================
+name: deploy-prod
+
+on:
+  push:
+    branches:
+      - docker-deploy-prod
+  workflow_dispatch:
+    inputs:
+      skip_backup:
+        description: Omitir backup de MySQL
+        type: boolean
+        default: false
+      skip_npm:
+        description: No reiniciar nginx-proxy-manager
+        type: boolean
+        default: true
+      skip_public_check:
+        description: No verificar https://life.tuwayki.app/api/health
+        type: boolean
+        default: false
+
+concurrency:
+  group: life-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy en EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          SKIP_BACKUP: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_backup && '1' || '' }}
+          SKIP_NPM: ${{ github.event_name != 'workflow_dispatch' && '1' || (inputs.skip_npm && '1' || '') }}
+          SKIP_PUBLIC: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_public_check && '1' || '' }}
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          command_timeout: 40m
+          envs: DEPLOY_APP_DIR,SKIP_BACKUP,SKIP_NPM,SKIP_PUBLIC
+          script: |
+            set -euo pipefail
+            APP_DIR="${DEPLOY_APP_DIR:-/home/ubuntu/sist-life-trebor}"
+            cd "$APP_DIR"
+
+            FLAGS=()
+            [[ -n "${SKIP_BACKUP:-}" ]] && FLAGS+=(--skip-backup)
+            [[ -n "${SKIP_NPM:-}" ]] && FLAGS+=(--skip-npm)
+            [[ -n "${SKIP_PUBLIC:-}" ]] && FLAGS+=(--skip-public-check)
+
+            echo "=== Deploy TUWAYKILIFE ==="
+            echo "Directorio: $APP_DIR"
+            echo "Commit remoto: $(git rev-parse --short origin/docker-deploy-prod 2>/dev/null || echo '?')"
+            echo "Flags: ${FLAGS[*]:-(ninguno)}"
+
+            export APP_DIR BRANCH=docker-deploy-prod
+            bash scripts/deploy-prod.sh "${FLAGS[@]}"
+
+      - name: Verificar health público
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_public_check }}
+        run: |
+          set -euo pipefail
+          URL="https://life.tuwayki.app/api/health"
+          echo "GET $URL"
+          body="$(curl -sf --max-time 30 "$URL")"
+          echo "$body"
+          echo "$body" | grep -q '"app":"waykisac-clinica"'
+          echo "$body" | grep -q '"status":"ok"'

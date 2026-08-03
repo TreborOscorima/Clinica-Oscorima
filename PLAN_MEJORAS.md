@@ -32,8 +32,12 @@
 
 ## P0 — Antes de producción real
 
-- [ ] **Deploy AWS + NPM**: primer deploy con `scripts/deploy-prod.sh`; aplicar los headers
-      de seguridad documentados en la auditoría (S14) en Nginx Proxy Manager.
+- [ ] **Deploy AWS + NPM**: primer deploy en `life.tuwayki.app`. Guía completa lista en
+      [DEPLOY_TUWAYKILIFE.md](DEPLOY_TUWAYKILIFE.md) + workflow de CD
+      `.github/workflows/deploy-prod.yml` (dispara en push a `docker-deploy-prod`).
+      Pendiente: crear DNS `life`, cargar secrets en GitHub, primer deploy manual,
+      configurar Proxy Host y aplicar headers de seguridad (S14). *No ejecutar hasta
+      terminar de probar todo en local.*
 - [ ] **Backups automáticos de MySQL**: `mysqldump` diario (cron en el host o contenedor
       sidecar) + retención 30 días + copia fuera del servidor (S3/Backblaze). *Un sistema
       clínico sin backups no es profesional: es una pérdida de datos esperando fecha.*
@@ -116,3 +120,5 @@
 | 2026-08-02 | Schema `clinica_estetica` → `life_db` (multi-especialidad) | `chore(db): renombrar schema a life_db` |
 | 2026-08-02 | Integración panel Owner: campos de licencia en Clinica, API `/api/admin/*` (secreto compartido), bloqueo de login por suspensión/vencimiento, planes trial/standard/profesional | `feat(owner): integración con el panel Owner (TUWAYKILIFE)` |
 | 2026-08-02 | Multi-empresa: `/api/registro` público (clinica + admin + sede principal + trial) reusando `tuwayki-core` (validators, sanitization, rate-limit); tarjeta TUWAYKILIFE activa en la landing | `feat(registro): alta pública multi-empresa con tuwayki-core` |
+| 2026-08-02 | Página `/life` en la landing + formulario de registro (pestaña TUWAYKILIFE en `/registro`, `life_api_client`) | `feat(landing): página /life con registro` |
+| 2026-08-02 | Guía de deploy + workflow CD `deploy-prod.yml` (dormido hasta push a `docker-deploy-prod`) | `docs(deploy): guía TUWAYKILIFE + workflow CD` |
