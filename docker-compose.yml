@@ -77,6 +77,10 @@ services:
       FRONTEND_PORT: "3000"
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://life.tuwayki.app}
       REPORT_EXPORT_DIR: /app/exports
+      # Registro público (/api/registro): trial y rate-limit del core.
+      # Un solo contenedor de app → el fallback en memoria es seguro.
+      LIFE_TRIAL_DAYS: ${LIFE_TRIAL_DAYS:-15}
+      ALLOW_MEMORY_RATE_LIMIT_FALLBACK: "1"
     volumes:
       - life_web:/app/.web
       - life_exports:/app/exports

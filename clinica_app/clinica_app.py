@@ -113,7 +113,8 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
 
 # ── ASGI middleware: intercepta /api/* antes del SPA fallback ────────────────
 
-from clinica_app.api_admin import admin_routes  # /api/admin/* — panel Owner TUWAYKI
+from clinica_app.api_admin import admin_routes      # /api/admin/* — panel Owner TUWAYKI
+from clinica_app.api_registro import registro_routes  # /api/registro — alta multi-empresa
 
 _custom_api = Router(routes=[
     Route("/api/ping", _api_ping),
@@ -122,6 +123,7 @@ _custom_api = Router(routes=[
     Route("/api/recibo/pdf", _generar_pdf_recibo),
     Route("/health", _health_check),
     *admin_routes,
+    *registro_routes,
 ])
 
 

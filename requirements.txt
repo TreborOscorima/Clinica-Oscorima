@@ -18,6 +18,9 @@ reportlab>=4.0.0
 # ─── Notificaciones (email nativo smtplib; WhatsApp vía Twilio) ───────────────
 twilio>=7.0.0
 
+# ─── Núcleo compartido TUWAYKI (mismo patrón que TUWAYKIFOOD) ─────────────────
+tuwayki-core @ git+https://github.com/TreborOscorima/tuwayki-core.git@ef852f2
+
 # ─── Config ───────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.1
 cryptography>=44.0.3
