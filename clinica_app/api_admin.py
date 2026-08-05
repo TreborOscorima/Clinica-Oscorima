@@ -222,6 +222,59 @@ async def _admin_set_plan(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=200)
 
 
+async def _admin_renew_subscription(request: Request) -> JSONResponse:
+    """Renueva la suscripción de un plan pago extendiendo su vencimiento.
+
+    Mantiene el plan actual y suma `months` meses (x30 días). Si la suscripción
+    sigue vigente, se apila sobre el vencimiento; si venció, cuenta desde hoy.
+    Trial no se renueva por acá (usar Cambiar Plan o Extender Prueba).
+    """
+    err = _require_admin_secret(request)
+    if err is not None:
+        return err
+    try:
+        company_id = int(request.path_params["id"])
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "id inválido."}, status_code=400)
+    try:
+        body = await request.json()
+        months = int(body.get("months"))
+    except Exception:
+        return JSONResponse({"error": "months inválido."}, status_code=400)
+    if months < 1 or months > 120:
+        return JSONResponse({"error": "months debe estar entre 1 y 120."}, status_code=400)
+
+    from clinica_app.services.planes import PLAN_TRIAL
+
+    async with get_async_session() as session:
+        clinica = await session.get(Clinica, company_id)
+        if clinica is None:
+            return JSONResponse({"error": "No encontrado."}, status_code=404)
+        if (clinica.plan or PLAN_TRIAL) == PLAN_TRIAL:
+            return JSONResponse(
+                {"error": "La clínica está en prueba. Usá Cambiar Plan o Extender Prueba."},
+                status_code=409,
+            )
+        now = _now_naive()
+        base = (
+            clinica.plan_expires_at
+            if clinica.plan_expires_at and clinica.plan_expires_at > now
+            else now
+        )
+        clinica.plan_expires_at = base + timedelta(days=months * 30)
+        clinica.licencia_activa = True
+        session.add(clinica)
+        await session.commit()
+        result = {
+            "id": clinica.id,
+            "plan": clinica.plan,
+            "plan_label": plan_label(clinica.plan),
+            "plan_expires_at": clinica.plan_expires_at.strftime("%Y-%m-%d"),
+        }
+
+    return JSONResponse(result, status_code=200)
+
+
 _ROLE_LABELS = {
     RoleEnum.ADMIN: "Administración",
     RoleEnum.RECEP: "Recepción",
@@ -349,6 +402,7 @@ admin_routes = [
     Route("/api/admin/companies/{id}/suspend", _admin_suspend, methods=["POST"]),
     Route("/api/admin/companies/{id}/extend-trial", _admin_extend_trial, methods=["POST"]),
     Route("/api/admin/companies/{id}/set-plan", _admin_set_plan, methods=["POST"]),
+    Route("/api/admin/companies/{id}/renew", _admin_renew_subscription, methods=["POST"]),
     Route("/api/admin/companies/{id}/users", _admin_list_users, methods=["GET"]),
     Route("/api/admin/companies/{id}/reset-password", _admin_reset_password, methods=["POST"]),
 ]
