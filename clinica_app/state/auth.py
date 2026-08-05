@@ -6,6 +6,7 @@ from clinica_app.database import get_async_session
 from clinica_app.services.auth import autenticar, datos_usuario, sedes_para_usuario
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.services.permisos import cargar_permisos
+from clinica_app.services import modulos_empresa as _modulos_empresa
 from clinica_app.state.base import BaseState
 
 
@@ -49,6 +50,10 @@ class AuthState(BaseState):
                 permisos = await cargar_permisos(
                     session, datos["clinica_id"], datos["rol"]
                 )
+                _overrides = await _modulos_empresa.cargar_overrides(
+                    session, datos["clinica_id"]
+                )
+                modulos_off = _modulos_empresa.modulos_deshabilitados(_overrides)
         except ServiceError as exc:
             self.error_msg  = str(exc)
             self.is_loading = False
@@ -63,7 +68,7 @@ class AuthState(BaseState):
         self.profesional_id   = datos["profesional_id"]
         self.is_authenticated = True
         self.is_loading       = False
-        self._aplicar_permisos(permisos)
+        self._aplicar_permisos(permisos, modulos_off)
         self.sedes_disponibles = sedes
 
         if len(sedes) == 1:

@@ -22,6 +22,7 @@ from clinica_app.models.moneda import Moneda
 from clinica_app.models.unidad_medida import UnidadMedida
 from clinica_app.models.metodo_pago_config import MetodoPagoConfig
 from clinica_app.models.impuesto_tasa import ImpuestoTasa
+from clinica_app.models.modulo import ClinicaModulo
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
@@ -36,4 +37,5 @@ __all__ = [
     "NotaClinica", "TipoNota",
     "Sede",
     "Moneda", "UnidadMedida", "MetodoPagoConfig", "ImpuestoTasa",
+    "ClinicaModulo",
 ]

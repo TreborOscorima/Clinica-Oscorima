@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -216,6 +217,21 @@ async def crear_usuario(session: AsyncSession, clinica_id: int, payload: dict[st
 
     if (await session.execute(select(User).where(User.email == email))).scalars().first():
         raise ConflictError("Email ya registrado en el sistema")
+
+    # Límite de usuarios por clínica (override del owner; NULL = ilimitado).
+    clinica = await session.get(Clinica, clinica_id)
+    maximo = getattr(clinica, "max_usuarios", None) if clinica else None
+    if maximo:
+        total = (await session.execute(
+            select(func.count()).select_from(User).where(
+                User.clinica_id == clinica_id, User.is_active.is_(True)
+            )
+        )).scalar_one()
+        if total >= maximo:
+            raise ServiceError(
+                f"Límite alcanzado: máximo {maximo} usuarios. "
+                f"Contacte a TUWAYKI para ampliar su plan."
+            )
 
     u = User(clinica_id=clinica_id, nombre=nombre, email=email, rol=rol)
     u.set_password(password)

@@ -222,6 +222,79 @@ async def _admin_set_plan(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=200)
 
 
+async def _modules_payload(session, clinica) -> dict:
+    """Estado de módulos + límites de una clínica para el panel."""
+    from clinica_app.services import modulos_empresa as _me
+
+    overrides = await _me.cargar_overrides(session, clinica.id)
+    estado = _me.estado_modulos(overrides)
+    catalogo = [
+        {"key": m["key"], "label": m["label"], "coming_soon": False,
+         "habilitado": estado.get(m["key"], True)}
+        for m in _me.MODULOS_TOGGLEABLES
+    ]
+    limites = [
+        {"key": l["key"], "label": l["label"], "valor": _me.limite_efectivo(clinica, l["key"])}
+        for l in _me.LIMITES
+    ]
+    return {"plan": clinica.plan or "trial", "catalogo": catalogo, "limites": limites}
+
+
+async def _admin_list_modules(request: Request) -> JSONResponse:
+    """Catálogo de módulos toggleables + límites, con su estado por clínica."""
+    err = _require_admin_secret(request)
+    if err is not None:
+        return err
+    try:
+        company_id = int(request.path_params["id"])
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "id inválido."}, status_code=400)
+
+    async with get_async_session() as session:
+        clinica = await session.get(Clinica, company_id)
+        if clinica is None:
+            return JSONResponse({"error": "No encontrado."}, status_code=404)
+        payload = await _modules_payload(session, clinica)
+
+    return JSONResponse(payload, status_code=200)
+
+
+async def _admin_set_modules(request: Request) -> JSONResponse:
+    """Guarda el override de módulos + los límites por clínica (owner)."""
+    err = _require_admin_secret(request)
+    if err is not None:
+        return err
+    try:
+        company_id = int(request.path_params["id"])
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "id inválido."}, status_code=400)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    modulos = body.get("modulos") or {}
+    limites = body.get("limites") or {}
+    actor = (body.get("actor") or body.get("actor_email") or "owner-admin").strip() or "owner-admin"
+
+    from clinica_app.services import modulos_empresa as _me
+
+    async with get_async_session() as session:
+        clinica = await session.get(Clinica, company_id)
+        if clinica is None:
+            return JSONResponse({"error": "No encontrado."}, status_code=404)
+        await _me.guardar_modulos(session, company_id, modulos)
+        _me.guardar_limites(session, clinica, limites)
+        await session.commit()
+        clinica = await session.get(Clinica, company_id)
+        payload = await _modules_payload(session, clinica)
+
+    logger.warning(
+        "Ajuste de módulos/límites Owner Admin: clinica=%s actor=%s modulos=%s limites=%s",
+        company_id, actor, modulos, limites,
+    )
+    return JSONResponse(payload, status_code=200)
+
+
 async def _admin_renew_subscription(request: Request) -> JSONResponse:
     """Renueva la suscripción de un plan pago extendiendo su vencimiento.
 
@@ -403,6 +476,8 @@ admin_routes = [
     Route("/api/admin/companies/{id}/extend-trial", _admin_extend_trial, methods=["POST"]),
     Route("/api/admin/companies/{id}/set-plan", _admin_set_plan, methods=["POST"]),
     Route("/api/admin/companies/{id}/renew", _admin_renew_subscription, methods=["POST"]),
+    Route("/api/admin/companies/{id}/modules", _admin_list_modules, methods=["GET"]),
+    Route("/api/admin/companies/{id}/modules", _admin_set_modules, methods=["POST"]),
     Route("/api/admin/companies/{id}/users", _admin_list_users, methods=["GET"]),
     Route("/api/admin/companies/{id}/reset-password", _admin_reset_password, methods=["POST"]),
 ]

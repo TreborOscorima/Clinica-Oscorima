@@ -36,3 +36,6 @@ class Clinica(BaseSQLModel, SoftDeleteMixin, table=True):
                                              sa_column_kwargs={"server_default": "1"})
     trial_ends_at:   datetime | None = Field(default=None, nullable=True)
     plan_expires_at: datetime | None = Field(default=None, nullable=True)
+    # Límites por clínica (override del owner). NULL = sin límite (ilimitado).
+    max_usuarios:    int | None      = Field(default=None, nullable=True)
+    max_sedes:       int | None      = Field(default=None, nullable=True)

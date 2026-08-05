@@ -28,6 +28,9 @@ class BaseState(rx.State):
     # RBAC — permisos cacheados al login
     _permisos: dict[str, dict[str, bool]] = {}
     modulos_permitidos: list[str] = []
+    # Módulos que el owner deshabilitó para esta clínica (Fase 3 Owner Panel).
+    # El módulo se ve si (el rol lo permite) AND (no está acá).
+    _modulos_owner_off: set[str] = set()
 
     @rx.var(cache=False)
     def download_token(self) -> str:
@@ -48,6 +51,9 @@ class BaseState(rx.State):
         return self.user_role == "profesional"
 
     def tiene_permiso(self, module: str, write: bool = False) -> bool:
+        # El owner puede deshabilitar el módulo para toda la clínica (Fase 3).
+        if module in self._modulos_owner_off:
+            return False
         perm = self._permisos.get(module)
         if perm is None:
             return False
@@ -55,9 +61,17 @@ class BaseState(rx.State):
             return perm.get("write", False)
         return perm.get("read", False)
 
-    def _aplicar_permisos(self, permisos: dict[str, dict[str, bool]]) -> None:
+    def _aplicar_permisos(
+        self,
+        permisos: dict[str, dict[str, bool]],
+        modulos_off: set[str] | None = None,
+    ) -> None:
         self._permisos = permisos
-        self.modulos_permitidos = [m for m, p in permisos.items() if p.get("read")]
+        self._modulos_owner_off = set(modulos_off or set())
+        self.modulos_permitidos = [
+            m for m, p in permisos.items()
+            if p.get("read") and m not in self._modulos_owner_off
+        ]
 
     @rx.var
     def rol_display(self) -> str:

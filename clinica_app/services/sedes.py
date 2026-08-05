@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from clinica_app.models.base import tenant_select
+from clinica_app.models.clinica import Clinica
 from clinica_app.models.sede import Sede
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
@@ -43,6 +45,21 @@ async def crear(session: AsyncSession, clinica_id: int, payload: dict) -> dict:
     )).scalars().first()
     if existente:
         raise ConflictError(f"Ya existe una sede con el nombre '{nombre}'")
+
+    # Límite de sedes por clínica (override del owner; NULL = ilimitado).
+    clinica = await session.get(Clinica, clinica_id)
+    maximo = getattr(clinica, "max_sedes", None) if clinica else None
+    if maximo:
+        total = (await session.execute(
+            select(func.count()).select_from(Sede).where(
+                Sede.clinica_id == clinica_id, Sede.is_active.is_(True)
+            )
+        )).scalar_one()
+        if total >= maximo:
+            raise ServiceError(
+                f"Límite alcanzado: máximo {maximo} sedes. "
+                f"Contacte a TUWAYKI para ampliar su plan."
+            )
 
     es_principal = bool(payload.get("es_principal", False))
     # Solo una sede puede ser principal: desmarcar las demás
