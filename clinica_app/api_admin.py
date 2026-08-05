@@ -222,6 +222,126 @@ async def _admin_set_plan(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=200)
 
 
+_ROLE_LABELS = {
+    RoleEnum.ADMIN: "Administración",
+    RoleEnum.RECEP: "Recepción",
+    RoleEnum.PROF: "Profesional",
+    RoleEnum.CONT: "Contador",
+}
+
+
+def _role_label(rol) -> str:
+    return _ROLE_LABELS.get(rol, "Usuario")
+
+
+async def _admin_list_users(request: Request) -> JSONResponse:
+    """Usuarios de la clínica cuya contraseña puede resetear el Owner Admin.
+
+    A diferencia de Food (una sola cuenta de dueño), Life es multi-usuario: se
+    devuelven todas las cuentas de la clínica (admin primero) para poder elegir
+    cuál resetear desde el panel.
+    """
+    err = _require_admin_secret(request)
+    if err is not None:
+        return err
+    try:
+        company_id = int(request.path_params["id"])
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "id inválido."}, status_code=400)
+
+    async with get_async_session() as session:
+        clinica = await session.get(Clinica, company_id)
+        if clinica is None:
+            return JSONResponse({"error": "No encontrado."}, status_code=404)
+        rows = (await session.execute(
+            select(User)
+            .where(User.clinica_id == company_id)
+            .order_by(User.id.asc())
+        )).scalars().all()
+        # Admin primero, después por id.
+        rows.sort(key=lambda u: (u.rol != RoleEnum.ADMIN, u.id or 0))
+        items = [
+            {
+                "id": u.id,
+                "username": u.email,
+                "full_name": u.nombre,
+                "role": _role_label(u.rol),
+            }
+            for u in rows
+        ]
+
+    return JSONResponse({"items": items}, status_code=200)
+
+
+def _generar_password_temporal() -> str:
+    """Contraseña temporal legible para entregar al usuario una sola vez."""
+    import secrets
+    return "Life-" + secrets.token_urlsafe(6)
+
+
+async def _admin_reset_password(request: Request) -> JSONResponse:
+    """Resetea la contraseña de un usuario de la clínica.
+
+    Genera una temporal, la guarda hasheada (bcrypt vía User.set_password) y la
+    devuelve UNA vez. El body puede traer `user_id` para elegir la cuenta; si no,
+    se resetea el primer ADMIN de la clínica. Queda registrado en el log (sin el
+    valor). El panel Owner guarda su propia auditoría de la acción.
+    """
+    err = _require_admin_secret(request)
+    if err is not None:
+        return err
+    try:
+        company_id = int(request.path_params["id"])
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "id inválido."}, status_code=400)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    actor = (body.get("actor") or body.get("actor_email") or "owner-admin").strip() or "owner-admin"
+    raw_user_id = body.get("user_id")
+
+    temp_password = _generar_password_temporal()
+    async with get_async_session() as session:
+        clinica = await session.get(Clinica, company_id)
+        if clinica is None:
+            return JSONResponse({"error": "No encontrado."}, status_code=404)
+
+        user = None
+        if raw_user_id not in (None, "", 0, "0"):
+            try:
+                user = await session.get(User, int(raw_user_id))
+            except (TypeError, ValueError):
+                user = None
+            # No permitir resetear un usuario de otra clínica.
+            if user is not None and user.clinica_id != company_id:
+                user = None
+        if user is None:
+            user = (await session.execute(
+                select(User)
+                .where(User.clinica_id == company_id, User.rol == RoleEnum.ADMIN)
+                .order_by(User.id.asc())
+            )).scalars().first()
+        if user is None:
+            return JSONResponse(
+                {"error": "La clínica no tiene una cuenta administrable."},
+                status_code=409,
+            )
+
+        user.set_password(temp_password)
+        session.add(user)
+        await session.commit()
+        username = user.email
+        logger.warning(
+            "Reset de contraseña Owner Admin: clinica=%s user_id=%s email=%s actor=%s",
+            company_id, user.id, username, actor,
+        )
+
+    return JSONResponse(
+        {"temp_password": temp_password, "username": username}, status_code=200
+    )
+
+
 admin_routes = [
     Route("/api/admin/companies", _admin_list_companies, methods=["GET"]),
     Route("/api/admin/companies/{id}", _admin_company_detail, methods=["GET"]),
@@ -229,4 +349,6 @@ admin_routes = [
     Route("/api/admin/companies/{id}/suspend", _admin_suspend, methods=["POST"]),
     Route("/api/admin/companies/{id}/extend-trial", _admin_extend_trial, methods=["POST"]),
     Route("/api/admin/companies/{id}/set-plan", _admin_set_plan, methods=["POST"]),
+    Route("/api/admin/companies/{id}/users", _admin_list_users, methods=["GET"]),
+    Route("/api/admin/companies/{id}/reset-password", _admin_reset_password, methods=["POST"]),
 ]
