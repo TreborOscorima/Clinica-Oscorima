@@ -20,6 +20,7 @@ from starlette.routing import Route
 from clinica_app.config import LIFE_ADMIN_API_SECRET
 from clinica_app.database import get_async_session
 from clinica_app.models.clinica import Clinica
+from clinica_app.models.sede import Sede
 from clinica_app.models.user import RoleEnum, User
 from clinica_app.services.planes import PLANES_VALIDOS, plan_label
 
@@ -38,7 +39,10 @@ def _require_admin_secret(request: Request) -> JSONResponse | None:
     return None
 
 
-def _clinica_admin_dict(c: Clinica, admin_email: str = "") -> dict:
+def _clinica_admin_dict(c: Clinica, admin_email: str = "", counts: dict | None = None) -> dict:
+    from clinica_app.services import modulos_empresa as _me
+
+    counts = counts or {}
     return {
         "id": c.id,
         "name": c.nombre,
@@ -49,7 +53,26 @@ def _clinica_admin_dict(c: Clinica, admin_email: str = "") -> dict:
         "trial_ends_at": c.trial_ends_at.strftime("%Y-%m-%d") if c.trial_ends_at else None,
         "plan_expires_at": c.plan_expires_at.strftime("%Y-%m-%d") if c.plan_expires_at else None,
         "created_at": c.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if c.created_at else None,
+        "current_users": counts.get("users", 0),
+        "current_sedes": counts.get("sedes", 0),
+        "max_usuarios": _me.limite_efectivo(c, "max_usuarios") or 0,
+        "max_sedes": _me.limite_efectivo(c, "max_sedes") or 0,
     }
+
+
+async def _clinica_counts(session, clinica_id: int) -> dict:
+    """Conteos reales de recursos activos de una clínica (para el panel Owner)."""
+    users = (await session.execute(
+        select(func.count()).select_from(User).where(
+            User.clinica_id == clinica_id, User.is_active.is_(True)
+        )
+    )).scalar_one()
+    sedes = (await session.execute(
+        select(func.count()).select_from(Sede).where(
+            Sede.clinica_id == clinica_id, Sede.is_active.is_(True)
+        )
+    )).scalar_one()
+    return {"users": int(users), "sedes": int(sedes)}
 
 
 async def _admin_emails_por_clinica(session, clinica_ids: list[int]) -> dict[int, str]:
@@ -89,7 +112,10 @@ async def _admin_list_companies(request: Request) -> JSONResponse:
             stmt.order_by(Clinica.id.desc()).offset((page - 1) * per_page).limit(per_page)
         )).scalars().all()
         emails = await _admin_emails_por_clinica(session, [c.id for c in page_items])
-        items = [_clinica_admin_dict(c, emails.get(c.id, "")) for c in page_items]
+        items = [
+            _clinica_admin_dict(c, emails.get(c.id, ""), await _clinica_counts(session, c.id))
+            for c in page_items
+        ]
 
     return JSONResponse({"items": items, "total": total}, status_code=200)
 
@@ -108,8 +134,9 @@ async def _admin_company_detail(request: Request) -> JSONResponse:
         if clinica is None:
             return JSONResponse({"error": "No encontrado."}, status_code=404)
         emails = await _admin_emails_por_clinica(session, [company_id])
+        counts = await _clinica_counts(session, company_id)
 
-    return JSONResponse(_clinica_admin_dict(clinica, emails.get(company_id, "")), status_code=200)
+    return JSONResponse(_clinica_admin_dict(clinica, emails.get(company_id, ""), counts), status_code=200)
 
 
 async def _admin_set_active(request: Request, active: bool) -> JSONResponse:
@@ -233,8 +260,15 @@ async def _modules_payload(session, clinica) -> dict:
          "habilitado": estado.get(m["key"], True)}
         for m in _me.MODULOS_TOGGLEABLES
     ]
+    counts = await _clinica_counts(session, clinica.id)
+    _usados_por_limite = {"max_usuarios": counts.get("users", 0), "max_sedes": counts.get("sedes", 0)}
     limites = [
-        {"key": l["key"], "label": l["label"], "valor": _me.limite_efectivo(clinica, l["key"])}
+        {
+            "key": l["key"],
+            "label": l["label"],
+            "valor": _me.limite_efectivo(clinica, l["key"]),
+            "usados": _usados_por_limite.get(l["key"], 0),
+        }
         for l in _me.LIMITES
     ]
     return {"plan": clinica.plan or "trial", "catalogo": catalogo, "limites": limites}
