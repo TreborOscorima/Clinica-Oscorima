@@ -58,7 +58,6 @@ def _dump(c: Comprobante, items: list[ComprobanteItem] | None = None) -> dict[st
 
 
 async def _numero(session: AsyncSession, clinica_id: int) -> str:
-    from sqlalchemy import text
     hoy = datetime.now(timezone.utc).strftime("%Y%m%d")
     prefix = f"REC-{clinica_id}-{hoy}-"
     row = (

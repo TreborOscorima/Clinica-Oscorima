@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from clinica_app.models.inventario import (
-    Producto, MovimientoStock, Proveedor, TipoMov,
+    Producto, MovimientoStock, TipoMov,
 )
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 

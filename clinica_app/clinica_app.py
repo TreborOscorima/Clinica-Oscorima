@@ -107,7 +107,7 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=404)
     except RuntimeError as exc:
         return JSONResponse({"error": str(exc)}, status_code=503)
-    except Exception as exc:
+    except Exception:
         return JSONResponse({"error": "Error interno"}, status_code=500)
 
 

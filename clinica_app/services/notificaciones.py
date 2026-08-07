@@ -136,7 +136,7 @@ def _turno_wa_text(turno: dict[str, Any], titulo: str, extra: str = "") -> str:
     servicio  = turno.get("servicio_nombre") or "consulta"
     lines = [
         f"*{CLINICA_NOMBRE}* — {titulo}",
-        f"",
+        "",
         f"Hola {paciente} 👋",
         f"📅 *Fecha/hora:* {fecha}",
         f"👨‍⚕️ *Profesional:* {profesional}",

@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
-from sqlmodel import Session
 
 from clinica_app.config import REPORT_EXPORT_DIR
 from clinica_app.database import get_session

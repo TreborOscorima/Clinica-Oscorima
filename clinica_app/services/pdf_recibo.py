@@ -7,7 +7,6 @@ El PDF generado es A5 (148x210mm), apto para imprimir y enviar por email.
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -17,9 +16,9 @@ from clinica_app.config import REPORT_EXPORT_DIR
 
 try:
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A5
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         Paragraph,
@@ -76,7 +75,6 @@ def generar_recibo_pdf(
         bottomMargin=15 * mm,
     )
 
-    styles = getSampleStyleSheet()
     sky    = colors.HexColor("#0284c7")
     gray   = colors.HexColor("#6b7280")
     light  = colors.HexColor("#f0f9ff")
@@ -88,13 +86,6 @@ def generar_recibo_pdf(
     sub_style = ParagraphStyle(
         "Sub", fontSize=9, fontName="Helvetica",
         textColor=gray, alignment=TA_CENTER, spaceAfter=6 * mm,
-    )
-    label_style = ParagraphStyle(
-        "Label", fontSize=8, fontName="Helvetica-Bold",
-        textColor=gray,
-    )
-    value_style = ParagraphStyle(
-        "Value", fontSize=9, fontName="Helvetica",
     )
     footer_style = ParagraphStyle(
         "Footer", fontSize=7, fontName="Helvetica",

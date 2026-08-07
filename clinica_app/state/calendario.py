@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import reflex as rx
@@ -170,8 +170,6 @@ class CalendarioState(BaseState):
             return
 
         from clinica_app.models.turno import Turno
-        from clinica_app.models.paciente import Paciente
-        from clinica_app.models.profesional import Profesional
         from sqlmodel import select
         from sqlalchemy.orm import selectinload
 
