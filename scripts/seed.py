@@ -218,8 +218,8 @@ def seed():
 
         s.commit()
         print("\n✓ Seed completado")
-        print(f"  URL:       http://localhost:3000")
-        print(f"  Login:     admin@wayki.com / admin123")
+        print("  URL:       http://localhost:3000")
+        print("  Login:     admin@wayki.com / admin123")
         print(f"  Clinica:   {clinica.nombre} (id={cid})")
 
 

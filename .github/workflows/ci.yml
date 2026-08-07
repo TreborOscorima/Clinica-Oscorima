@@ -21,8 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio aiosqlite
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Create minimal .env for rxconfig
         run: |
@@ -35,6 +34,9 @@ jobs:
           MYSQL_DB=test
           AUTH_SECRET_KEY=ci-test-key-not-for-production-32ch
           EOF
+
+      - name: Lint (ruff — modo suave, ver ruff.toml)
+        run: ruff check .
 
       - name: Syntax check all Python files
         run: python -m compileall -q clinica_app tests

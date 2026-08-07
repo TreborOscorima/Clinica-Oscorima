@@ -1,0 +1,10 @@
+# Dependencias de desarrollo / CI (no van a producción).
+# Uso: pip install -r requirements.txt -r requirements-dev.txt
+#
+# ─── Tests ────────────────────────────────────────────────────────────────────
+pytest>=8.0
+pytest-asyncio>=0.23
+aiosqlite>=0.20          # backend SQLite async para la suite (no toca MySQL)
+
+# ─── Linter / formateador ─────────────────────────────────────────────────────
+ruff>=0.16

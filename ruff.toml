@@ -1,0 +1,22 @@
+# Configuración de Ruff — modo SUAVE (no bloqueante en lo cosmético).
+#
+# Filosofía: el CI solo debe fallar por errores REALES de Python
+# (imports/variables sin usar, nombres indefinidos, errores de sintaxis),
+# no por opiniones de estilo. Así el linter aporta señal sin ahogar en avisos.
+#
+# Para endurecer más adelante, agregar reglas a `select` de a poco, p. ej.:
+#   "I"     -> ordenar imports        (requiere correr `ruff check --fix`)
+#   "B"     -> bugs comunes (flake8-bugbear)
+#   "UP"    -> modernizar sintaxis (pyupgrade)
+# y activar el formateador con `ruff format`.
+
+target-version = "py313"
+line-length = 100
+
+# .web es código generado por Reflex; nunca lo lintamos.
+extend-exclude = [".web", "alembic/versions"]
+
+[lint]
+# F  = pyflakes (imports/variables sin usar, nombres indefinidos, f-strings vacíos)
+# E9 = errores de sintaxis / tokenización
+select = ["F", "E9"]
