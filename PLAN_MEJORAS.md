@@ -1,7 +1,8 @@
 # PLAN DE MEJORAS — WaykiSAC Clínica
 
 > Hoja de ruta para llevar el sistema a nivel **profesional y completo**.
-> Creado: 2026-08-02 · Complementa a `AUDITORIA_WAYKISAC_CLINICA.md` (estado histórico).
+> Creado: 2026-08-02 · Última sincronización: 2026-08-07 · Complementa a
+> `AUDITORIA_WAYKISAC_CLINICA.md` (estado histórico).
 > Convención: marcar `[x]` al completar cada ítem y anotar el commit.
 
 ---
@@ -122,3 +123,8 @@
 | 2026-08-02 | Multi-empresa: `/api/registro` público (clinica + admin + sede principal + trial) reusando `tuwayki-core` (validators, sanitization, rate-limit); tarjeta TUWAYKILIFE activa en la landing | `feat(registro): alta pública multi-empresa con tuwayki-core` |
 | 2026-08-02 | Página `/life` en la landing + formulario de registro (pestaña TUWAYKILIFE en `/registro`, `life_api_client`) | `feat(landing): página /life con registro` |
 | 2026-08-02 | Guía de deploy + workflow CD `deploy-prod.yml` (dormido hasta push a `docker-deploy-prod`) | `docs(deploy): guía TUWAYKILIFE + workflow CD` |
+| 2026-08-03 | Simetría de nombres con SHOP/FOOD: `SECRET_KEY` → `AUTH_SECRET_KEY` | `refactor: renombrar SECRET_KEY a AUTH_SECRET_KEY` |
+| 2026-08-05 | Owner API: listar usuarios de una clínica y resetear su contraseña desde el panel | `feat(owner-api): endpoints listar usuarios y resetear contraseña` |
+| 2026-08-05 | Owner API (Fase 2): endpoint de renovación de suscripción | `feat(owner-api): endpoint de renovación de suscripción` |
+| 2026-08-05 | Owner (Fase 3): módulos y límites por clínica (enforcement desde el panel) | `feat(owner): módulos y límites por clínica` |
+| 2026-08-05 | Owner API (Fase 5): reportar conteos reales de usuarios/sedes al panel | `feat(owner-api): reportar conteos reales de usuarios/sedes` |
