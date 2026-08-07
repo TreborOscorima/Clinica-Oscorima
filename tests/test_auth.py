@@ -55,9 +55,9 @@ async def test_login_bloqueado_clinica_suspendida(session, clinica, admin_user):
 
 
 async def test_login_bloqueado_trial_vencido(session, clinica, admin_user):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     clinica.plan = "trial"
-    clinica.trial_ends_at = datetime.utcnow() - timedelta(days=1)
+    clinica.trial_ends_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
     session.add(clinica)
     await session.flush()
     with pytest.raises(ServiceError) as exc:
@@ -66,9 +66,9 @@ async def test_login_bloqueado_trial_vencido(session, clinica, admin_user):
 
 
 async def test_login_bloqueado_plan_vencido(session, clinica, admin_user):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     clinica.plan = "standard"
-    clinica.plan_expires_at = datetime.utcnow() - timedelta(days=1)
+    clinica.plan_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
     session.add(clinica)
     await session.flush()
     with pytest.raises(ServiceError) as exc:
@@ -77,9 +77,9 @@ async def test_login_bloqueado_plan_vencido(session, clinica, admin_user):
 
 
 async def test_login_permitido_plan_vigente(session, clinica, admin_user):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     clinica.plan = "profesional"
-    clinica.plan_expires_at = datetime.utcnow() + timedelta(days=30)
+    clinica.plan_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
     session.add(clinica)
     await session.flush()
     user = await svc.autenticar(session, "admin@test.com", "secret123")
@@ -88,7 +88,7 @@ async def test_login_permitido_plan_vigente(session, clinica, admin_user):
 
 def test_clinica_acceso_permitido_helper():
     from types import SimpleNamespace
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from clinica_app.services.planes import clinica_acceso_permitido
 
     activa = SimpleNamespace(licencia_activa=True, plan="trial", trial_ends_at=None, plan_expires_at=None)
@@ -99,6 +99,6 @@ def test_clinica_acceso_permitido_helper():
 
     vencida = SimpleNamespace(
         licencia_activa=True, plan="standard",
-        trial_ends_at=None, plan_expires_at=datetime.utcnow() - timedelta(days=1),
+        trial_ends_at=None, plan_expires_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1),
     )
     assert clinica_acceso_permitido(vencida)[0] is False

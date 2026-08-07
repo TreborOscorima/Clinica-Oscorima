@@ -64,10 +64,12 @@
       para una pasada futura de endurecimiento. *(2026-08-07)*
 - [x] **Deps de test declaradas**: `requirements-dev.txt` (pytest, pytest-asyncio,
       aiosqlite, ruff); el CI instala `requirements.txt -r requirements-dev.txt`. *(2026-08-07)*
-- [ ] **Warning de teardown en tests**: `RuntimeError: Event loop is closed` de `aiomysql`
-      al final de la suite — los tests importan `clinica_app.models` que arrastra la
-      creación del engine MySQL. Aislar la creación del engine (lazy) para que los tests
-      nunca toquen MySQL.
+- [x] **Warning de teardown en tests** *(2026-08-07)*: el `RuntimeError: Event loop is
+      closed` de `aiomysql` ya no se reproduce — el engine async se crea al importar pero
+      nunca conecta (la suite corre sobre aiosqlite), así que aiomysql no deja tareas
+      colgadas. Se limpiaron además los 4 `DeprecationWarning: datetime.utcnow()` de
+      `test_auth.py` (→ `datetime.now(timezone.utc).replace(tzinfo=None)`, espejo de
+      `planes._now_naive`). Suite: **41 passed, 0 warnings**.
 - [ ] **Pin de dependencias**: `requirements.txt` usa `>=` en casi todo — un `pip install`
       futuro puede romper prod. Generar lockfile (`pip-compile` o pins exactos).
 
