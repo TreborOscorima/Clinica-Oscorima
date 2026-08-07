@@ -57,13 +57,13 @@
       pacientes, turnos). Faltan: caja (cierres), inventario (stock/movimientos), compras
       (anulación repone stock), promociones (vigencia/descuentos), permisos (seed +
       enforcement), reportes. Meta: cada servicio con tests de su flujo feliz + 2-3 bordes.
-- [ ] **Test de RBAC de escritura**: test paramétrico que verifique que cada handler
-      mutador de `state/` contiene su guard (el escaneo AST de esta sesión puede convertirse
-      en `tests/test_rbac_guards.py` para que el CI lo vigile para siempre).
-- [ ] **Linter + formateador en CI**: agregar `ruff check` y `ruff format --check` al
-      workflow (rápido, un solo tool). Congelar el estilo del código.
-- [ ] **Deps de test declaradas**: crear `requirements-dev.txt` (pytest, pytest-asyncio,
-      aiosqlite, ruff) — hoy el venv local y el CI las instalan "a mano".
+- [x] **Test de RBAC de escritura**: `tests/test_rbac_guards.py` existe — escaneo AST que
+      verifica que cada handler mutador de `state/` contiene su guard; el CI lo vigila.
+- [x] **Linter en CI (modo suave)**: `ruff check .` en el workflow con `ruff.toml` que
+      selecciona solo `F` + `E9` (errores reales, no estilo). `ruff format` queda pendiente
+      para una pasada futura de endurecimiento. *(2026-08-07)*
+- [x] **Deps de test declaradas**: `requirements-dev.txt` (pytest, pytest-asyncio,
+      aiosqlite, ruff); el CI instala `requirements.txt -r requirements-dev.txt`. *(2026-08-07)*
 - [ ] **Warning de teardown en tests**: `RuntimeError: Event loop is closed` de `aiomysql`
       al final de la suite — los tests importan `clinica_app.models` que arrastra la
       creación del engine MySQL. Aislar la creación del engine (lazy) para que los tests
@@ -128,3 +128,5 @@
 | 2026-08-05 | Owner API (Fase 2): endpoint de renovación de suscripción | `feat(owner-api): endpoint de renovación de suscripción` |
 | 2026-08-05 | Owner (Fase 3): módulos y límites por clínica (enforcement desde el panel) | `feat(owner): módulos y límites por clínica` |
 | 2026-08-05 | Owner API (Fase 5): reportar conteos reales de usuarios/sedes al panel | `feat(owner-api): reportar conteos reales de usuarios/sedes` |
+| 2026-08-07 | Limpieza de código muerto detectado por ruff (imports/variables sin usar) | `chore(cleanup): eliminar código muerto detectado por ruff` |
+| 2026-08-07 | P1: `ruff.toml` suave + `ruff check` en CI + `requirements-dev.txt` | `ci(quality): ruff suave + requirements-dev` |
