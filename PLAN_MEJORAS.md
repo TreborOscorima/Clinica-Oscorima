@@ -53,10 +53,11 @@
 
 ## P1 — Robustez y calidad
 
-- [ ] **Cobertura de tests de servicios**: hoy hay 35 tests (auth, cobro, cuentas,
-      pacientes, turnos). Faltan: caja (cierres), inventario (stock/movimientos), compras
-      (anulación repone stock), promociones (vigencia/descuentos), permisos (seed +
-      enforcement), reportes. Meta: cada servicio con tests de su flujo feliz + 2-3 bordes.
+- [~] **Cobertura de tests de servicios** *(en progreso, 2026-08-07)*: 74 tests. Cubiertos
+      caja (movimientos/resumen/cierre + duplicado), inventario (stock, egreso insuficiente,
+      bajo mínimo), compras (recepción→stock, anulación repone stock, validaciones) y
+      promociones (rango %, vigencia por fechas, toggle) — además de auth, cobro, cuentas,
+      pacientes, turnos. **Faltan:** permisos (seed + enforcement) y reportes.
 - [x] **Test de RBAC de escritura**: `tests/test_rbac_guards.py` existe — escaneo AST que
       verifica que cada handler mutador de `state/` contiene su guard; el CI lo vigila.
 - [x] **Linter en CI (modo suave)**: `ruff check .` en el workflow con `ruff.toml` que
@@ -132,3 +133,5 @@
 | 2026-08-05 | Owner API (Fase 5): reportar conteos reales de usuarios/sedes al panel | `feat(owner-api): reportar conteos reales de usuarios/sedes` |
 | 2026-08-07 | Limpieza de código muerto detectado por ruff (imports/variables sin usar) | `chore(cleanup): eliminar código muerto detectado por ruff` |
 | 2026-08-07 | P1: `ruff.toml` suave + `ruff check` en CI + `requirements-dev.txt` | `ci(quality): ruff suave + requirements-dev` |
+| 2026-08-07 | P1: limpiar `DeprecationWarning` de `datetime.utcnow()` en la suite | `test(auth): eliminar DeprecationWarning de datetime.utcnow()` |
+| 2026-08-07 | P1: +33 tests de servicios (caja, inventario, compras, promociones) → 74 total | `test(services): cobertura de caja, inventario, compras y promociones` |
