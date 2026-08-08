@@ -1,5 +1,7 @@
-# Dependencias de desarrollo / CI (no van a producción).
-# Uso: pip install -r requirements.txt -r requirements-dev.txt
+# Dependencias de desarrollo / CI (no van a producción) — fuente editable.
+# El CI instala los pines exactos desde requirements-dev.lock (prod + dev).
+# Uso local rápido: pip install -r requirements.txt -r requirements-dev.txt
+# Regenerar el lock tras cambios (ver cabecera de requirements.txt).
 #
 # ─── Tests ────────────────────────────────────────────────────────────────────
 pytest>=8.0

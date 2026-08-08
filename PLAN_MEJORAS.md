@@ -73,8 +73,12 @@
       colgadas. Se limpiaron además los 4 `DeprecationWarning: datetime.utcnow()` de
       `test_auth.py` (→ `datetime.now(timezone.utc).replace(tzinfo=None)`, espejo de
       `planes._now_naive`). Suite: **41 passed, 0 warnings**.
-- [ ] **Pin de dependencias**: `requirements.txt` usa `>=` en casi todo — un `pip install`
-      futuro puede romper prod. Generar lockfile (`pip-compile` o pins exactos).
+- [x] **Pin de dependencias** *(2026-08-08)*: lockfiles con pines exactos generados con
+      `pip-compile` **dentro de `python:3.13-slim`** (misma imagen que prod, para que
+      resuelvan igual): `requirements.lock` (prod) y `requirements-dev.lock` (CI, prod+dev).
+      El Dockerfile instala `requirements.lock`; el CI instala `requirements-dev.lock`.
+      `requirements*.txt` quedan como fuente editable (con el comando de regeneración).
+      Verificado: el set pineado instala y corre los 83 tests en la imagen de prod.
 
 ## P2 — Funcionalidad para "sistema completo" de clínica
 
@@ -138,3 +142,4 @@
 | 2026-08-07 | P1: limpiar `DeprecationWarning` de `datetime.utcnow()` en la suite | `test(auth): eliminar DeprecationWarning de datetime.utcnow()` |
 | 2026-08-07 | P1: +33 tests de servicios (caja, inventario, compras, promociones) → 74 total | `test(services): cobertura de caja, inventario, compras y promociones` |
 | 2026-08-08 | P1: +9 tests (permisos + reportes) → 83 total; cobertura de servicios cerrada | `test(services): cobertura de permisos y reportes` |
+| 2026-08-08 | P1: lockfiles con pines exactos (`requirements.lock` + `requirements-dev.lock`) generados en `python:3.13-slim`; Dockerfile/CI actualizados | `build(deps): pin exacto de dependencias vía lockfiles` |

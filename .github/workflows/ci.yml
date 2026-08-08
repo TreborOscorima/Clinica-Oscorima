@@ -18,10 +18,10 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      - name: Install dependencies
+      - name: Install dependencies (pines exactos)
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r requirements-dev.lock
 
       - name: Create minimal .env for rxconfig
         run: |

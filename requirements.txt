@@ -1,3 +1,10 @@
+# Dependencias directas (fuente editable). Los pines exactos viven en
+# requirements.lock (prod) y requirements-dev.lock (CI), generados con
+# pip-compile DENTRO de python:3.13-slim para que resuelvan igual que prod.
+# Regenerar tras cambiar algo aquí:
+#   pip-compile --strip-extras --output-file=requirements.lock requirements.txt
+#   pip-compile --strip-extras --output-file=requirements-dev.lock requirements.txt requirements-dev.txt
+#
 # ─── Framework Full-Stack ─────────────────────────────────────────────────────
 reflex==0.9.4
 

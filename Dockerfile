@@ -19,9 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
+# requirements.lock: pines exactos generados con pip-compile en esta misma
+# imagen (python:3.13-slim). requirements.txt queda como fuente editable.
+# Regenerar: pip-compile --strip-extras --output-file=requirements.lock requirements.txt
 WORKDIR /build
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir --prefix=/install -r requirements.lock
 
 
 # =============================================================================
