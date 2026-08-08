@@ -177,7 +177,10 @@ class CajaState(BaseState):
             return
         async with get_async_session() as session:
             try:
-                await svc.eliminar_movimiento(session, self.clinica_id, mov_id, sede_id=self.sede_actual_id)
+                await svc.eliminar_movimiento(
+                    session, self.clinica_id, mov_id,
+                    sede_id=self.sede_actual_id, usuario_id=self.user_id,
+                )
             except ServiceError:
                 pass
         await self._cargar_resumen()

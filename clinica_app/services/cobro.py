@@ -18,6 +18,7 @@ from clinica_app.models.caja import (
 )
 from clinica_app.models.inventario import MovimientoStock, Producto
 from clinica_app.models.paciente import Paciente
+from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
@@ -77,7 +78,13 @@ async def _numero(session: AsyncSession, clinica_id: int) -> str:
     return f"{prefix}{last_seq + 1:04d}"
 
 
-async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any], sede_id: int = 0) -> dict[str, Any]:
+async def crear(
+    session: AsyncSession,
+    clinica_id: int,
+    payload: dict[str, Any],
+    sede_id: int = 0,
+    usuario_id: int | None = None,
+) -> dict[str, Any]:
     paciente_id = payload.get("paciente_id")
     if not paciente_id:
         raise ServiceError("paciente_id requerido")
@@ -195,6 +202,15 @@ async def crear(session: AsyncSession, clinica_id: int, payload: dict[str, Any],
                  f"Cobro {numero}", sede_id=sede_id)
 
     await session.flush()
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="crear", entidad="comprobante", entidad_id=comp.id,
+        sede_id=sede_id or None,
+        detalle={"numero": numero, "total": str(total_neto), "forma_pago": forma_pago.value},
+    )
+
     result = _dump(comp, items_db)
     if stock_warnings:
         result["stock_warnings"] = stock_warnings

@@ -50,10 +50,13 @@
       inicio de cada `on_mount`, así el guard redirige a `/login`. Defensa extra: vencida
       la sesión, `tiene_permiso` niega todo (bloquea handlers disparados sobre un websocket
       que quedó abierto). Lógica pura en `services/sesion.py` con tests (`test_sesion.py`).
-- [ ] **Auditoría de acciones (audit log)**: tabla `audit_log(user_id, clinica_id, accion,
-      entidad, entidad_id, timestamp, detalle)` escrita desde los servicios para operaciones
-      sensibles (cobros, anulaciones, cierres de caja, cambios de permisos, borrados).
-      En salud esto es requisito, no lujo.
+- [x] **Auditoría de acciones (audit log)** *(2026-08-08)*: tabla `audit_log` append-only
+      (`clinica_id, usuario_id, sede_id, accion, entidad, entidad_id, detalle, creado_en`),
+      migración `e5h3i4j5k6l7`. Escrita **dentro de la misma transacción** que la acción
+      (atómica) vía `services/auditoria.registrar`. Cubiertas: cobro (crear comprobante),
+      cierre de caja, borrado de movimiento de caja, anulación de compra y cambio de
+      permisos de rol. Tests en `test_auditoria.py` (incluye que una acción fallida no deja
+      rastro). *Pendiente ampliar a borrados de paciente/nota clínica y a un visor UI.*
 
 ## P1 — Robustez y calidad
 
@@ -148,3 +151,4 @@
 | 2026-08-08 | P1: +9 tests (permisos + reportes) → 83 total; cobertura de servicios cerrada | `test(services): cobertura de permisos y reportes` |
 | 2026-08-08 | P1: lockfiles con pines exactos (`requirements.lock` + `requirements-dev.lock`) generados en `python:3.13-slim`; Dockerfile/CI actualizados | `build(deps): pin exacto de dependencias vía lockfiles` |
 | 2026-08-08 | P0: sesiones con TTL (`SESSION_TTL_HOURS`, default 12 h) + enforcement en on_mount y `tiene_permiso` + tests | `feat(security): expiración de sesión (TTL) con re-login forzado` |
+| 2026-08-08 | P0: audit log append-only (`audit_log` + migración `e5h3i4j5k6l7`) atómico en cobro/cierre/borrado-caja/anulación/permisos + tests | `feat(security): audit log de acciones sensibles` |

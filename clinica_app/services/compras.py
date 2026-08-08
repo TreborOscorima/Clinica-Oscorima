@@ -10,6 +10,7 @@ from sqlmodel import select
 from clinica_app.models.inventario import (
     Compra, CompraItem, Producto, Proveedor, TipoMov,
 )
+from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError, ServiceError
 from clinica_app.services.inventario import _aplicar_movimiento
 
@@ -251,7 +252,9 @@ async def crear(
     return _dump_compra(compra, prov.nombre if prov else "")
 
 
-async def anular(session: AsyncSession, clinica_id: int, compra_id: int) -> None:
+async def anular(
+    session: AsyncSession, clinica_id: int, compra_id: int, usuario_id: int | None = None
+) -> None:
     compra = await session.get(Compra, compra_id)
     if not compra or compra.clinica_id != clinica_id or not compra.is_active:
         raise NotFoundError("Compra no encontrada")
@@ -276,3 +279,11 @@ async def anular(session: AsyncSession, clinica_id: int, compra_id: int) -> None
 
     compra.soft_delete()
     await session.flush()
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="anular", entidad="compra", entidad_id=compra_id,
+        sede_id=compra.sede_id,
+        detalle={"numero": compra.numero or "", "total": str(_dec2(compra.total))},
+    )

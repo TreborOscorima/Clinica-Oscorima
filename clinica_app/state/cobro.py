@@ -422,7 +422,10 @@ class CobroState(BaseState):
 
         try:
             async with get_async_session() as session:
-                result = await svc.crear(session, self.clinica_id, payload, sede_id=self.sede_actual_id)
+                result = await svc.crear(
+                    session, self.clinica_id, payload,
+                    sede_id=self.sede_actual_id, usuario_id=self.user_id,
+                )
         except (ServiceError, Exception) as exc:
             self.form_error = str(exc)
             self.is_saving  = False

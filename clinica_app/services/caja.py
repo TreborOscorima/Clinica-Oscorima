@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from clinica_app.models.caja import CajaMovimiento, CierreCaja, MetodoPago, TipoMovimiento
+from clinica_app.services import auditoria
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
@@ -180,6 +181,20 @@ async def realizar_cierre_dia(
     )
     session.add(cierre)
     await session.flush()
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="cerrar_caja", entidad="cierre_caja", entidad_id=cierre.id,
+        sede_id=sede_id or None,
+        detalle={
+            "fecha": fecha_solo.strftime("%Y-%m-%d"),
+            "ingresos": resumen["ingresos"],
+            "egresos": resumen["egresos"],
+            "saldo": resumen["saldo"],
+        },
+    )
+
     return {
         "id":                cierre.id,
         "fecha":             fecha_solo.strftime("%Y-%m-%d"),
@@ -229,12 +244,25 @@ async def listar_cierres(
 
 
 async def eliminar_movimiento(
-    session: AsyncSession, clinica_id: int, mov_id: int, sede_id: int = 0
+    session: AsyncSession, clinica_id: int, mov_id: int, sede_id: int = 0,
+    usuario_id: int | None = None,
 ) -> None:
     mov = (
         await session.execute(_base_query(clinica_id, sede_id).where(CajaMovimiento.id == mov_id))
     ).scalars().first()
     if mov is None:
         raise NotFoundError("Movimiento no encontrado")
+    detalle = {
+        "tipo": mov.tipo.value if mov.tipo else None,
+        "monto": str(mov.monto),
+        "metodo_pago": mov.metodo_pago.value if mov.metodo_pago else None,
+    }
     mov.soft_delete()
     await session.flush()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="eliminar", entidad="caja_movimiento", entidad_id=mov_id,
+        sede_id=sede_id or None,
+        detalle=detalle,
+    )

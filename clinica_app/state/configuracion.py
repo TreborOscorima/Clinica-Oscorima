@@ -830,8 +830,18 @@ class ConfiguracionState(BaseState):
                 await session.flush()
             if tipo == "read":
                 p.can_read  = not p.can_read
+                nuevo_valor = p.can_read
             else:
                 p.can_write = not p.can_write
+                nuevo_valor = p.can_write
+            await session.flush()
+            from clinica_app.services import auditoria
+            await auditoria.registrar(
+                session, self.clinica_id,
+                usuario_id=self.user_id,
+                accion="cambiar_permisos", entidad="permiso_rol", entidad_id=p.id,
+                detalle={"rol": rol, "modulo": module, "tipo": tipo, "valor": nuevo_valor},
+            )
         await self._cargar_permisos_rol()
 
     async def _cargar_permisos(self):

@@ -399,7 +399,7 @@ class ComprasState(BaseState):
         yield
         try:
             async with get_async_session() as session:
-                await svc.anular(session, self.clinica_id, self.anular_id)
+                await svc.anular(session, self.clinica_id, self.anular_id, usuario_id=self.user_id)
         except (ServiceError, Exception) as exc:
             self.form_error   = str(exc)
             self.is_saving    = False
