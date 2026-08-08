@@ -56,7 +56,9 @@
       (atómica) vía `services/auditoria.registrar`. Cubiertas: cobro (crear comprobante),
       cierre de caja, borrado de movimiento de caja, anulación de compra y cambio de
       permisos de rol. Tests en `test_auditoria.py` (incluye que una acción fallida no deja
-      rastro). *Pendiente ampliar a borrados de paciente/nota clínica y a un visor UI.*
+      rastro). **Visor UI** en `/auditoria` (módulo RBAC `auditoria`, solo-admin; página +
+      state + `auditoria.listar` con filtros por acción/entidad y paginación). *Pendiente
+      ampliar a borrados de paciente/nota clínica.*
 
 ## P1 — Robustez y calidad
 
@@ -152,3 +154,4 @@
 | 2026-08-08 | P1: lockfiles con pines exactos (`requirements.lock` + `requirements-dev.lock`) generados en `python:3.13-slim`; Dockerfile/CI actualizados | `build(deps): pin exacto de dependencias vía lockfiles` |
 | 2026-08-08 | P0: sesiones con TTL (`SESSION_TTL_HOURS`, default 12 h) + enforcement en on_mount y `tiene_permiso` + tests | `feat(security): expiración de sesión (TTL) con re-login forzado` |
 | 2026-08-08 | P0: audit log append-only (`audit_log` + migración `e5h3i4j5k6l7`) atómico en cobro/cierre/borrado-caja/anulación/permisos + tests | `feat(security): audit log de acciones sensibles` |
+| 2026-08-08 | Visor UI del audit log (`/auditoria`, módulo RBAC solo-admin, filtros + paginación) + tests de `listar` | `feat(auditoria): visor UI de la bitácora` |

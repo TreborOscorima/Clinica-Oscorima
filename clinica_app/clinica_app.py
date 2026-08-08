@@ -36,6 +36,7 @@ from clinica_app.pages.caja              import caja_page
 from clinica_app.pages.inventario        import inventario_page
 from clinica_app.pages.reportes          import reportes_page
 from clinica_app.pages.configuracion     import configuracion_page
+from clinica_app.pages.auditoria         import auditoria_page
 from clinica_app.pages.cuentas           import cuentas_page
 from clinica_app.pages.compras           import compras_page
 from clinica_app.pages.promociones       import promociones_page
@@ -167,6 +168,7 @@ app.add_page(reportes_page,      route="/reportes")
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
 app.add_page(configuracion_page, route="/configuracion")
+app.add_page(auditoria_page,     route="/auditoria")
 
 app.add_page(cuentas_page,        route="/cuentas")
 app.add_page(compras_page,        route="/compras")

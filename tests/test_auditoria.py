@@ -94,6 +94,39 @@ async def test_anular_compra_deja_auditoria(session, clinica, admin_user):
     assert filas[0].accion == "anular"
 
 
+async def test_listar_pagina_y_filtra(session, clinica, admin_user):
+    # 3 acciones distintas para probar filtros y orden.
+    await auditoria.registrar(session, clinica.id, usuario_id=admin_user.id,
+                              accion="crear", entidad="comprobante", entidad_id=1)
+    await auditoria.registrar(session, clinica.id, usuario_id=admin_user.id,
+                              accion="anular", entidad="compra", entidad_id=2)
+    await auditoria.registrar(session, clinica.id, usuario_id=admin_user.id,
+                              accion="crear", entidad="comprobante", entidad_id=3)
+
+    todos = await auditoria.listar(session, clinica.id)
+    assert todos["total"] == 3
+    # El nombre del usuario se resuelve por el join.
+    assert todos["data"][0]["usuario"] == admin_user.nombre
+
+    solo_crear = await auditoria.listar(session, clinica.id, accion="crear")
+    assert solo_crear["total"] == 2
+    assert all(r["accion"] == "crear" for r in solo_crear["data"])
+
+    solo_compra = await auditoria.listar(session, clinica.id, entidad="compra")
+    assert solo_compra["total"] == 1
+    assert solo_compra["data"][0]["entidad_id"] == 2
+
+
+async def test_listar_paginacion(session, clinica, admin_user):
+    for i in range(5):
+        await auditoria.registrar(session, clinica.id, accion="crear",
+                                  entidad="comprobante", entidad_id=i)
+    p1 = await auditoria.listar(session, clinica.id, page=1, per_page=2)
+    assert p1["total"] == 5
+    assert p1["pages"] == 3
+    assert len(p1["data"]) == 2
+
+
 async def test_operacion_fallida_no_deja_rastro(session, clinica, admin_user):
     # Un cobro sin paciente válido revienta antes de escribir auditoría.
     from clinica_app.services.exceptions import NotFoundError

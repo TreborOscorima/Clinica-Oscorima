@@ -110,6 +110,7 @@ def _nav_links() -> rx.Component:
         _nav_if("promociones",   "Promociones",      "tag",              "/promociones"),
         _nav_if("reportes",      "Reportes",         "bar-chart-2",       "/reportes"),
         _nav_if("configuracion", "Configuración",    "settings",          "/configuracion"),
+        _nav_if("auditoria",     "Auditoría",        "shield-check",      "/auditoria"),
         class_name="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2",
     )
 

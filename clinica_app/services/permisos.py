@@ -9,7 +9,7 @@ from clinica_app.models.user import PermisoRol, RoleEnum
 MODULOS = [
     "dashboard", "pacientes", "historia", "profesionales", "calendario",
     "turnos", "servicios", "cobro", "caja", "cuentas", "compras",
-    "inventario", "promociones", "reportes", "configuracion",
+    "inventario", "promociones", "reportes", "configuracion", "auditoria",
 ]
 
 _DEFAULTS: dict[str, dict[str, tuple[bool, bool]]] = {
