@@ -116,6 +116,7 @@ class ComprasState(BaseState):
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
     async def on_mount(self):
+        self._expirar_si_vencio()
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return

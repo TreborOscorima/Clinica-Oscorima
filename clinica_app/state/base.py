@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import time
+
 import reflex as rx
 
+from clinica_app.config import SESSION_TTL_SECONDS
 from clinica_app.services.download_token import crear_token
+from clinica_app.services.sesion import sesion_vencida
 
 
 class BaseState(rx.State):
@@ -21,6 +25,8 @@ class BaseState(rx.State):
     user_role:          str  = ""
     profesional_id:     int  = 0
     is_authenticated:   bool = False
+    # Epoch (segundos) del login; base para la expiración de sesión (TTL).
+    login_at:           float = 0.0
     sidebar_open:       bool = False
     sede_actual_id:     int  = 0
     sede_actual_nombre: str  = ""
@@ -38,6 +44,19 @@ class BaseState(rx.State):
             return ""
         return crear_token(self.user_id, self.clinica_id)
 
+    # ── Expiración de sesión (TTL) ───────────────────────────────────────────
+    def _sesion_expirada(self) -> bool:
+        """True si hay sesión activa pero superó el TTL desde el login."""
+        if not self.is_authenticated:
+            return False
+        return sesion_vencida(self.login_at, SESSION_TTL_SECONDS, time.time())
+
+    def _expirar_si_vencio(self) -> None:
+        """Invalida la sesión si venció. Tras esto `is_authenticated` es False,
+        así el guard de cada `on_mount` redirige a /login."""
+        if self._sesion_expirada():
+            self.reset()
+
     @rx.var
     def is_admin(self) -> bool:
         return self.user_role == "administracion"
@@ -51,6 +70,10 @@ class BaseState(rx.State):
         return self.user_role == "profesional"
 
     def tiene_permiso(self, module: str, write: bool = False) -> bool:
+        # Sesión vencida: se niega todo (defensa para handlers disparados sobre
+        # un websocket que quedó abierto tras el TTL).
+        if self._sesion_expirada():
+            return False
         # El owner puede deshabilitar el módulo para toda la clínica (Fase 3).
         if module in self._modulos_owner_off:
             return False
@@ -90,7 +113,8 @@ class BaseState(rx.State):
         self.sidebar_open = False
 
     def require_auth(self):
-        """Retorna redirect si no autenticado, None si OK."""
+        """Retorna redirect si no autenticado o si la sesión venció, None si OK."""
+        self._expirar_si_vencio()
         if not self.is_authenticated:
             return rx.redirect("/login")
 

@@ -37,6 +37,10 @@ REPORT_EXPORT_DIR: str = os.getenv("REPORT_EXPORT_DIR", "exports")
 LOGIN_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
 LOGIN_WINDOW_SECS:  int = int(os.getenv("LOGIN_WINDOW_SECS", "60"))
 
+# Expiración de sesión: tras este tiempo desde el login, el guard fuerza
+# re-login. Por defecto 12 h (jornada). Configurable con SESSION_TTL_HOURS.
+SESSION_TTL_SECONDS: int = int(float(os.getenv("SESSION_TTL_HOURS", "12")) * 3600)
+
 # ── Notificaciones Email (SMTP) ────────────────────────────────────────────────
 SMTP_HOST:    str  = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT:    int  = int(os.getenv("SMTP_PORT", "587"))

@@ -106,6 +106,7 @@ class CalendarioState(BaseState):
         return d - timedelta(days=d.weekday())
 
     async def on_mount(self):
+        self._expirar_si_vencio()
         if not self.is_authenticated:
             yield rx.redirect("/login")
             return

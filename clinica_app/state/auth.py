@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import reflex as rx
 
 from clinica_app.database import get_async_session
@@ -67,6 +69,7 @@ class AuthState(BaseState):
         self.user_role        = datos["rol"]
         self.profesional_id   = datos["profesional_id"]
         self.is_authenticated = True
+        self.login_at         = time.time()   # marca de inicio para el TTL de sesión
         self.is_loading       = False
         self._aplicar_permisos(permisos, modulos_off)
         self.sedes_disponibles = sedes

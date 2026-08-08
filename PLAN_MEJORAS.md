@@ -44,8 +44,12 @@
       clínico sin backups no es profesional: es una pérdida de datos esperando fecha.*
 - [ ] **Restaurar backup probado**: un backup no probado no existe. Documentar el runbook
       de restauración y ejecutarlo una vez en local.
-- [ ] **Sesiones con expiración**: hoy el login vive mientras viva el websocket/estado.
-      Agregar TTL de sesión (p. ej. 8-12 h) y re-login forzado.
+- [x] **Sesiones con expiración** *(2026-08-08)*: TTL configurable `SESSION_TTL_HOURS`
+      (default 12 h, `config.SESSION_TTL_SECONDS`). `BaseState` guarda `login_at` al login
+      y `_expirar_si_vencio()` invalida la sesión (reset → `is_authenticated=False`) al
+      inicio de cada `on_mount`, así el guard redirige a `/login`. Defensa extra: vencida
+      la sesión, `tiene_permiso` niega todo (bloquea handlers disparados sobre un websocket
+      que quedó abierto). Lógica pura en `services/sesion.py` con tests (`test_sesion.py`).
 - [ ] **Auditoría de acciones (audit log)**: tabla `audit_log(user_id, clinica_id, accion,
       entidad, entidad_id, timestamp, detalle)` escrita desde los servicios para operaciones
       sensibles (cobros, anulaciones, cierres de caja, cambios de permisos, borrados).
@@ -143,3 +147,4 @@
 | 2026-08-07 | P1: +33 tests de servicios (caja, inventario, compras, promociones) → 74 total | `test(services): cobertura de caja, inventario, compras y promociones` |
 | 2026-08-08 | P1: +9 tests (permisos + reportes) → 83 total; cobertura de servicios cerrada | `test(services): cobertura de permisos y reportes` |
 | 2026-08-08 | P1: lockfiles con pines exactos (`requirements.lock` + `requirements-dev.lock`) generados en `python:3.13-slim`; Dockerfile/CI actualizados | `build(deps): pin exacto de dependencias vía lockfiles` |
+| 2026-08-08 | P0: sesiones con TTL (`SESSION_TTL_HOURS`, default 12 h) + enforcement en on_mount y `tiene_permiso` + tests | `feat(security): expiración de sesión (TTL) con re-login forzado` |
