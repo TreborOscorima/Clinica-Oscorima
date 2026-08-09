@@ -94,7 +94,7 @@ _ROL_LABELS: dict[str, str] = {
 }
 
 _SYSTEM_MODULES: list[tuple[str, str]] = [
-    ("dashboard",     "Dashboard"),
+    ("dashboard",     "Panel"),
     ("pacientes",     "Pacientes"),
     ("historia",      "Historia Clínica"),
     ("profesionales", "Profesionales"),

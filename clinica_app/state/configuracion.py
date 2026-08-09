@@ -930,7 +930,7 @@ class ConfiguracionState(BaseState):
             self.cerrar_modal_permisos()
 
     _MODULOS = [
-        ("dashboard",     "Dashboard"),
+        ("dashboard",     "Panel"),
         ("pacientes",     "Pacientes"),
         ("historia",      "Historia Clínica"),
         ("profesionales", "Profesionales"),

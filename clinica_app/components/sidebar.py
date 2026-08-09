@@ -95,7 +95,7 @@ def _nav_if(module: str, label: str, icon: str, href: str) -> rx.Component:
 def _nav_links() -> rx.Component:
     return rx.el.nav(
         _section("Gestión"),
-        _nav_if("dashboard",     "Dashboard",        "layout-dashboard",  "/"),
+        _nav_if("dashboard",     "Panel",            "layout-dashboard",  "/"),
         _nav_if("pacientes",     "Pacientes",        "users",             "/pacientes"),
         _nav_if("historia",      "Historia Clínica", "clipboard-list",    "/historia-clinica"),
         _nav_if("profesionales", "Profesionales",    "user-check",        "/profesionales"),
