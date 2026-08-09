@@ -41,7 +41,7 @@ def _ensure_dir() -> Path:
 def generar_recibo_pdf(
     comprobante: dict[str, Any],
     paciente_nombre: str = "",
-    clinica_nombre: str = "WaykiSAC",
+    clinica_nombre: str = "TUWAYKILIFE",
 ) -> str:
     """
     Genera un PDF del comprobante y lo guarda en REPORT_EXPORT_DIR.

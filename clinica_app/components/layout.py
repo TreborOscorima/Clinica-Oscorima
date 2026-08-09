@@ -23,11 +23,12 @@ def _mobile_topbar() -> rx.Component:
             aria_label="Abrir menú",
         ),
         rx.el.div(
-            rx.el.div(
-                rx.icon("stethoscope", size=16, color="white"),
-                class_name="w-6 h-6 bg-sky-600 rounded-md flex items-center justify-center",
+            rx.image(
+                src="/tuwaykilife-icon.png",
+                alt="TUWAYKILIFE",
+                class_name="w-6 h-6 rounded-md object-contain",
             ),
-            rx.el.span("WaykiSAC", class_name="ml-2 font-bold text-gray-900"),
+            rx.el.span("TUWAYKILIFE", class_name="ml-2 font-bold text-gray-900"),
             class_name="flex items-center flex-1",
         ),
         class_name=(

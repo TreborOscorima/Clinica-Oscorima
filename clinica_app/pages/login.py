@@ -22,19 +22,17 @@ def login_page() -> rx.Component:
             # ── Panel izquierdo: branding (solo lg+) ──────────────────────────
             rx.el.div(
                 rx.el.div(
-                    rx.el.div(
-                        rx.icon("stethoscope", size=28, color="white"),
-                        class_name=(
-                            "w-14 h-14 bg-white/20 rounded-2xl "
-                            "flex items-center justify-center mb-6 shadow-lg"
-                        ),
+                    rx.image(
+                        src="/tuwaykilife-icon.png",
+                        alt="TUWAYKILIFE",
+                        class_name="w-16 h-16 rounded-2xl mb-6 shadow-lg object-contain bg-white/10",
                     ),
                     rx.el.h2(
-                        "WaykiSAC",
+                        "TUWAYKILIFE",
                         class_name="text-3xl font-bold text-white mb-2",
                     ),
                     rx.el.p(
-                        "Sistema de Gestión para Clínicas Estéticas",
+                        "Sistema de Gestión para Clínicas",
                         class_name="text-sky-100 text-base leading-relaxed",
                     ),
                     rx.el.div(
@@ -57,12 +55,10 @@ def login_page() -> rx.Component:
                 rx.el.div(
                     # Logo móvil (oculto en lg+)
                     rx.el.div(
-                        rx.el.div(
-                            rx.icon("stethoscope", size=24, color="white"),
-                            class_name=(
-                                "w-12 h-12 bg-sky-600 rounded-xl "
-                                "flex items-center justify-center mx-auto mb-4 shadow-md"
-                            ),
+                        rx.image(
+                            src="/tuwaykilife-logo.png",
+                            alt="TUWAYKILIFE — Sistema de Gestión para Clínicas",
+                            class_name="h-20 mx-auto mb-4 object-contain",
                         ),
                         class_name="lg:hidden",
                     ),

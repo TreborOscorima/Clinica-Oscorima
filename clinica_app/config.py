@@ -47,7 +47,7 @@ SMTP_PORT:    int  = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER:    str  = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM:    str  = os.getenv("SMTP_FROM", "")
-SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "WaykiSAC Clínica")
+SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "TUWAYKILIFE")
 NOTIF_EMAIL_ENABLED: bool = os.getenv("NOTIF_EMAIL_ENABLED", "false").lower() == "true"
 
 # ── Notificaciones WhatsApp (Twilio) ───────────────────────────────────────────

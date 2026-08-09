@@ -46,11 +46,12 @@ def _section(label: str) -> rx.Component:
 def _logo() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.el.div(
-                rx.icon("stethoscope", size=20, color="white"),
-                class_name="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center shrink-0",
+            rx.image(
+                src="/tuwaykilife-icon.png",
+                alt="TUWAYKILIFE",
+                class_name="w-8 h-8 rounded-lg shrink-0 object-contain",
             ),
-            rx.el.span("WaykiSAC", class_name="ml-2 font-bold text-gray-900 text-lg"),
+            rx.el.span("TUWAYKILIFE", class_name="ml-2 font-bold text-gray-900 text-lg"),
             class_name="flex items-center",
         ),
         rx.cond(
@@ -177,11 +178,12 @@ def mobile_drawer() -> rx.Component:
             rx.el.aside(
                 # Logo + botón cerrar
                 rx.el.div(
-                    rx.el.div(
-                        rx.icon("stethoscope", size=20, color="white"),
-                        class_name="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center shrink-0",
+                    rx.image(
+                        src="/tuwaykilife-icon.png",
+                        alt="TUWAYKILIFE",
+                        class_name="w-8 h-8 rounded-lg shrink-0 object-contain",
                     ),
-                    rx.el.span("WaykiSAC", class_name="ml-2 font-bold text-gray-900 text-lg flex-1"),
+                    rx.el.span("TUWAYKILIFE", class_name="ml-2 font-bold text-gray-900 text-lg flex-1"),
                     rx.el.button(
                         rx.icon("x", size=20),
                         on_click=BaseState.close_sidebar,

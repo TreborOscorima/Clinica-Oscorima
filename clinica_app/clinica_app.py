@@ -55,7 +55,7 @@ async def _api_ping(request: Request) -> JSONResponse:
 
 
 async def _api_health(request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok", "app": "waykisac-clinica"})
+    return JSONResponse({"status": "ok", "app": "tuwaykilife-clinica"})
 
 
 async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
@@ -147,31 +147,43 @@ app = rx.App(
         "font_family": "Inter, sans-serif",
         "background_color": "#f9fafb",
     },
+    # Branding + PWA/mobile: se inyecta en el <head> de todas las páginas.
+    head_components=[
+        rx.el.meta(name="theme-color", content="#0284c7"),
+        rx.el.meta(name="mobile-web-app-capable", content="yes"),
+        rx.el.meta(name="apple-mobile-web-app-capable", content="yes"),
+        rx.el.meta(name="apple-mobile-web-app-status-bar-style", content="default"),
+        rx.el.meta(name="apple-mobile-web-app-title", content="TUWAYKILIFE"),
+        rx.el.link(rel="icon", type="image/png", href="/tuwaykilife-icon.png"),
+        rx.el.link(rel="shortcut icon", href="/favicon.ico"),
+        rx.el.link(rel="apple-touch-icon", href="/tuwaykilife-icon.png"),
+        rx.el.link(rel="manifest", href="/manifest.json"),
+    ],
     api_transformer=_api_transformer,
 )
 
 # ── Rutas públicas ────────────────────────────────────────────────────────────
-app.add_page(login_page, route="/login")
+app.add_page(login_page, route="/login", title="TUWAYKILIFE | Iniciar sesión")
 
 # ── Módulo Gestión ────────────────────────────────────────────────────────────
-app.add_page(dashboard_page,     route="/")
-app.add_page(pacientes_page,     route="/pacientes")
-app.add_page(profesionales_page, route="/profesionales")
-app.add_page(turnos_page,        route="/turnos")
-app.add_page(servicios_page,     route="/servicios")
+app.add_page(dashboard_page,     route="/",              title="TUWAYKILIFE | Panel")
+app.add_page(pacientes_page,     route="/pacientes",     title="TUWAYKILIFE | Pacientes")
+app.add_page(profesionales_page, route="/profesionales", title="TUWAYKILIFE | Profesionales")
+app.add_page(turnos_page,        route="/turnos",        title="TUWAYKILIFE | Turnos")
+app.add_page(servicios_page,     route="/servicios",     title="TUWAYKILIFE | Servicios")
 
 # ── Módulo Operaciones ────────────────────────────────────────────────────────
-app.add_page(cobro_page,         route="/cobro")
-app.add_page(caja_page,          route="/caja")
-app.add_page(inventario_page,    route="/inventario")
-app.add_page(reportes_page,      route="/reportes")
+app.add_page(cobro_page,         route="/cobro",         title="TUWAYKILIFE | Punto de cobro")
+app.add_page(caja_page,          route="/caja",          title="TUWAYKILIFE | Caja")
+app.add_page(inventario_page,    route="/inventario",    title="TUWAYKILIFE | Inventario")
+app.add_page(reportes_page,      route="/reportes",      title="TUWAYKILIFE | Reportes")
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
-app.add_page(configuracion_page, route="/configuracion")
-app.add_page(auditoria_page,     route="/auditoria")
+app.add_page(configuracion_page, route="/configuracion", title="TUWAYKILIFE | Configuración")
+app.add_page(auditoria_page,     route="/auditoria",     title="TUWAYKILIFE | Auditoría")
 
-app.add_page(cuentas_page,        route="/cuentas")
-app.add_page(compras_page,        route="/compras")
-app.add_page(promociones_page,    route="/promociones")
-app.add_page(notas_clinicas_page, route="/historia-clinica")
-app.add_page(calendario_page,     route="/calendario")
+app.add_page(cuentas_page,        route="/cuentas",         title="TUWAYKILIFE | Cuentas corrientes")
+app.add_page(compras_page,        route="/compras",         title="TUWAYKILIFE | Compras")
+app.add_page(promociones_page,    route="/promociones",     title="TUWAYKILIFE | Promociones")
+app.add_page(notas_clinicas_page, route="/historia-clinica", title="TUWAYKILIFE | Historia clínica")
+app.add_page(calendario_page,     route="/calendario",      title="TUWAYKILIFE | Calendario")
