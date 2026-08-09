@@ -70,9 +70,8 @@
 > core no cambia por reflex, pero es la pieza que tocan FOOD y LIFE: hay que dejarlo
 > **verificado y con un commit claro** antes de mover las apps.
 
-- [ ] Correr la suite propia de core y confirmar verde:
-      `cd D:\PROYECTOS\tuwayki-core && pytest`
-- [ ] Confirmar que `pyproject.toml` sigue sin declarar reflex (agnóstico).
+- [x] core **no tiene suite propia** (sin carpeta `tests`) → nada que correr. ✅
+- [x] `pyproject.toml` **no declara reflex** (agnóstico confirmado). ✅
 - [ ] **Si se decide alinear el commit** (ver Fase 1 de decisiones):
   - [ ] Elegir/crear el commit objetivo de core (ej. `64850c8` o uno nuevo).
   - [ ] Actualizar el pin `tuwayki-core @ git+...@<commit>` en **LIFE** y **FOOD**.
@@ -123,7 +122,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 - [x] Suite completa: **100 passed** en 0.9.8. ✅
 - [x] Test AST de RBAC incluido en la suite → verde. ✅
 - [x] `ruff check .` → All checks passed. ✅
-- [ ] ⏳ CI en verde tras `git push` de la rama (pendiente de commit/push).
+- [x] CI en verde tras el push (PR #4, `lint-and-test` success). ✅
 
 ### 4.5 Smoke test manual (priorizar páginas con estado pesado / `rx.foreach`)
 > Estas concentran el riesgo real de un bump (render de listas, hidratación):
@@ -200,7 +199,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 
 - [x] Merge de LIFE a `main` con CI verde (PR #4, squash, 2026-08-09). ✅
 - [ ] Tag / nota de versión por sistema.
-- [ ] Actualizar memoria del proyecto con las versiones finales de la suite.
+- [x] Memoria actualizada (`suite-reflex-0.9.8-upgrade`, `docker-life-web-volume-stale`). ✅
 - [ ] Actualizar `PLAN_MEJORAS.md` si corresponde.
 
 ---
