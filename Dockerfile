@@ -47,8 +47,8 @@ COPY --from=builder /install /usr/local
 
 WORKDIR /app
 
-RUN groupadd --system --gid 1000 app \
-    && useradd --system --uid 1000 --gid app --no-create-home --shell /sbin/nologin app \
+RUN groupadd --gid 1000 app \
+    && useradd --uid 1000 --gid app --no-create-home --shell /sbin/nologin app \
     && mkdir -p /app/.web /app/exports \
     && chown -R app:app /app
 
