@@ -108,8 +108,16 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 - [x] Instalado en `.venv` desde los locks → reflex **0.9.8** confirmado. ✅
 - [x] Import de la app completo bajo 0.9.8 (todo el árbol `rx.*`/páginas/states
       construye; solo corta al conectar a MySQL `life_mysql`, que es de la red Docker). ✅
-- [ ] ⏳ **PENDIENTE (requiere Docker/MySQL + bun):** borrar `.web/`, `reflex init`,
-      `reflex run` — verificar frontend sin errores de hidratación/stylesheets en Windows.
+- [x] ✅ **Stack Docker local verificado end-to-end** (2026-08-09):
+  - Imagen reconstruida con reflex 0.9.8; migraciones Alembic OK; frontend
+    **recompilado limpio** (Compiling 100% / Production Build 100%).
+  - Endpoints: `/api/ping` 200, `/_health` 200, frontend `/` 200, contenedor `healthy`.
+  - **WebSocket `/_event`: `101 Switching Protocols`** + handshake socket.io válido.
+  - UI renderiza (login, branding, título `TUWAYKILIFE | ...`), ruteo/auth-redirect OK.
+  - ⚠️ **Aprendizaje**: el volumen `life_web` persiste el `.web` compilado entre
+    rebuilds → tras subir de versión hay que **eliminar `sistema-para-clinicas_life_web`**
+    o el backend rechaza el frontend viejo (`Frontend version 0.9.4 does not match`).
+    Añadir este paso al deploy de prod (ver §6).
 
 ### 4.4 Tests automatizados
 - [x] Suite completa: **100 passed** en 0.9.8. ✅
@@ -132,8 +140,25 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 
 ### 4.6 Integración cruzada LIFE ↔ SHOP (Owner panel)
 > Es HTTP, independiente de la versión de reflex, pero hay que confirmarlo.
-- [ ] Panel Owner (Sistema-de-Ventas) → API `/api/admin/*` de LIFE responde OK.
-- [ ] Enforcement en login de LIFE contra el secreto compartido sigue funcionando.
+- [x] API `/api/admin/companies` con `X-Admin-Secret` → **200 con datos reales de MySQL**
+      (`Clinica Default`, plan profesional, 4 usuarios). HTTP→auth→DB→JSON OK bajo 0.9.8. ✅
+- [x] Sin secreto → **401** (enforcement correcto). ✅
+
+### 4.7 E2E completo (2026-08-09) — sistema al 100%
+| Capa | Qué se probó | Resultado |
+|---|---|---|
+| Lógica de negocio | `pytest` (auth, pacientes, cobro, caja, compras, cuentas, inventario, auditoría) contra DB real | **100 passed** ✅ |
+| Rutas/SSR | 17 páginas (`/`, `/pacientes`, `/cobro`, `/calendario`, …) siguiendo redirects | **17/17 → 200** con títulos correctos ✅ |
+| API pública | `/api/ping`, `/api/health`, `/health` | 200 ✅ |
+| API protegida | `/api/reportes/descargar`, `/api/recibo/pdf`, `/api/admin/*`, `/api/registro` sin credenciales | rechaza 401/400 ✅ |
+| Realtime | socket.io client → `/_event` | conecta + `sid` válido ✅ |
+| WebSocket crudo | upgrade `/_event` | `101 Switching Protocols` ✅ |
+| DB vía HTTP | Owner panel autenticado | 200 con datos MySQL ✅ |
+| Contenedor | healthcheck | `healthy`, reflex 0.9.8 ✅ |
+
+> Único punto no cubierto programáticamente: clicks/typing en la UI (el navegador
+> embebido no tunela `ws://` a localhost). El pipeline subyacente quedó probado en
+> todas las capas; el smoke visual con clicks lo hace el usuario en su Chrome real.
 
 ---
 
@@ -158,6 +183,10 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 ## 6. Fase 4 — Docker y despliegue a producción
 
 - [ ] Build de imagen de LIFE con los nuevos locks: `docker build ...` sin errores.
+- [ ] **⚠️ Al subir de versión, purgar el volumen del frontend compilado** para que
+      Reflex recompile con la nueva versión (si no, sirve el `.web` viejo y da
+      `Frontend version X does not match`):
+      `docker volume rm sistema-para-clinicas_life_web` (el de datos MySQL se conserva).
 - [ ] Levantar stack (`docker compose`) y verificar que Granian sirve el frontend
       compilado (recordar: el puerto de la app **no** se publica en prod).
 - [ ] Comprobar arranque sin el bug de sockets huérfanos (ver memoria Docker).
@@ -169,7 +198,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 
 ## 7. Cierre
 
-- [ ] Merge de la(s) rama(s) a `main` con CI verde.
+- [x] Merge de LIFE a `main` con CI verde (PR #4, squash, 2026-08-09). ✅
 - [ ] Tag / nota de versión por sistema.
 - [ ] Actualizar memoria del proyecto con las versiones finales de la suite.
 - [ ] Actualizar `PLAN_MEJORAS.md` si corresponde.
@@ -194,5 +223,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -w /app python:3.13-slim 
 | 2026-08-09 | LIFE | `pip install` locks en `.venv` | OK | reflex 0.9.8 |
 | 2026-08-09 | LIFE | `pytest` (100) + `ruff` | 100 passed / clean | — |
 | 2026-08-09 | LIFE | Smoke import app bajo 0.9.8 | OK | corta solo en MySQL (env Docker) |
-| | LIFE | `reflex run` frontend (Docker) | ⏳ pendiente | requiere stack Docker |
-| | LIFE | Docker build + deploy prod | ⏳ pendiente | — |
+| 2026-08-09 | LIFE | CI (PR #4) lint-and-test | ✅ pass (46s) | entorno limpio |
+| 2026-08-09 | LIFE | Stack Docker local + rebuild frontend limpio | ✅ healthy | `/api/ping`,`/_health` 200; WS `/_event` 101; UI OK |
+| 2026-08-09 | LIFE | Purga volumen `life_web` (frontend stale) | OK | necesario tras bump; datos MySQL intactos |
+| 2026-08-09 | LIFE | **E2E completo** (7 capas: pytest+rutas+API+WS+socket.io+DB) | ✅ 100% verde | ver §4.7 |
+| | LIFE | Docker build + deploy prod (servidor) | ⏳ pendiente | recordar purgar `life_web` |

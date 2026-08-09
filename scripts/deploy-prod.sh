@@ -154,6 +154,20 @@ else
     docker compose build "$SERVICE"
 fi
 
+# El frontend compilado (.web) vive en un volumen persistente. Tras un rebuild hay
+# que purgarlo o Reflex sirve el .web viejo y el backend lo rechaza por mismatch de
+# versión ("Connection Error" en la UI). Ver PLAN_ACTUALIZACION_REFLEX.md §6.
+if ! $SKIP_BUILD; then
+    FE_VOLUME="${COMPOSE_PROJECT_NAME:-sistema-para-clinicas}_life_web"
+    info "Purgando frontend compilado ($FE_VOLUME) para recompilar con la imagen nueva..."
+    docker compose rm -sf "$SERVICE" >/dev/null 2>&1 || true
+    if docker volume rm "$FE_VOLUME" >/dev/null 2>&1; then
+        ok "Volumen de frontend purgado (datos MySQL intactos)"
+    else
+        warn "No se pudo remover $FE_VOLUME (¿no existía o en uso?) — continúo"
+    fi
+fi
+
 info "Levantando stack (prod + NPM)..."
 docker compose up -d --remove-orphans
 
