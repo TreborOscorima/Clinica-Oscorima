@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import reflex as rx
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -175,7 +176,19 @@ class PacientesState(BaseState):
                 else:
                     await svc.crear(session, self.clinica_id, sede_id=self.sede_actual_id, payload=payload)
         except ServiceError as exc:
+            # Errores de negocio esperados (validación, duplicados, no encontrado).
             self.form_error = str(exc)
+            self.is_saving  = False
+            return
+        except (IntegrityError, OperationalError):
+            # Red de seguridad ante un constraint de BD no anticipado (p.ej. carrera de
+            # documento duplicado): mostrar un mensaje claro en vez de un error genérico.
+            self.form_error = "No se pudo guardar: revisá los datos (documento solo números, sin duplicados)."
+            self.is_saving  = False
+            return
+        except Exception:
+            # Cualquier otro fallo: nunca dejar el botón colgado en «Guardando…».
+            self.form_error = "Ocurrió un error al guardar. Intentá nuevamente."
             self.is_saving  = False
             return
 

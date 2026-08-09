@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -8,7 +9,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from clinica_app.models.paciente import Paciente
-from clinica_app.services.exceptions import ConflictError, NotFoundError
+from clinica_app.services.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
+
+# Paridad con el CHECK constraint de BD `chk_documento_digits` (^[0-9]+$).
+_DOCUMENTO_RE = re.compile(r"^[0-9]+$")
+
+
+def _validar_documento(documento: Any) -> None:
+    """El documento, si viene, debe contener solo dígitos (igual que el constraint)."""
+    if documento in (None, ""):
+        return
+    if not _DOCUMENTO_RE.match(str(documento)):
+        raise ValidationError("El documento debe contener solo números")
 
 
 def _dump(p: Paciente) -> dict[str, Any]:
@@ -96,6 +112,7 @@ async def crear(session: AsyncSession, clinica_id: int, sede_id: int = 0, payloa
         payload["sede_id"] = sede_id
     _parse_fecha(payload)
 
+    _validar_documento(payload.get("documento"))
     if payload.get("documento"):
         await _assert_documento_libre(session, clinica_id, payload["documento"])
     if payload.get("email"):
@@ -127,6 +144,7 @@ async def actualizar(
 
     nuevo_doc = payload.get("documento")
     if nuevo_doc and nuevo_doc != p.documento:
+        _validar_documento(nuevo_doc)
         await _assert_documento_libre(session, clinica_id, nuevo_doc, exclude_id=p.id)
 
     nuevo_mail = payload.get("email")

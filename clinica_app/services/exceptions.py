@@ -12,3 +12,8 @@ class NotFoundError(ServiceError):
 class ConflictError(ServiceError):
     def __init__(self, message: str = "Conflicto de datos"):
         super().__init__(message, 409)
+
+
+class ValidationError(ServiceError):
+    def __init__(self, message: str = "Datos inválidos"):
+        super().__init__(message, 422)
