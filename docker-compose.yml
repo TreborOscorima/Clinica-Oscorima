@@ -66,8 +66,9 @@ services:
     depends_on:
       life_mysql:
         condition: service_healthy
-    ports:
-      - "3004:3000"
+    # Sin publicar puerto al host en prod: NPM alcanza la app por la red Docker
+    # (life_npm_network → tuwayki_life:3000). El 3004 se publica solo en local
+    # vía docker-compose.local.yml. Mismo criterio que SHOP y FOOD.
     env_file:
       - .env
     environment:
