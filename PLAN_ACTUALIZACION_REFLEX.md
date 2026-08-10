@@ -9,6 +9,43 @@
 
 ---
 
+## ⏳ PENDIENTE — retomar en la próxima sesión
+
+> **LIFE está 100% cerrado del lado técnico** (Reflex 0.9.8 en `main`, CI verde, deploy
+> seguro, E2E OK, stack corriendo). Lo que sigue es acción del usuario o de otras
+> sesiones. Al retomar, empezar por acá.
+
+### A) LIFE — acción del usuario (no requiere código)
+- [ ] **Smoke visual** en Chrome real (`http://localhost:3004`): login, y navegar
+      cobro / calendario / dashboard / pacientes. *El pipeline ya está probado en el E2E
+      §4.7; esto es confirmación visual.*
+- [ ] Probar **exportaciones** (XLSX y PDF de recibo) y **notificaciones**
+      (email smtplib / WhatsApp Twilio) en vivo — no se ejercitaron end-to-end.
+- [ ] **Deploy a prod** en el servidor: `bash scripts/deploy-prod.sh`
+      (ya purga `life_web` solo). Verificar `https://life.tuwayki.app`.
+- [ ] Tras el deploy: health externo OK + smoke rápido en producción.
+
+### B) Suite — otras sesiones (FOOD y SHOP a 0.9.8)
+> Proceso por sistema: rama → editar pin(es) `reflex*` → regenerar locks en
+> `python:3.13-slim` → `pytest`+`ruff` → **PR contra main** → merge → deploy.
+- [ ] **FOOD** (`Sistema-para-Food`, hoy 0.9.6.post1) → 0.9.8.
+- [ ] **SHOP** (`Sistema-de-Ventas`, hoy 0.9.4) → 0.9.8.
+- [ ] **Replicar en los deploy de FOOD y SHOP el fix de purga del volumen `.web`**
+      (usan el mismo patrón; sus scripts todavía NO lo hacen).
+- [ ] Tras el bump de SHOP: reverificar integración panel Owner ↔ LIFE.
+
+### C) Opcional / housekeeping (no bloquea nada)
+- [ ] **Decisión parkeada**: alinear el commit de `tuwayki-core` (LIFE `ef852f2` vs
+      FOOD `64850c8`). Independiente del upgrade de reflex.
+- [ ] Tag / nota de versión por sistema (0.9.8).
+- [ ] Sumar una línea del avance a `PLAN_MEJORAS.md`.
+- [ ] (Cosmético, se dejó a propósito) Warning local `volume "…life_mysql_data"
+      already exists` — artefacto del renombrado de proyecto Compose; NO tocar el
+      compose (rompería el primer deploy en server). Solo se limpia recreando el
+      volumen local, con pérdida de datos de test.
+
+---
+
 ## 0. Estado actual (línea base — verificado el 2026-08-09)
 
 | Sistema | Ruta | Repo (`D:\PROYECTOS\`) | Reflex | tuwayki-core | Usa core |
