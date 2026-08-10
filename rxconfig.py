@@ -24,7 +24,23 @@ config = rx.Config(
     frontend_port=FRONTEND_PORT,
     **({"api_url": API_URL} if API_URL else {}),
     plugins=[
-        rx.plugins.TailwindV4Plugin(),
+        # Reflex 0.9.x compila los componentes/páginas compartidas a
+        # `.web/app_components/**`, dir que NO entra en el content-glob por
+        # defecto (`./app/**`, `./utils/**`). Con `@config`, Tailwind v4 usa
+        # ese content explícito y NO auto-detecta, así que las clases usadas
+        # solo en app_components (p. ej. `lg:hidden`) no se generan en el CSS.
+        # Se pasa `content` explícito incluyendo app_components (y components).
+        rx.plugins.TailwindV4Plugin(
+            config={
+                "plugins": ["@tailwindcss/typography@0.5.20"],
+                "content": [
+                    "./app/**/*.{js,ts,jsx,tsx}",
+                    "./app_components/**/*.{js,ts,jsx,tsx}",
+                    "./components/**/*.{js,ts,jsx,tsx}",
+                    "./utils/**/*.{js,ts,jsx,tsx}",
+                ],
+            }
+        ),
     ],
     disable_plugins=[SitemapPlugin],
     telemetry_enabled=not IS_PROD,
