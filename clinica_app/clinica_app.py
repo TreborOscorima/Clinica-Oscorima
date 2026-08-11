@@ -158,6 +158,12 @@ app = rx.App(
         rx.el.link(rel="shortcut icon", href="/favicon.ico"),
         rx.el.link(rel="apple-touch-icon", href="/tuwaykilife-icon.png"),
         rx.el.link(rel="manifest", href="/manifest.json"),
+        # PWA: registra el Service Worker (habilita "Instalar app") y muestra el
+        # banner de instalación propio al dispararse `beforeinstallprompt`
+        # (Chrome ya casi no muestra el mini-infobar nativo). Ver
+        # assets/js/twk-pwa.js. Se usa rx.el.script (elemento <script> crudo):
+        # rx.script(src=...) en head_components descarta el src en Reflex 0.9.8.
+        rx.el.script(src="/js/twk-pwa.js", defer=True),
     ],
     api_transformer=_api_transformer,
 )
