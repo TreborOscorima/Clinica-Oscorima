@@ -51,8 +51,14 @@ async def get_async_session() -> AsyncIterator[AsyncSession]:
 
 @contextmanager
 def get_session() -> Iterator[Session]:
-    """Context manager síncrono — solo para Alembic y scripts externos."""
-    with Session(_sync_engine) as session:
+    """Context manager síncrono — para Alembic, scripts externos y reportes.
+
+    expire_on_commit=False (igual que la sesión async): sin esto, tras el
+    commit al salir del `with` los atributos quedan expirados y cualquier
+    acceso posterior sobre los objetos ORM dispara un refresh sobre la sesión
+    ya cerrada → DetachedInstanceError (rompía la exportación de reportes).
+    """
+    with Session(_sync_engine, expire_on_commit=False) as session:
         try:
             yield session
             session.commit()

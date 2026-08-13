@@ -6,7 +6,7 @@ from typing import Any, ClassVar
 
 from sqlalchemy import Column, Enum as SAEnum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
-from sqlmodel import Field
+from sqlmodel import Field, Relationship
 
 from clinica_app.models.base import TenantSQLModel
 
@@ -38,10 +38,12 @@ class Turno(TenantSQLModel, table=True):
     profesional: ClassVar[Any] = relationship("Profesional", lazy="select")
     servicio:    ClassVar[Any] = relationship("Servicio", lazy="select")
     created_by:  ClassVar[Any] = relationship("User", lazy="select")
-    items:       ClassVar[Any] = relationship(
-        "TurnoServicio",
-        foreign_keys="[TurnoServicio.turno_id]",
-        cascade="all, delete-orphan",
-        lazy="select",
-        uselist=True,
+    items:       list["TurnoServicio"] = Relationship(
+        sa_relationship=relationship(
+            "TurnoServicio",
+            foreign_keys="[TurnoServicio.turno_id]",
+            cascade="all, delete-orphan",
+            lazy="select",
+            uselist=True,
+        ),
     )

@@ -56,3 +56,30 @@ async def test_listar_por_estado(session, clinica, paciente):
 async def test_listar_estado_invalido(session, clinica):
     with pytest.raises(ServiceError):
         await svc.listar(session, clinica.id, estado="invalido")
+
+
+async def test_turno_con_varios_servicios_se_serializa(session, clinica, paciente):
+    """Regresión: la relación Turno.items debe ser una colección (uselist=True).
+
+    Con `uselist=False` (bug del upgrade a SQLAlchemy 2.0/SQLModel), `t.items`
+    devolvía un único objeto que al iterarse en `_dump` producía tuplas
+    ('turno_id', N) → AttributeError y la lista de /turnos quedaba vacía.
+    """
+    creado = await svc.crear(session, clinica.id, {
+        "paciente_id": paciente.id,
+        "fecha_hora":  _dt(),
+        "items": [
+            {"servicio_id": 1, "precio": "100", "cantidad": "1"},
+            {"servicio_id": 2, "precio": "50",  "cantidad": "2"},
+            {"servicio_id": 3, "precio": "30",  "cantidad": "1"},
+        ],
+    })
+    # crear() ya serializa vía _dump: los 3 items deben venir como lista
+    assert isinstance(creado["items"], list)
+    assert len(creado["items"]) == 3
+    assert all("id" in it for it in creado["items"])
+
+    # y listar() (que también pasa por _dump) no debe crashear
+    res = await svc.listar(session, clinica.id)
+    fila = next(t for t in res["data"] if t["id"] == creado["id"])
+    assert len(fila["items"]) == 3
