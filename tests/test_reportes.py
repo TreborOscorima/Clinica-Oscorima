@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import create_engine
-from sqlmodel import Session, SQLModel
+from sqlmodel import SQLModel
 
 from clinica_app.services import caja as caja_svc
 from clinica_app.services import reportes as svc

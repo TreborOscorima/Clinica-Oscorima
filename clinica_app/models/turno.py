@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import Column, Enum as SAEnum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from sqlmodel import Field, Relationship
 
 from clinica_app.models.base import TenantSQLModel
+
+if TYPE_CHECKING:
+    from clinica_app.models.turno_servicio import TurnoServicio
 
 
 class EstadoTurno(str, Enum):
