@@ -102,13 +102,15 @@ def _serializar_caras(caras: dict[str, str] | None) -> str | None:
 
 
 def _dump(p: PiezaDental) -> dict[str, Any]:
+    info = ESTADOS.get(p.estado or "sano", ESTADOS["sano"])
     return {
         "numero":     p.numero,
         "estado":     p.estado or "sano",
         "caras":      _parse_caras(p.caras),
         "nota":       p.nota or "",
-        "estado_label": ESTADOS.get(p.estado or "sano", ESTADOS["sano"])["label"],
-        "color":      ESTADOS.get(p.estado or "sano", ESTADOS["sano"])["color"],
+        "estado_label": info["label"],
+        "color":      info["color"],
+        "text_color": info["text"],
     }
 
 
@@ -120,6 +122,7 @@ def _pieza_default(numero: str) -> dict[str, Any]:
         "nota":         "",
         "estado_label": ESTADOS["sano"]["label"],
         "color":        ESTADOS["sano"]["color"],
+        "text_color":   ESTADOS["sano"]["text"],
     }
 
 

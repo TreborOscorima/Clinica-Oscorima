@@ -180,7 +180,7 @@ def _modal_consentimiento() -> rx.Component:
                 # Header
                 rx.el.div(
                     rx.el.div(
-                        rx.icon("file-signature", size=18, class_name="text-green-600 mr-2"),
+                        rx.icon("signature", size=18, class_name="text-green-600 mr-2"),
                         rx.el.h2("Consentimiento informado", class_name="text-lg font-semibold text-gray-900"),
                         class_name="flex items-center",
                     ),
@@ -436,7 +436,7 @@ def _cat_icon(cat: str) -> rx.Component:
         ("foto",          rx.icon("image", size=16, class_name="text-sky-500")),
         ("radiografia",   rx.icon("scan", size=16, class_name="text-indigo-500")),
         ("estudio",       rx.icon("file-text", size=16, class_name="text-amber-500")),
-        ("consentimiento", rx.icon("file-signature", size=16, class_name="text-green-600")),
+        ("consentimiento", rx.icon("signature", size=16, class_name="text-green-600")),
         ("receta",        rx.icon("pill", size=16, class_name="text-rose-500")),
         ("informe",       rx.icon("clipboard-list", size=16, class_name="text-purple-500")),
         rx.icon("paperclip", size=16, class_name="text-gray-400"),
@@ -494,7 +494,7 @@ def _seccion_adjuntos() -> rx.Component:
                     class_name="inline-flex items-center px-2.5 py-1 text-rose-700 border border-rose-300 bg-rose-50 rounded-lg hover:bg-rose-100 cursor-pointer",
                 ),
                 rx.el.button(
-                    rx.icon("file-signature", size=14, class_name="mr-1.5"),
+                    rx.icon("signature", size=14, class_name="mr-1.5"),
                     rx.el.span("Consentimiento", class_name="text-sm"),
                     on_click=NotasClinicasState.abrir_consentimiento,
                     title="Generar un consentimiento informado en PDF",
@@ -655,13 +655,23 @@ def notas_clinicas_page() -> rx.Component:
             "Evoluciones, diagnósticos e indicaciones por paciente",
             action=rx.cond(
                 NotasClinicasState.paciente_id != 0,
-                rx.el.button(
-                    rx.icon("plus", size=16),
-                    rx.el.span("Nueva nota", class_name="ml-1.5"),
-                    on_click=NotasClinicasState.abrir_nueva,
-                    data_new_action="1",
-                    title="Nueva nota (N)",
-                    class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
+                rx.el.div(
+                    rx.el.a(
+                        rx.icon("smile", size=16),
+                        rx.el.span("Odontograma", class_name="ml-1.5"),
+                        href="/odontograma?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
+                        title="Abrir odontograma del paciente",
+                        class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.icon("plus", size=16),
+                        rx.el.span("Nueva nota", class_name="ml-1.5"),
+                        on_click=NotasClinicasState.abrir_nueva,
+                        data_new_action="1",
+                        title="Nueva nota (N)",
+                        class_name="inline-flex items-center px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 cursor-pointer shadow-sm",
+                    ),
+                    class_name="flex items-center gap-2",
                 ),
                 rx.fragment(),
             ),
