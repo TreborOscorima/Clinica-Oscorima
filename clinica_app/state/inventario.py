@@ -190,12 +190,15 @@ class InventarioState(BaseState):
 
     async def eliminar_producto(self, prod_id: int):
         if not self.tiene_permiso("inventario", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar productos")
             return
         async with get_async_session() as session:
             try:
                 await svc.eliminar_producto(session, self.clinica_id, prod_id, self.sede_actual_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Producto eliminado")
         async for s in self.cargar():
             yield s
 
@@ -214,8 +217,10 @@ class InventarioState(BaseState):
 
     async def guardar_movimiento(self):
         if not self.tiene_permiso("inventario", write=True):
+            yield rx.toast.error("No tenés permiso para mover stock")
             return
         if not self.form_mov_cantidad:
+            yield rx.toast.error("La cantidad es obligatoria")
             return
         async with get_async_session() as session:
             try:
@@ -228,8 +233,10 @@ class InventarioState(BaseState):
                     motivo=self.form_mov_motivo,
                     sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Movimiento de stock registrado")
         self.modal_mov = False
         async for s in self.cargar():
             yield s

@@ -430,13 +430,16 @@ class ConfiguracionState(BaseState):
 
     async def eliminar_sede(self, sede_id: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar sucursales")
             return
         from clinica_app.services import sedes as svc_sedes
         async with get_async_session() as session:
             try:
                 await svc_sedes.eliminar(session, self.clinica_id, sede_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Sucursal eliminada")
         await self._cargar_sedes()
 
     # ══════════════════════════════════════════════════════════════════
@@ -525,12 +528,14 @@ class ConfiguracionState(BaseState):
 
     async def toggle_activo_usuario(self, user_id: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar usuarios")
             return
         async with get_async_session() as session:
             try:
                 await svc.toggle_activo(session, self.clinica_id, user_id, self.user_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._recargar_usuarios()
 
     async def _recargar_usuarios(self):
@@ -568,13 +573,15 @@ class ConfiguracionState(BaseState):
 
     async def seleccionar_moneda(self, moneda_id: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para cambiar la moneda")
             return
         from clinica_app.services import monedas as svc_m
         async with get_async_session() as session:
             try:
                 await svc_m.set_activa(session, self.clinica_id, moneda_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_monedas()
 
     async def eliminar_moneda(self, moneda_id: int):
@@ -619,24 +626,29 @@ class ConfiguracionState(BaseState):
 
     async def toggle_unidad_decimales(self, uid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar unidades")
             return
         from clinica_app.services import unidades_medida as svc_u
         async with get_async_session() as session:
             try:
                 await svc_u.toggle_decimales(session, self.clinica_id, uid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_unidades()
 
     async def eliminar_unidad(self, uid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar unidades")
             return
         from clinica_app.services import unidades_medida as svc_u
         async with get_async_session() as session:
             try:
                 await svc_u.eliminar(session, self.clinica_id, uid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Unidad eliminada")
         await self._cargar_unidades()
 
     # ══════════════════════════════════════════════════════════════════
@@ -670,35 +682,42 @@ class ConfiguracionState(BaseState):
 
     async def toggle_visible_metodo(self, mid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar métodos de pago")
             return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
                 await svc_mp.toggle_visible(session, self.clinica_id, mid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_metodos_pago()
 
     async def toggle_activo_metodo(self, mid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar métodos de pago")
             return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
                 await svc_mp.toggle_activo(session, self.clinica_id, mid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_metodos_pago()
 
     async def eliminar_metodo_pago(self, mid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar métodos de pago")
             return
         from clinica_app.services import metodos_pago_config as svc_mp
         async with get_async_session() as session:
             try:
                 await svc_mp.eliminar(session, self.clinica_id, mid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Método de pago eliminado")
         await self._cargar_metodos_pago()
 
     # ══════════════════════════════════════════════════════════════════
@@ -764,35 +783,42 @@ class ConfiguracionState(BaseState):
 
     async def set_default_impuesto(self, tid: int):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar impuestos")
             return
         from clinica_app.services import impuestos as svc_i
         async with get_async_session() as session:
             try:
                 await svc_i.set_default(session, self.clinica_id, tid)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_impuestos()
 
     async def cargar_impuestos_pais(self, pais: str):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para cargar impuestos")
             return
         from clinica_app.services import impuestos as svc_i
         async with get_async_session() as session:
             try:
                 await svc_i.cargar_pais(session, self.clinica_id, pais)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Impuestos del país cargados")
         await self._cargar_impuestos()
 
     async def toggle_mostrar_impuesto_recibo(self):
         if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar esta opción")
             return
         async with get_async_session() as session:
             try:
                 nuevo_val = await svc.toggle_mostrar_impuesto(session, self.clinica_id)
                 self.mostrar_impuesto_recibo = nuevo_val
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
 
     # ══════════════════════════════════════════════════════════════════
     # PERMISOS

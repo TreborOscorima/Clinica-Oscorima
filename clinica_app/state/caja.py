@@ -174,6 +174,7 @@ class CajaState(BaseState):
 
     async def eliminar_movimiento(self, mov_id: int):
         if not self.tiene_permiso("caja", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar movimientos")
             return
         async with get_async_session() as session:
             try:
@@ -181,8 +182,10 @@ class CajaState(BaseState):
                     session, self.clinica_id, mov_id,
                     sede_id=self.sede_actual_id, usuario_id=self.user_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Movimiento eliminado")
         await self._cargar_resumen()
         async for s in self.cargar():
             yield s

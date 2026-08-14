@@ -227,6 +227,7 @@ class TurnosState(BaseState):
 
     async def guardar_estado(self):
         if not self.tiene_permiso("turnos", write=True):
+            yield rx.toast.error("No tenés permiso para cambiar el estado del turno")
             return
         async with get_async_session() as session:
             try:
@@ -237,14 +238,17 @@ class TurnosState(BaseState):
                     {"estado": self.form_nuevo_estado, "motivo_cancelacion": self.form_motivo},
                     sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         self.modal_estado = False
+        yield rx.toast.success("Estado del turno actualizado")
         async for s in self.cargar():
             yield s
 
     async def guardar_estado_y_cobrar(self):
         if not self.tiene_permiso("turnos", write=True):
+            yield rx.toast.error("No tenés permiso para cambiar el estado del turno")
             return
         async with get_async_session() as session:
             try:
@@ -255,8 +259,10 @@ class TurnosState(BaseState):
                     {"estado": "atendido", "motivo_cancelacion": ""},
                     sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                # No redirigir a cobro si el cambio de estado falló.
+                yield rx.toast.error(str(exc))
+                return
         self.modal_estado = False
         yield rx.redirect(f"/cobro?turno_id={self.turno_sel_id}")
 

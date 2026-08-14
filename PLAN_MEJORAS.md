@@ -351,9 +351,22 @@
 
 - [ ] **Paginación/virtualización en listados grandes** (pacientes, movimientos de caja)
       — verificar que todos los listados paginan en servidor, no en memoria.
-- [ ] **Estados vacíos y mensajes de error consistentes** en los 16 módulos (revisar que
-      los `except ServiceError: pass` silenciosos muestren feedback al usuario — hoy varios
-      tragan el error sin avisar).
+- [x] **Estados vacíos y mensajes de error consistentes** — HECHO (2026-08-14). Barrido de
+      todos los `except ServiceError: pass` silenciosos en `state/*.py`: los handlers de
+      borrado/toggle/guardado ahora surfacean el error de negocio con
+      `yield rx.toast.error(str(exc))` (y toasts de éxito en borrados/movimientos, cuyo
+      resultado no es visualmente obvio), o con el campo `*_error` inline cuando el handler
+      vive dentro de un modal con feedback propio (agenda de profesionales, adjuntos). Las
+      denegaciones de permiso, antes `return` mudo, ahora avisan. Bug corregido de paso:
+      `guardar_estado_y_cobrar` (turnos) redirigía a cobro aunque el cambio de estado
+      fallara. Estados vacíos: ya cubiertos en casi todos los listados (pacientes, turnos,
+      inventario, servicios, promociones, profesionales, cuentas, compras, config, planes,
+      sesiones, odontograma, auditoría); se agregó el faltante en **movimientos de Caja**.
+      Guard de regresión `tests/test_error_feedback.py` (scan AST: ningún `except
+      ServiceError` con cuerpo solo `pass`). +1 test (272 total). Verificado E2E: egreso de
+      stock mayor al disponible → toast de error "Stock insuficiente" y stock intacto;
+      ingreso/egreso válido → toast de éxito; toaster de sonner montado por el overlay por
+      defecto (sin setup extra).
 - [ ] **Modo oscuro** (Reflex + Tailwind lo hacen barato).
 - [ ] **Observabilidad**: logging estructurado en servicios (hoy casi no hay logs),
       Sentry o similar para errores en prod, y un dashboard de salud (uptime + espacio

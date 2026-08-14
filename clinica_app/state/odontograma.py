@@ -149,6 +149,7 @@ class OdontogramaState(BaseState):
     async def guardar_pieza(self):
         if not self.tiene_permiso("historia", write=True):
             self.modal_abierto = False
+            yield rx.toast.error("No tenés permiso para editar el odontograma")
             return
         self.is_saving = True
         yield
@@ -161,8 +162,10 @@ class OdontogramaState(BaseState):
                     usuario_id=self.user_id,
                     sede_id=self.sede_actual_id,
                 )
-        except ServiceError:
-            pass
+        except ServiceError as exc:
+            self.is_saving = False
+            yield rx.toast.error(str(exc))
+            return
         self.is_saving = False
         self.modal_abierto = False
         await self._cargar()
@@ -170,6 +173,7 @@ class OdontogramaState(BaseState):
     async def resetear_pieza(self):
         if not self.tiene_permiso("historia", write=True):
             self.modal_abierto = False
+            yield rx.toast.error("No tenés permiso para editar el odontograma")
             return
         async with get_async_session() as session:
             try:
@@ -177,8 +181,9 @@ class OdontogramaState(BaseState):
                     session, self.clinica_id, self.paciente_id, self.sel_numero,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         self.modal_abierto = False
         await self._cargar()
 
@@ -201,6 +206,7 @@ class OdontogramaState(BaseState):
     async def crear_version(self):
         if not self.tiene_permiso("historia", write=True):
             self.modal_version = False
+            yield rx.toast.error("No tenés permiso para versionar el odontograma")
             return
         self.is_versionando = True
         yield
@@ -211,11 +217,14 @@ class OdontogramaState(BaseState):
                     titulo=self.ver_titulo, nota=self.ver_nota,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-        except ServiceError:
-            pass
+        except ServiceError as exc:
+            self.is_versionando = False
+            yield rx.toast.error(str(exc))
+            return
         self.is_versionando = False
         self.modal_version = False
         self.mostrar_historial = True
+        yield rx.toast.success("Versión guardada")
         await self._cargar_versiones()
 
     async def ver_version(self, version_id: int):
@@ -248,6 +257,7 @@ class OdontogramaState(BaseState):
 
     async def eliminar_version(self, version_id: int):
         if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar versiones")
             return
         async with get_async_session() as session:
             try:
@@ -255,8 +265,10 @@ class OdontogramaState(BaseState):
                     session, self.clinica_id, self.paciente_id, version_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Versión eliminada")
         await self._cargar_versiones()
 
     # ── Comparar versiones ───────────────────────────────────────────────────────

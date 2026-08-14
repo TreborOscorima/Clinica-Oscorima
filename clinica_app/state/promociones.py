@@ -184,12 +184,17 @@ class PromocionesState(BaseState):
 
     async def toggle_activo(self, promo: dict):
         if not self.tiene_permiso("promociones", write=True):
+            yield rx.toast.error("No tenés permiso para modificar promociones")
             return
         async with get_async_session() as session:
             try:
                 await svc.toggle_activo(session, self.clinica_id, int(promo["id"]), sede_id=self.sede_actual_id)
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
             except Exception:
-                pass
+                yield rx.toast.error("No se pudo actualizar la promoción")
+                return
         async for s in self.cargar():
             yield s
 
@@ -205,16 +210,24 @@ class PromocionesState(BaseState):
 
     async def ejecutar_eliminar(self):
         if not self.tiene_permiso("promociones", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar promociones")
             return
         self.is_saving = True
         yield
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, self.eliminar_id, sede_id=self.sede_actual_id)
+            except ServiceError as exc:
+                self.is_saving = False
+                yield rx.toast.error(str(exc))
+                return
             except Exception:
-                pass
+                self.is_saving = False
+                yield rx.toast.error("No se pudo eliminar la promoción")
+                return
         self.is_saving      = False
         self.modal_eliminar = False
+        yield rx.toast.success("Promoción eliminada")
         async for s in self.cargar():
             yield s
 

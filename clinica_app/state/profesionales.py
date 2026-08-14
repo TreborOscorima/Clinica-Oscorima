@@ -177,12 +177,15 @@ class ProfesionalesState(BaseState):
 
     async def eliminar(self, prof_id: int):
         if not self.tiene_permiso("profesionales", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar profesionales")
             return
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, prof_id, sede_id=self.sede_actual_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Profesional eliminado")
         async for s in self.cargar():
             yield s
 
@@ -242,14 +245,17 @@ class ProfesionalesState(BaseState):
 
     async def eliminar_disponibilidad(self, disp_id: int):
         if not self.tiene_permiso("profesionales", write=True):
+            self.agenda_error = "No tenés permiso para editar la agenda"
             return
+        self.agenda_error = ""
         async with get_async_session() as session:
             try:
                 await agenda_svc.eliminar_disponibilidad(
                     session, self.clinica_id, disp_id, usuario_id=self.user_id, sede_id=self.sede_actual_id
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.agenda_error = str(exc)
+                return
         await self._cargar_agenda()
 
     async def agregar_bloqueo(self):
@@ -276,14 +282,17 @@ class ProfesionalesState(BaseState):
 
     async def eliminar_bloqueo(self, bloqueo_id: int):
         if not self.tiene_permiso("profesionales", write=True):
+            self.agenda_error = "No tenés permiso para editar la agenda"
             return
+        self.agenda_error = ""
         async with get_async_session() as session:
             try:
                 await agenda_svc.eliminar_bloqueo(
                     session, self.clinica_id, bloqueo_id, usuario_id=self.user_id, sede_id=self.sede_actual_id
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.agenda_error = str(exc)
+                return
         await self._cargar_agenda()
 
     # ── Atajos de teclado ──────────────────────────────────────────────────────

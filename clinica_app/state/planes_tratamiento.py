@@ -202,8 +202,10 @@ class PlanesTratamientoState(BaseState):
     async def guardar_plan(self):
         if not self.tiene_permiso("historia", write=True):
             self.modal_plan = False
+            yield rx.toast.error("No tenés permiso para crear planes")
             return
         if not self.np_titulo.strip():
+            yield rx.toast.error("El título del plan es obligatorio")
             return
         self.is_saving = True
         yield
@@ -216,8 +218,10 @@ class PlanesTratamientoState(BaseState):
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
                 nuevo_id = res["id"]
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.is_saving = False
+                yield rx.toast.error(str(exc))
+                return
         self.is_saving = False
         self.modal_plan = False
         if nuevo_id:
@@ -225,7 +229,10 @@ class PlanesTratamientoState(BaseState):
         await self._cargar_planes()
 
     async def cambiar_estado_plan(self, estado: str):
-        if not self.tiene_permiso("historia", write=True) or not self.plan_actual_id:
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para modificar el plan")
+            return
+        if not self.plan_actual_id:
             return
         async with get_async_session() as session:
             try:
@@ -233,12 +240,16 @@ class PlanesTratamientoState(BaseState):
                     session, self.clinica_id, self.plan_actual_id,
                     estado=estado, usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_planes()
 
     async def eliminar_plan(self):
-        if not self.tiene_permiso("historia", write=True) or not self.plan_actual_id:
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar planes")
+            return
+        if not self.plan_actual_id:
             return
         async with get_async_session() as session:
             try:
@@ -246,8 +257,10 @@ class PlanesTratamientoState(BaseState):
                     session, self.clinica_id, self.plan_actual_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Plan eliminado")
         self.plan_actual_id = 0
         self.fases = []
         await self._cargar_planes()
@@ -283,6 +296,8 @@ class PlanesTratamientoState(BaseState):
     async def guardar_item(self):
         if not self.tiene_permiso("historia", write=True) or not self.plan_actual_id:
             self.modal_item = False
+            if not self.tiene_permiso("historia", write=True):
+                yield rx.toast.error("No tenés permiso para agregar tratamientos")
             return
         self.is_saving = True
         yield
@@ -297,14 +312,20 @@ class PlanesTratamientoState(BaseState):
                     precio=self.ni_precio,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.is_saving = False
+                self.modal_item = False
+                yield rx.toast.error(str(exc))
+                return
         self.is_saving = False
         self.modal_item = False
         await self._cargar_planes()
 
     async def cambiar_estado_item(self, item_id: int, estado: str):
-        if not self.tiene_permiso("historia", write=True) or not self.plan_actual_id:
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para modificar tratamientos")
+            return
+        if not self.plan_actual_id:
             return
         async with get_async_session() as session:
             try:
@@ -312,12 +333,16 @@ class PlanesTratamientoState(BaseState):
                     session, self.clinica_id, self.plan_actual_id, item_id,
                     estado=estado, usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_planes()
 
     async def eliminar_item(self, item_id: int):
-        if not self.tiene_permiso("historia", write=True) or not self.plan_actual_id:
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar tratamientos")
+            return
+        if not self.plan_actual_id:
             return
         async with get_async_session() as session:
             try:
@@ -325,6 +350,8 @@ class PlanesTratamientoState(BaseState):
                     session, self.clinica_id, self.plan_actual_id, item_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Tratamiento eliminado")
         await self._cargar_planes()

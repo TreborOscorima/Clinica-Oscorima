@@ -216,7 +216,9 @@ class NotasClinicasState(BaseState):
 
     async def eliminar_adjunto(self, adjunto_id: int):
         if not self.tiene_permiso("historia", write=True):
+            self.adj_error = "No tenés permiso para eliminar archivos"
             return
+        self.adj_error = ""
         stored_name = ""
         async with get_async_session() as session:
             try:
@@ -224,8 +226,9 @@ class NotasClinicasState(BaseState):
                     session, self.clinica_id, adjunto_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.adj_error = str(exc)
+                return
         # El archivo físico se borra fuera de la transacción (idempotente).
         if stored_name:
             await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
@@ -435,18 +438,22 @@ class NotasClinicasState(BaseState):
 
     async def eliminar(self, nota_id: int):
         if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar notas")
             return
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, nota_id)
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Nota eliminada")
         async for s in self.cargar():
             yield s
 
     async def firmar_nota(self, nota_id: int):
         """Firma una nota (la vuelve inmutable). Requiere permiso de escritura."""
         if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para firmar notas")
             return
         async with get_async_session() as session:
             try:
@@ -454,8 +461,10 @@ class NotasClinicasState(BaseState):
                     session, self.clinica_id, nota_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Nota firmada")
         async for s in self.cargar():
             yield s
 

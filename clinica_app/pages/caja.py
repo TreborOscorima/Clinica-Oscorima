@@ -370,6 +370,10 @@ def _seccion_movimientos() -> rx.Component:
                 ),
                 class_name="overflow-x-auto",
             ),
+            rx.cond(
+                CajaState.total == 0,
+                rx.el.p("Sin movimientos de caja", class_name="text-sm text-gray-400 italic text-center py-8"),
+            ),
             rx.el.div(
                 rx.el.button(rx.icon("chevron-left", size=15), "Anterior",
                              on_click=CajaState.prev_page, disabled=CajaState.page <= 1,

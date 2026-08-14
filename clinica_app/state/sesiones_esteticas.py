@@ -229,7 +229,10 @@ class SesionesEsteticasState(BaseState):
         await self._cargar_sesiones()
 
     async def eliminar_sesion(self):
-        if not self.tiene_permiso("historia", write=True) or not self.sesion_actual_id:
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar sesiones")
+            return
+        if not self.sesion_actual_id:
             return
         stored: list[str] = []
         async with get_async_session() as session:
@@ -238,8 +241,10 @@ class SesionesEsteticasState(BaseState):
                     session, self.clinica_id, self.sesion_actual_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+        yield rx.toast.success("Sesión eliminada")
         for name in stored:
             await asyncio.to_thread(storage.eliminar, self.clinica_id, name)
         self.sesion_actual_id = 0
@@ -301,6 +306,7 @@ class SesionesEsteticasState(BaseState):
 
     async def eliminar_foto(self, foto_id: int):
         if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar fotos")
             return
         stored_name = ""
         async with get_async_session() as session:
@@ -309,8 +315,9 @@ class SesionesEsteticasState(BaseState):
                     session, self.clinica_id, foto_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         if stored_name:
             await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
         await self._cargar_sesiones()
@@ -398,6 +405,7 @@ class SesionesEsteticasState(BaseState):
 
     async def eliminar_insumo(self, insumo_id: int):
         if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar insumos")
             return
         async with get_async_session() as session:
             try:
@@ -405,8 +413,9 @@ class SesionesEsteticasState(BaseState):
                     session, self.clinica_id, insumo_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
         await self._cargar_sesiones()
 
     # ── Agendar próxima sesión (turno) ──────────────────────────────────────────
