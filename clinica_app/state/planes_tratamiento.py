@@ -28,9 +28,18 @@ class PlanesTratamientoState(BaseState):
     pa_total:       str  = "0.00"
     pa_total_aprobado:  str = "0.00"
     pa_total_terminado: str = "0.00"
+    pa_total_cobrado:   str = "0.00"
+    pa_total_por_cobrar: str = "0.00"
+    pa_n_por_cobrar:    int  = 0
     pa_avance:      int  = 0
     pa_n_items:     int  = 0
     fases:          list[dict] = []       # [{fase, items, subtotal}]
+
+    # ── Modal: cobrar plan → Caja ───────────────────────────────────────────────
+    modal_cobro: bool = False
+    cobro_forma: str  = "efectivo"
+    is_cobrando: bool = False
+    cobro_msg:   str  = ""
 
     # ── Modal: nuevo plan ───────────────────────────────────────────────────────
     modal_plan: bool = False
@@ -45,6 +54,10 @@ class PlanesTratamientoState(BaseState):
     ni_pieza:       str  = ""
     ni_precio:      str  = ""
     is_saving:      bool = False
+
+    @rx.var
+    def puede_cobrar(self) -> bool:
+        return self.tiene_permiso("cobro", write=True)
 
     # ── Ciclo de vida ───────────────────────────────────────────────────────────
 
@@ -122,12 +135,56 @@ class PlanesTratamientoState(BaseState):
         self.pa_total           = full["total"]
         self.pa_total_aprobado  = full["total_aprobado"]
         self.pa_total_terminado = full["total_terminado"]
+        self.pa_total_cobrado   = full["total_cobrado"]
+        self.pa_total_por_cobrar = full["total_por_cobrar"]
+        self.pa_n_por_cobrar    = full["n_por_cobrar"]
         self.pa_avance          = full["avance"]
         self.pa_n_items         = full["n_items"]
         self.fases              = full["fases"]
 
     async def seleccionar_plan(self, plan_id: int):
         await self._cargar_plan(plan_id)
+
+    # ── Cobrar plan → Caja ──────────────────────────────────────────────────────
+
+    def abrir_modal_cobro(self):
+        self.cobro_forma = "efectivo"
+        self.cobro_msg = ""
+        self.modal_cobro = True
+
+    def cerrar_modal_cobro(self):
+        self.modal_cobro = False
+
+    def set_cobro_forma(self, v: str):
+        self.cobro_forma = v
+
+    async def cobrar_plan(self):
+        if not self.tiene_permiso("cobro", write=True):
+            self.cobro_msg = "No tenés permiso para cobrar."
+            return
+        if not self.plan_actual_id:
+            return
+        self.is_cobrando = True
+        self.cobro_msg = ""
+        yield
+        exito = False
+        async with get_async_session() as session:
+            try:
+                res = await svc.cobrar_plan(
+                    session, self.clinica_id, self.plan_actual_id,
+                    forma_pago=self.cobro_forma,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+                numero = res["comprobante"].get("numero", "")
+                total = res["comprobante"].get("total", "0")
+                self.cobro_msg = f"Cobro registrado: {res['cobrados']} tratamiento(s), comprobante {numero} por ${total}."
+                exito = True
+            except ServiceError as exc:
+                self.cobro_msg = str(exc)
+        self.is_cobrando = False
+        if exito:
+            self.modal_cobro = False
+        await self._cargar_planes()
 
     # ── Nuevo plan ──────────────────────────────────────────────────────────────
 

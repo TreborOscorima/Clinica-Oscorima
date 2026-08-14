@@ -62,6 +62,16 @@ def _item_row(it: dict) -> rx.Component:
             style={"backgroundColor": it["color"], "color": it["text_color"]},
             class_name="text-xs font-medium rounded-md px-2 py-1 border border-gray-300 cursor-pointer ml-3 shrink-0",
         ),
+        # Estado de cobro
+        rx.cond(
+            it["cobrado"],
+            rx.el.span(
+                rx.icon("check", size=11, class_name="mr-0.5"),
+                "Cobrado",
+                title="Ya facturado en Caja",
+                class_name="inline-flex items-center text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5 ml-2 shrink-0",
+            ),
+        ),
         # Eliminar
         rx.el.button(
             rx.icon("trash-2", size=15),
@@ -128,6 +138,32 @@ def _panel_plan() -> rx.Component:
             _kpi("Terminado", "$" + S.pa_total_terminado, "text-green-600"),
             _kpi("Tratamientos", S.pa_n_items, "text-gray-700"),
             class_name="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-white border border-gray-100 rounded-xl shadow-sm mb-4",
+        ),
+        # Franja de cobro → Caja
+        rx.el.div(
+            rx.el.div(
+                _kpi("Cobrado", "$" + S.pa_total_cobrado, "text-green-600"),
+                _kpi("Por cobrar", "$" + S.pa_total_por_cobrar, "text-amber-600"),
+                class_name="flex items-center gap-8",
+            ),
+            rx.cond(
+                S.puede_cobrar & (S.pa_n_por_cobrar > 0),
+                rx.el.button(
+                    rx.icon("badge-dollar-sign", size=16, class_name="mr-1.5"),
+                    "Cobrar $" + S.pa_total_por_cobrar,
+                    on_click=S.abrir_modal_cobro,
+                    class_name="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 cursor-pointer shadow-sm",
+                ),
+                rx.cond(
+                    S.pa_total_cobrado != "0.00",
+                    rx.el.span(
+                        rx.icon("circle-check", size=14, class_name="mr-1"),
+                        "Sin pendientes de cobro",
+                        class_name="inline-flex items-center text-xs text-green-600",
+                    ),
+                ),
+            ),
+            class_name="flex items-center justify-between p-4 bg-sky-50/50 border border-sky-100 rounded-xl mb-4",
         ),
         # Barra de avance
         rx.el.div(
@@ -284,12 +320,76 @@ def _modal_item() -> rx.Component:
     )
 
 
+_FORMAS_PAGO = [
+    ("efectivo", "Efectivo"),
+    ("tarjeta", "Tarjeta"),
+    ("transferencia", "Transferencia"),
+    ("otro", "Otro"),
+]
+
+
+def _modal_cobro() -> rx.Component:
+    return rx.cond(
+        S.modal_cobro,
+        rx.el.div(
+            rx.el.div(class_name="fixed inset-0 bg-black/40 z-40", on_click=S.cerrar_modal_cobro),
+            rx.el.div(
+                rx.el.div(
+                    rx.icon("badge-dollar-sign", size=20, class_name="text-green-600 mr-2"),
+                    rx.el.h2("Cobrar plan en Caja", class_name="text-lg font-semibold text-gray-900"),
+                    class_name="flex items-center mb-4",
+                ),
+                rx.el.p(
+                    "Se generará un comprobante por los tratamientos aprobados o realizados "
+                    "que todavía no fueron cobrados, y quedará registrado como ingreso en Caja.",
+                    class_name="text-sm text-gray-500 mb-4",
+                ),
+                rx.el.div(
+                    rx.el.span("A cobrar", class_name="text-xs text-gray-400 uppercase tracking-wide"),
+                    rx.el.span("$" + S.pa_total_por_cobrar, class_name="text-2xl font-bold text-green-600"),
+                    rx.el.span(S.pa_n_por_cobrar.to_string() + " tratamiento(s)", class_name="text-xs text-gray-400"),
+                    class_name="flex flex-col items-center p-4 bg-green-50 border border-green-100 rounded-xl mb-4",
+                ),
+                rx.el.label("Forma de pago", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                rx.el.select(
+                    *[rx.el.option(label, value=val) for val, label in _FORMAS_PAGO],
+                    value=S.cobro_forma,
+                    on_change=S.set_cobro_forma,
+                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-green-500",
+                ),
+                rx.cond(
+                    S.cobro_msg != "",
+                    rx.el.p(S.cobro_msg, class_name="text-xs text-red-500 mb-3"),
+                ),
+                rx.el.div(
+                    rx.el.button("Cancelar", on_click=S.cerrar_modal_cobro,
+                                 class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"),
+                    rx.el.button(
+                        rx.cond(
+                            S.is_cobrando,
+                            rx.el.div(rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"), "Cobrando…", class_name="flex items-center"),
+                            "Confirmar cobro",
+                        ),
+                        on_click=S.cobrar_plan,
+                        disabled=S.is_cobrando,
+                        class_name="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 cursor-pointer",
+                    ),
+                    class_name="flex justify-end gap-3",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 # ── Página ────────────────────────────────────────────────────────────────────
 
 def planes_tratamiento_page() -> rx.Component:
     return shell(
         _modal_plan(),
         _modal_item(),
+        _modal_cobro(),
         page_header(
             "Plan de tratamiento",
             "Tratamientos propuestos por fases, presupuesto y seguimiento",
