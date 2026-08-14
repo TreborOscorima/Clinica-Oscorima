@@ -196,7 +196,7 @@
       Historia Clínica. +12 tests (150 total). Verificado E2E: pieza 16 → caries +
       nota → se pinta roja con punto de nota y chip "Caries 1"; fila en
       `piezas_dentales` y `audit_log`. **Versionado del odontograma HECHO
-      (2026-08-14, commits <backend> + <ui>).** Modelo `OdontogramaVersion`
+      (2026-08-14, commits 93619be backend + f67d7a9 UI).** Modelo `OdontogramaVersion`
       (`odontograma_versiones`, snapshot de las piezas con datos en JSON +
       `con_datos`), migración `a3b4c5d6e7f8`. Servicio: `crear_version` (congela
       el estado actual, título por defecto = fecha/hora, audit accion="versionar"),
