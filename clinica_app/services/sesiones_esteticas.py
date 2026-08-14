@@ -7,7 +7,7 @@ por fecha es la línea de tiempo de evolución del paciente.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -19,6 +19,7 @@ from clinica_app.models.inventario import Producto
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
 from clinica_app.services import auditoria
+from clinica_app.services import turnos as _turnos
 from clinica_app.services.exceptions import NotFoundError, ValidationError
 
 # ── Momentos (etiqueta de la foto dentro de la sesión) ────────────────────────
@@ -74,6 +75,21 @@ def _parse_cantidad(valor: Any) -> Decimal:
     if cant < 0:
         raise ValidationError("La cantidad no puede ser negativa")
     return cant.quantize(Decimal("0.001"))
+
+
+def _parse_hora(valor: Any) -> time:
+    """Hora 'HH:MM' → time. Vacío → 09:00."""
+    txt = (str(valor) if valor is not None else "").strip()
+    if not txt:
+        return time(9, 0)
+    try:
+        hh, mm = txt[:5].split(":")
+        h, m = int(hh), int(mm)
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise ValueError
+        return time(h, m)
+    except (ValueError, TypeError):
+        raise ValidationError("Hora inválida (use HH:MM)")
 
 
 def _parse_numero_sesion(valor: Any) -> int | None:
@@ -503,3 +519,51 @@ async def eliminar_insumo(
         sede_id=sede_id or None,
     )
     await session.flush()
+
+
+# ── Agenda: turno de la próxima sesión ────────────────────────────────────────
+
+async def agendar_proxima_sesion(
+    session: AsyncSession,
+    clinica_id: int,
+    sesion_id: int,
+    *,
+    fecha: Any = None,
+    hora: Any = None,
+    profesional_id: int | None = None,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Crea un turno para la próxima sesión recomendada de la ficha estética.
+
+    NO reimplementa la agenda: arma el payload y delega en `services.turnos.crear`
+    (misma transacción). `fecha` es opcional (por defecto usa
+    `proxima_recomendada`); `hora` 'HH:MM' por defecto 09:00.
+    """
+    s = await _get_sesion(session, clinica_id, sesion_id)
+    fecha_d = _parse_fecha_opcional(fecha) if fecha not in (None, "") else s.proxima_recomendada
+    if fecha_d is None:
+        raise ValidationError("No hay fecha de próxima sesión para agendar")
+    hora_t = _parse_hora(hora)
+    fecha_hora = datetime.combine(fecha_d, hora_t)
+
+    turno = await _turnos.crear(
+        session, clinica_id,
+        {
+            "paciente_id": s.paciente_id,
+            "fecha_hora": fecha_hora.isoformat(),
+            "profesional_id": profesional_id or None,
+        },
+        created_by_id=usuario_id,
+        sede_id=sede_id,
+    )
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="agendar_turno", entidad="sesion_estetica", entidad_id=sesion_id,
+        detalle={"turno_id": turno.get("id"), "fecha_hora": fecha_hora.isoformat()},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return turno
