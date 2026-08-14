@@ -154,6 +154,127 @@ def _modal_nota() -> rx.Component:
     )
 
 
+_ADJ_UPLOAD_ID = "hc_adjuntos"
+
+
+def _cat_icon(cat: str) -> rx.Component:
+    return rx.match(
+        cat,
+        ("foto",          rx.icon("image", size=16, class_name="text-sky-500")),
+        ("radiografia",   rx.icon("scan", size=16, class_name="text-indigo-500")),
+        ("estudio",       rx.icon("file-text", size=16, class_name="text-amber-500")),
+        ("consentimiento", rx.icon("file-signature", size=16, class_name="text-green-600")),
+        ("informe",       rx.icon("clipboard-list", size=16, class_name="text-purple-500")),
+        rx.icon("paperclip", size=16, class_name="text-gray-400"),
+    )
+
+
+def _fila_adjunto(a: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            _cat_icon(a["categoria"]),
+            rx.el.div(
+                rx.el.p(a["nombre"], class_name="text-sm font-medium text-gray-800 truncate max-w-[220px]"),
+                rx.el.p(
+                    a["categoria"], " · ", a["tamano_fmt"], " · ", a["created_at"],
+                    class_name="text-xs text-gray-400 capitalize",
+                ),
+                class_name="min-w-0",
+            ),
+            class_name="flex items-center gap-2 min-w-0",
+        ),
+        rx.el.div(
+            rx.el.a(
+                rx.icon("download", size=15),
+                href=f"/api/adjunto?id={a['id']}&clinica_id={NotasClinicasState.clinica_id}&token={NotasClinicasState.download_token}",
+                target="_blank",
+                title="Descargar",
+                class_name="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer",
+            ),
+            rx.el.button(
+                rx.icon("trash-2", size=15),
+                on_click=lambda: NotasClinicasState.eliminar_adjunto(a["id"]),
+                title="Eliminar",
+                class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
+            ),
+            class_name="flex items-center gap-1 shrink-0",
+        ),
+        class_name="flex items-center justify-between gap-2 py-2 px-3 bg-white border border-gray-100 rounded-lg hover:shadow-sm transition",
+    )
+
+
+def _seccion_adjuntos() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.icon("paperclip", size=15, class_name="text-gray-500 mr-1.5"),
+            rx.el.span("Archivos del paciente", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+            class_name="flex items-center mb-2",
+        ),
+        # Controles de subida
+        rx.el.div(
+            rx.el.select(
+                rx.el.option("Foto",           value="foto"),
+                rx.el.option("Estudio",        value="estudio"),
+                rx.el.option("Radiografía",    value="radiografia"),
+                rx.el.option("Consentimiento", value="consentimiento"),
+                rx.el.option("Informe",        value="informe"),
+                rx.el.option("Otro",           value="otro"),
+                default_value=NotasClinicasState.adj_categoria,
+                on_change=NotasClinicasState.set_adj_categoria,
+                class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+            ),
+            rx.upload(
+                rx.el.div(
+                    rx.icon("upload", size=14, class_name="mr-1.5"),
+                    rx.el.span("Elegir archivos"),
+                    class_name="flex items-center text-sm text-sky-700",
+                ),
+                id=_ADJ_UPLOAD_ID,
+                multiple=True,
+                class_name="flex-1 px-3 py-1.5 border border-dashed border-sky-300 rounded-lg bg-sky-50/40 hover:bg-sky-50 cursor-pointer",
+            ),
+            rx.el.button(
+                rx.cond(
+                    NotasClinicasState.is_uploading,
+                    rx.el.div(
+                        rx.icon("loader-circle", size=15, class_name="animate-spin mr-1"),
+                        "Subiendo…",
+                        class_name="flex items-center",
+                    ),
+                    rx.el.div(rx.icon("cloud-upload", size=15, class_name="mr-1"), "Subir", class_name="flex items-center"),
+                ),
+                on_click=NotasClinicasState.handle_upload(
+                    rx.upload_files(upload_id=_ADJ_UPLOAD_ID)
+                ),
+                disabled=NotasClinicasState.is_uploading,
+                class_name="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer shrink-0",
+            ),
+            class_name="flex items-center gap-2 mb-2",
+        ),
+        rx.el.p(
+            "Formatos: imágenes, PDF, doc/docx, txt, dcm · máx 10 MB c/u",
+            class_name="text-xs text-gray-400 mb-2",
+        ),
+        rx.cond(
+            NotasClinicasState.adj_error != "",
+            rx.el.p(
+                NotasClinicasState.adj_error,
+                class_name="text-sm text-red-600 bg-red-50 p-2 rounded mb-2",
+            ),
+        ),
+        # Lista de adjuntos
+        rx.cond(
+            NotasClinicasState.adjuntos.length() > 0,
+            rx.el.div(
+                rx.foreach(NotasClinicasState.adjuntos.to(list[dict]), _fila_adjunto),
+                class_name="space-y-2",
+            ),
+            rx.el.p("Sin archivos adjuntos", class_name="text-sm text-gray-400 italic"),
+        ),
+        class_name="mb-6 p-4 bg-gray-50 border border-gray-100 rounded-xl",
+    )
+
+
 def _fila_nota(n: dict) -> rx.Component:
     return rx.el.div(
         # Header de la nota
@@ -255,6 +376,8 @@ def notas_clinicas_page() -> rx.Component:
                         class_name="flex items-start p-3 mb-4 bg-red-50 border border-red-200 rounded-xl",
                     ),
                 ),
+                # Archivos del paciente (A2)
+                _seccion_adjuntos(),
                 rx.cond(
                     NotasClinicasState.total == 0,
                     rx.el.div(

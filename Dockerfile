@@ -49,7 +49,7 @@ WORKDIR /app
 
 RUN groupadd --gid 1000 app \
     && useradd --uid 1000 --gid app --no-create-home --shell /sbin/nologin app \
-    && mkdir -p /app/.web /app/exports \
+    && mkdir -p /app/.web /app/exports /app/uploads \
     && chown -R app:app /app
 
 COPY --chown=app:app . .

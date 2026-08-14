@@ -133,14 +133,19 @@
       destacado en la Historia Clínica (`NotasClinicasState.paciente_alergias`).
       +3 tests (`test_pacientes.py`, 105 total). Verificado end-to-end en el
       navegador (crear → listar → detalle → historia).
-- [ ] **A2 · Adjuntos / archivos clínicos** (fotos, radiografías, estudios, PDF).
-      Nueva tabla `adjunto` (`clinica_id, sede_id, paciente_id, nota_id?, tipo,
-      nombre, mime, tamaño, ruta/clave, subido_por, creado_en`) + almacenamiento
-      en volumen/objeto (definir: disco del contenedor con volumen dedicado vs.
-      S3/Backblaze — reutilizar la decisión de backups del P0). Upload con
-      validación de tipo/tamaño y borrado con trazabilidad en audit log.
-      *Es el habilitador nº1: la galería estética (C) y el RX odontológico (B)
-      cuelgan de acá. Hacerlo antes que B y C.*
+- [x] **A2 · Adjuntos / archivos clínicos** (fotos, radiografías, estudios, PDF).
+      *(2026-08-13)* Tabla `adjuntos` (migración `a7b8c9d0e1f2`) con metadatos;
+      binario en disco vía `services/storage.py` (abstracción **S3-swappable**,
+      aislamiento por clínica `uploads/clinica_<id>/`, guard anti path-traversal).
+      Decisión de almacenamiento: **volumen local** `life_uploads:/app/uploads`
+      por ahora (S3/Backblaze queda para cuando se lance prod, sin tocar el resto).
+      Subida con `rx.upload` + validación de extensión/tamaño (máx 10 MB); sección
+      "Archivos del paciente" en Historia Clínica (subir/listar/descargar/borrar).
+      Descarga por endpoint `/api/adjunto` protegido con token efímero + chequeo
+      de clínica (mismo patrón que el recibo PDF). Borrado = soft-delete + baja
+      del archivo físico + **audit log**. +10 tests (125 total). Verificado E2E
+      en el navegador (subir PNG → disco+BD → descargar 200 → borrar → auditoría).
+      *Habilitador de la galería estética (C1) y el RX odontológico (B1).*
 - [ ] **A3 · Historia clínica estructurada + firma/bloqueo de nota.**
       Plantillas de nota por especialidad (campos configurables por tipo) y
       **firmar/bloquear**: una nota firmada no se edita (trazabilidad legal;

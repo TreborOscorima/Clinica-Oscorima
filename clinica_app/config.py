@@ -33,6 +33,19 @@ SQLMODEL_ECHO: bool = os.getenv("SQLMODEL_ECHO", "false").lower() == "true"
 
 REPORT_EXPORT_DIR: str = os.getenv("REPORT_EXPORT_DIR", "exports")
 
+# ── Adjuntos clínicos (A2) ──────────────────────────────────────────────────
+# Directorio raíz donde se guardan los archivos subidos (fotos, estudios,
+# radiografías, PDFs). En Docker se monta el volumen `life_uploads` acá.
+UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+# Tamaño máximo por archivo (MB) y extensiones permitidas.
+UPLOAD_MAX_MB: int = int(os.getenv("UPLOAD_MAX_MB", "10"))
+UPLOAD_ALLOWED_EXT: frozenset[str] = frozenset({
+    "jpg", "jpeg", "png", "webp", "gif", "heic",   # imágenes / fotos clínicas
+    "pdf",                                          # estudios, consentimientos
+    "doc", "docx", "txt",                           # informes
+    "dcm",                                          # DICOM (radiografía)
+})
+
 # Rate limiting de login
 LOGIN_MAX_ATTEMPTS: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
 LOGIN_WINDOW_SECS:  int = int(os.getenv("LOGIN_WINDOW_SECS", "60"))

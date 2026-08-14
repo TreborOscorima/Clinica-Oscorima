@@ -112,6 +112,45 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
         return JSONResponse({"error": "Error interno"}, status_code=500)
 
 
+async def _descargar_adjunto(request: Request) -> FileResponse | JSONResponse:
+    """Sirve un adjunto clínico. Protegido por token efímero + chequeo de clínica."""
+    auth = validar_token(request.query_params.get("token", ""))
+    if auth is None:
+        return JSONResponse({"error": "No autorizado"}, status_code=401)
+    _token_user_id, token_clinica_id = auth
+
+    try:
+        adj_id     = int(request.query_params.get("id", 0))
+        clinica_id = int(request.query_params.get("clinica_id", 0))
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "Parámetros inválidos"}, status_code=400)
+
+    if not adj_id or not clinica_id:
+        return JSONResponse({"error": "id y clinica_id requeridos"}, status_code=400)
+    if clinica_id != token_clinica_id:
+        return JSONResponse({"error": "No autorizado para esta clínica"}, status_code=403)
+
+    try:
+        from clinica_app.services import adjuntos as _adj_svc
+        from clinica_app.services import storage as _storage
+        from clinica_app.services.exceptions import NotFoundError
+        async with _get_async_session() as session:
+            adj = await _adj_svc.obtener(session, clinica_id, adj_id)
+            nombre, stored_name, mime = adj.nombre, adj.stored_name, adj.mime
+        path = _storage.ruta_absoluta(clinica_id, stored_name)
+        if not os.path.isfile(path):
+            return JSONResponse({"error": "Archivo no encontrado"}, status_code=404)
+        return FileResponse(
+            path,
+            filename=nombre,
+            media_type=mime or "application/octet-stream",
+        )
+    except NotFoundError:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    except Exception:
+        return JSONResponse({"error": "Error interno"}, status_code=500)
+
+
 # ── ASGI middleware: intercepta /api/* antes del SPA fallback ────────────────
 
 from clinica_app.api_admin import admin_routes      # /api/admin/* — panel Owner TUWAYKI
@@ -122,6 +161,7 @@ _custom_api = Router(routes=[
     Route("/api/health", _api_health),
     Route("/api/reportes/descargar/{filename}", _descargar_reporte),
     Route("/api/recibo/pdf", _generar_pdf_recibo),
+    Route("/api/adjunto", _descargar_adjunto),
     Route("/health", _health_check),
     *admin_routes,
     *registro_routes,

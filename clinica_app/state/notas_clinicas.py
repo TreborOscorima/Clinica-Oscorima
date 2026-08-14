@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import reflex as rx
 
 from clinica_app.database import get_async_session
+from clinica_app.services import adjuntos as adj_svc
 from clinica_app.services import notas_clinicas as svc
+from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
+
+_ADJ_UPLOAD_ID = "hc_adjuntos"
 
 
 class NotasClinicasState(BaseState):
@@ -36,6 +41,12 @@ class NotasClinicasState(BaseState):
     # Catálogos
     profesionales_cat: list[dict] = []
 
+    # ── Adjuntos (A2) ──────────────────────────────────────────────────────────
+    adjuntos:      list[dict] = []
+    adj_categoria: str        = "otro"
+    adj_error:     str        = ""
+    is_uploading:  bool       = False
+
     async def on_mount(self):
         self._expirar_si_vencio()
         if not self.is_authenticated:
@@ -51,6 +62,7 @@ class NotasClinicasState(BaseState):
             try:
                 self.paciente_id = int(pid_str)
                 await self._cargar_nombre_paciente()
+                await self._cargar_adjuntos()
                 async for s in self.cargar():
                     yield s
             except (ValueError, TypeError):
@@ -111,6 +123,83 @@ class NotasClinicasState(BaseState):
         self.page            = 1
         async for s in self.cargar():
             yield s
+
+    # ── Adjuntos (A2) ──────────────────────────────────────────────────────────
+
+    def set_adj_categoria(self, v: str):
+        self.adj_categoria = v
+
+    async def _cargar_adjuntos(self):
+        if not self.paciente_id:
+            self.adjuntos = []
+            return
+        async with get_async_session() as session:
+            self.adjuntos = await adj_svc.listar_por_paciente(
+                session, self.clinica_id, self.paciente_id, sede_id=self.sede_actual_id
+            )
+
+    async def handle_upload(self, files: list[rx.UploadFile]):
+        """Recibe los archivos subidos, los valida, guarda en disco y registra."""
+        self.adj_error = ""
+        if not self.tiene_permiso("historia", write=True):
+            self.adj_error = "Sin permiso de escritura"
+            return
+        if not self.paciente_id:
+            self.adj_error = "Seleccioná un paciente primero"
+            return
+        if not files:
+            return
+
+        self.is_uploading = True
+        yield
+
+        guardados = 0
+        try:
+            for file in files:
+                data = await file.read()
+                nombre = file.filename or file.name or "archivo"
+                try:
+                    stored = await asyncio.to_thread(
+                        storage.guardar, self.clinica_id, nombre, data
+                    )
+                except ServiceError as exc:
+                    self.adj_error = str(exc)
+                    continue
+                async with get_async_session() as session:
+                    await adj_svc.crear(
+                        session, self.clinica_id, self.paciente_id,
+                        nombre=nombre,
+                        stored_name=stored,
+                        mime=file.content_type,
+                        tamano=len(data),
+                        categoria=self.adj_categoria,
+                        created_by_id=self.user_id,
+                        sede_id=self.sede_actual_id,
+                    )
+                guardados += 1
+        except Exception:
+            self.adj_error = "Ocurrió un error al subir el archivo."
+
+        self.is_uploading = False
+        await self._cargar_adjuntos()
+        yield rx.clear_selected_files(_ADJ_UPLOAD_ID)
+
+    async def eliminar_adjunto(self, adjunto_id: int):
+        if not self.tiene_permiso("historia", write=True):
+            return
+        stored_name = ""
+        async with get_async_session() as session:
+            try:
+                stored_name = await adj_svc.eliminar(
+                    session, self.clinica_id, adjunto_id,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError:
+                pass
+        # El archivo físico se borra fuera de la transacción (idempotente).
+        if stored_name:
+            await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
+        await self._cargar_adjuntos()
 
     async def prev_page(self):
         if self.page > 1:

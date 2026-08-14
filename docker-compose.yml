@@ -78,6 +78,7 @@ services:
       FRONTEND_PORT: "3000"
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://life.tuwayki.app}
       REPORT_EXPORT_DIR: /app/exports
+      UPLOAD_DIR: /app/uploads
       # Registro público (/api/registro): trial y rate-limit del core.
       # Un solo contenedor de app → el fallback en memoria es seguro.
       LIFE_TRIAL_DAYS: ${LIFE_TRIAL_DAYS:-15}
@@ -85,6 +86,7 @@ services:
     volumes:
       - life_web:/app/.web
       - life_exports:/app/exports
+      - life_uploads:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/ping"]
       interval: 30s
@@ -109,6 +111,7 @@ volumes:
   life_mysql_data:
   life_web:
   life_exports:
+  life_uploads:
 
 networks:
   life_internal:
