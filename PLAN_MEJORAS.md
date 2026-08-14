@@ -197,12 +197,25 @@
       nota → se pinta roja con punto de nota y chip "Caries 1"; fila en
       `piezas_dentales` y `audit_log`. *(Versionado por fecha para ver evolución
       queda como mejora futura; hoy es el estado actual del odontograma.)*
-- [ ] **B2 · Plan de tratamiento por fases + presupuesto odontológico.**
-      Tratamientos propuestos sobre piezas del odontograma, agrupados en fases,
-      con presupuesto (aprovecha `Servicio.precio` e historial de precios) y
-      seguimiento de avance (propuesto → aprobado → en curso → terminado).
-      Enlaza cada fase realizada con su cobro (Caja) y sus insumos
-      (`servicio_insumos`, que ya existe).
+- [x] **B2 · Plan de tratamiento por fases + presupuesto odontológico.** *(HECHO
+      2026-08-14, commits 6a0702a backend + 3d3c4b9 UI.)* Modelos
+      `PlanTratamiento` + `PlanTratamientoItem` (item opcional sobre pieza FDI del
+      odontograma y sobre `Servicio` del catálogo, del que hereda precio; `fase`,
+      `estado` de avance propuesto→aprobado→en_curso→terminado, `comprobante_id`
+      para enlazar a Caja a futuro). Migración aditiva `d0e1f2a3b4c5`. Servicio
+      `planes_tratamiento` con CRUD de plan e items, presupuesto
+      (total/aprobado/terminado) y avance por % de items terminados, agrupado por
+      fase; todo auditado. UI `/plan-tratamiento?paciente_id=X`: lista de planes,
+      KPIs, barra de avance, estado por plan e item, modales de plan y tratamiento;
+      botón desde la Historia Clínica. +18 tests (168 total). Verificado E2E:
+      plan con Fase 1 (Extracción 18, $8000) + Fase 2 (Corona 21, $15000),
+      presupuesto $23000, marcar terminado/en_curso recalcula aprobado $23000 /
+      terminado $8000 / avance 50%; filas en `planes_tratamiento`/
+      `plan_tratamiento_items` y `audit_log`. *(El cobro automático desde el plan
+      hacia Caja y el consumo de `servicio_insumos` quedan como mejora futura; hoy
+      el vínculo con Caja es el campo `comprobante_id`. Edición completa de un item
+      —descripción/precio/fase— también futura; hoy se cambia estado o se borra y
+      recarga.)*
 
 ### Fase C — Diferenciador ESTÉTICO
 
