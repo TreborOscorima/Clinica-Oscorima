@@ -12,6 +12,7 @@ from clinica_app.services import consentimientos as cons_svc
 from clinica_app.services import notas_clinicas as svc
 from clinica_app.services import plantillas_consentimiento
 from clinica_app.services import plantillas_nota
+from clinica_app.services import recetas as rec_svc
 from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -62,6 +63,16 @@ class NotasClinicasState(BaseState):
     cons_error:          str  = ""
     is_generating_cons:  bool = False
 
+    # ── Receta / indicación (A5) ────────────────────────────────────────────────
+    rec_tipos_cat:       list[dict] = []
+    modal_rec_abierto:   bool = False
+    rec_tipo:            str  = "receta"
+    rec_diagnostico:     str  = ""
+    rec_cuerpo:          str  = ""
+    rec_profesional:     str  = ""
+    rec_error:           str  = ""
+    is_generating_rec:   bool = False
+
     async def on_mount(self):
         self._expirar_si_vencio()
         if not self.is_authenticated:
@@ -100,6 +111,7 @@ class NotasClinicasState(BaseState):
     async def _cargar_catalogos(self):
         self.plantillas_cat = plantillas_nota.opciones()
         self.cons_tipos_cat = plantillas_consentimiento.opciones()
+        self.rec_tipos_cat  = rec_svc.tipos()
         from clinica_app.models.profesional import Profesional
         from sqlmodel import select
         async with get_async_session() as session:
@@ -277,6 +289,67 @@ class NotasClinicasState(BaseState):
 
         self.is_generating_cons = False
         self.modal_cons_abierto = False
+        await self._cargar_adjuntos()
+
+    # ── Receta / indicación (A5) ────────────────────────────────────────────────
+
+    def set_rec_tipo(self, v: str):        self.rec_tipo = v
+    def set_rec_diagnostico(self, v: str): self.rec_diagnostico = v
+    def set_rec_cuerpo(self, v: str):      self.rec_cuerpo = v
+    def set_rec_profesional(self, v: str): self.rec_profesional = v
+
+    def abrir_receta(self):
+        self.rec_tipo        = "receta"
+        self.rec_diagnostico = ""
+        self.rec_cuerpo      = ""
+        self.rec_profesional = ""
+        self.rec_error       = ""
+        self.modal_rec_abierto = True
+
+    def cerrar_receta(self):
+        self.modal_rec_abierto = False
+
+    async def generar_receta(self):
+        self.rec_error = ""
+        if not self.tiene_permiso("historia", write=True):
+            self.rec_error = "Sin permiso de escritura"
+            return
+        if not self.paciente_id:
+            self.rec_error = "Seleccioná un paciente primero"
+            return
+        if not self.rec_cuerpo.strip():
+            self.rec_error = "Escribí el contenido"
+            return
+
+        self.is_generating_rec = True
+        yield
+        try:
+            async with get_async_session() as session:
+                await rec_svc.generar(
+                    session, self.clinica_id, self.paciente_id,
+                    tipo=self.rec_tipo,
+                    cuerpo=self.rec_cuerpo,
+                    diagnostico=self.rec_diagnostico,
+                    profesional_nombre=self.rec_profesional,
+                    usuario_id=self.user_id,
+                    sede_id=self.sede_actual_id,
+                    clinica_nombre=CLINICA_NOMBRE,
+                )
+        except ServiceError as exc:
+            self.rec_error = str(exc)
+            self.is_generating_rec = False
+            return
+        except RuntimeError as exc:
+            self.rec_error = str(exc)
+            self.is_generating_rec = False
+            return
+        except Exception:
+            self.rec_error = "No se pudo generar el documento."
+            self.is_generating_rec = False
+            return
+
+        self.is_generating_rec = False
+        self.modal_rec_abierto = False
         await self._cargar_adjuntos()
 
     async def prev_page(self):

@@ -16,7 +16,7 @@ from clinica_app.models.adjunto import Adjunto
 from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError
 
-_CATEGORIAS = frozenset({"foto", "estudio", "radiografia", "consentimiento", "informe", "otro"})
+_CATEGORIAS = frozenset({"foto", "estudio", "radiografia", "consentimiento", "receta", "informe", "otro"})
 
 
 def _fmt_size(n: int) -> str:

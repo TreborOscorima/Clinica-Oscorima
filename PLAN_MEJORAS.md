@@ -167,9 +167,21 @@
       PDF queda descargable/imprimible en la lista de adjuntos. +7 tests (131 total).
       Verificado E2E: consentimiento estético para paciente → PDF `%PDF-1.4` en disco,
       fila en `adjuntos` y `audit_log`.
-- [ ] **A5 · Recetas / indicaciones imprimibles.** A partir de la nota tipo
-      `indicacion`, emitir un PDF con formato de receta/indicación (mismo motor
-      de PDF). Cierra el circuito asistencial básico común a ambos rubros.
+- [x] **A5 · Recetas / indicaciones imprimibles — HECHO (2026-08-14).** PDF A5
+      (ReportLab, `services/pdf_receta.py`, devuelve **bytes**) en dos modos:
+      "receta" (encabezado `Rp/`, cada renglón numerado) e "indicación" (texto
+      corrido). Orquestación en `services/recetas.py`: genera → guarda en disco →
+      `Adjunto` categoría **"receta"** (agregada a `_CATEGORIAS`) → auditoría
+      (`accion=generar`). Sin migración. Modal "Receta / Indicación" en Historia
+      Clínica (tipo, diagnóstico, cuerpo, profesional); PDF descargable/imprimible
+      en la lista de adjuntos. +7 tests (138 total). Verificado E2E: receta con 3
+      renglones para paciente → PDF `%PDF-1.4` en disco, fila `adjuntos` y
+      `audit_log`. **Con A5 se cierra toda la Fase A.**
+
+> ✅ **Fase A COMPLETA (2026-08-14):** ficha médica (A1), adjuntos (A2), historia
+> estructurada + firma (A3), consentimiento (A4) y recetas/indicaciones (A5). El
+> producto pasó de "gestión administrativa" a "gestión clínica" con base común a
+> estética y odontología. Siguiente: Fase B (diferenciador odontológico).
 
 ### Fase B — Diferenciador ODONTOLÓGICO
 
