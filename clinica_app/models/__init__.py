@@ -25,6 +25,7 @@ from clinica_app.models.impuesto_tasa import ImpuestoTasa
 from clinica_app.models.modulo import ClinicaModulo
 from clinica_app.models.audit_log import AuditLog
 from clinica_app.models.adjunto import Adjunto
+from clinica_app.models.pieza_dental import PiezaDental
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
@@ -42,4 +43,5 @@ __all__ = [
     "ClinicaModulo",
     "AuditLog",
     "Adjunto",
+    "PiezaDental",
 ]
