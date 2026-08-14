@@ -252,8 +252,12 @@
       unidad. +12 tests (194 total). Verificado E2E: ficha nº 2 / próxima
       10/09/2026 / parámetros + insumo "Ácido hialurónico Juvederm 1 ml";
       filas en `sesiones_esteticas`/`sesion_insumos` y `audit_log`
-      (editar/agregar_insumo). *(Decremento de stock por insumo queda como mejora
-      futura.)* **Turno automático de próxima sesión HECHO (2026-08-14, commits
+      (editar/agregar_insumo). **Decremento de stock por insumo HECHO (2026-08-14,
+      commits 7a782a0 backend + cf923de UI):** `agregar_insumo` descuenta stock del
+      producto ligado delegando en `inventario.registrar_movimiento_stock` (egreso,
+      no bloqueante; si falta stock devuelve `stock_warning`). +4 tests (226 total).
+      Verificado E2E: insumo Toxina 8 UI → stock 50→42, `inv_movimientos` egreso
+      referencia `sesion:1`. **Turno automático de próxima sesión HECHO (2026-08-14, commits
       432eff3 backend + d6a0ce5 UI):** `agendar_proxima_sesion` crea un turno para
       la `proxima_recomendada` delegando en `services.turnos.crear` (no
       reimplementa la agenda); botón en la ficha → modal (fecha/hora/profesional)
