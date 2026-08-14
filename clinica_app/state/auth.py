@@ -9,6 +9,7 @@ from clinica_app.services.auth import autenticar, datos_usuario, sedes_para_usua
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.services.permisos import cargar_permisos
 from clinica_app.services import modulos_empresa as _modulos_empresa
+from clinica_app.services import especialidad as _especialidad
 from clinica_app.state.base import BaseState
 
 
@@ -56,6 +57,7 @@ class AuthState(BaseState):
                     session, datos["clinica_id"]
                 )
                 modulos_off = _modulos_empresa.modulos_deshabilitados(_overrides)
+                clinica_rubro = await _especialidad.rubro_de(session, datos["clinica_id"])
         except ServiceError as exc:
             self.error_msg  = str(exc)
             self.is_loading = False
@@ -71,6 +73,7 @@ class AuthState(BaseState):
         self.is_authenticated = True
         self.login_at         = time.time()   # marca de inicio para el TTL de sesión
         self.is_loading       = False
+        self.clinica_rubro    = clinica_rubro
         self._aplicar_permisos(permisos, modulos_off)
         self.sedes_disponibles = sedes
 

@@ -5,6 +5,7 @@ import time
 import reflex as rx
 
 from clinica_app.config import SESSION_TTL_SECONDS
+from clinica_app.services import especialidad
 from clinica_app.services.download_token import crear_token
 from clinica_app.services.sesion import sesion_vencida
 
@@ -30,6 +31,9 @@ class BaseState(rx.State):
     sidebar_open:       bool = False
     sede_actual_id:     int  = 0
     sede_actual_nombre: str  = ""
+    # Perfil de especialidad de la clínica (D1) — se carga al login desde
+    # Clinica.rubro y decide qué módulos de especialidad se muestran.
+    clinica_rubro:      str  = ""
 
     # RBAC — permisos cacheados al login
     _permisos: dict[str, dict[str, bool]] = {}
@@ -56,6 +60,17 @@ class BaseState(rx.State):
         así el guard de cada `on_mount` redirige a /login."""
         if self._sesion_expirada():
             self.reset()
+
+    # ── Perfil de especialidad (D1) ──────────────────────────────────────────
+    @rx.var
+    def esp_dental(self) -> bool:
+        """La clínica muestra los módulos dentales (odontograma, plan)."""
+        return especialidad.dental_activa(self.clinica_rubro)
+
+    @rx.var
+    def esp_estetica(self) -> bool:
+        """La clínica muestra los módulos estéticos (galería, ficha)."""
+        return especialidad.estetica_activa(self.clinica_rubro)
 
     @rx.var
     def is_admin(self) -> bool:
