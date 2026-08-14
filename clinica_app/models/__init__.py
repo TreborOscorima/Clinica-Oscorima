@@ -27,6 +27,7 @@ from clinica_app.models.audit_log import AuditLog
 from clinica_app.models.adjunto import Adjunto
 from clinica_app.models.pieza_dental import PiezaDental
 from clinica_app.models.odontograma_version import OdontogramaVersion
+from clinica_app.models.agenda import DisponibilidadProfesional, BloqueoAgenda
 from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamientoItem
 from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
 
@@ -48,6 +49,7 @@ __all__ = [
     "Adjunto",
     "PiezaDental",
     "OdontogramaVersion",
+    "DisponibilidadProfesional", "BloqueoAgenda",
     "PlanTratamiento", "PlanTratamientoItem",
     "SesionEstetica", "SesionInsumo",
 ]

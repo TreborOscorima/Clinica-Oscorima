@@ -11,10 +11,44 @@ from sqlmodel import select
 
 from clinica_app.models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
 from clinica_app.models.paciente import Paciente
+from clinica_app.models.servicio import Servicio
 from clinica_app.models.turno import EstadoTurno, Turno
 from clinica_app.models.turno_servicio import TurnoServicio
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
+from clinica_app.services import agenda as _agenda
 from clinica_app.services import notificaciones as notif
+
+
+async def _duracion_servicio(session: AsyncSession, clinica_id: int, servicio_id: int | None) -> int:
+    """Duración (min) del servicio del turno; 30 por defecto si no hay servicio."""
+    if not servicio_id:
+        return 30
+    s = (await session.execute(
+        select(Servicio).where(Servicio.id == servicio_id, Servicio.clinica_id == clinica_id)
+    )).scalars().first()
+    return getattr(s, "duracion_min", None) or 30
+
+
+async def _validar_agenda(
+    session: AsyncSession,
+    clinica_id: int,
+    *,
+    profesional_id: int | None,
+    servicio_id: int | None,
+    fecha_hora: datetime,
+    sede_id: int,
+    excluir_turno_id: int = 0,
+) -> None:
+    """Corta con ConflictError si el turno choca con la agenda del profesional."""
+    if not profesional_id:
+        return
+    dur = await _duracion_servicio(session, clinica_id, servicio_id)
+    res = await _agenda.verificar(
+        session, clinica_id, profesional_id, fecha_hora,
+        duracion_min=dur, sede_id=sede_id, excluir_turno_id=excluir_turno_id,
+    )
+    if res["conflictos"]:
+        raise ConflictError(" ".join(res["conflictos"]))
 
 
 def _dump(t: Turno) -> dict[str, Any]:
@@ -149,6 +183,7 @@ async def crear(
     payload: dict[str, Any],
     created_by_id: int | None = None,
     sede_id: int = 0,
+    validar_agenda: bool = False,
 ) -> dict[str, Any]:
     paciente_id = payload.get("paciente_id")
     if not paciente_id:
@@ -173,6 +208,15 @@ async def crear(
         fecha_hora = datetime.fromisoformat(str(fecha_hora_str))
     except ValueError as exc:
         raise ServiceError("fecha_hora inválida (ISO 8601)") from exc
+
+    if validar_agenda:
+        await _validar_agenda(
+            session, clinica_id,
+            profesional_id=payload.get("profesional_id"),
+            servicio_id=payload.get("servicio_id"),
+            fecha_hora=fecha_hora,
+            sede_id=sede_id,
+        )
 
     turno = Turno(
         clinica_id=clinica_id,
@@ -257,16 +301,28 @@ async def cambiar_estado(
 
 
 async def reprogramar(
-    session: AsyncSession, clinica_id: int, turno_id: int, payload: dict[str, Any], sede_id: int = 0
+    session: AsyncSession, clinica_id: int, turno_id: int, payload: dict[str, Any], sede_id: int = 0,
+    validar_agenda: bool = False,
 ) -> dict[str, Any]:
     turno = await obtener(session, clinica_id, turno_id, sede_id=sede_id)
     nueva_fecha = payload.get("fecha_hora")
     if not nueva_fecha:
         raise ServiceError("fecha_hora requerida")
     try:
-        turno.fecha_hora = datetime.fromisoformat(str(nueva_fecha))
+        nueva_dt = datetime.fromisoformat(str(nueva_fecha))
     except ValueError as exc:
         raise ServiceError("fecha_hora inválida") from exc
+
+    if validar_agenda:
+        await _validar_agenda(
+            session, clinica_id,
+            profesional_id=turno.profesional_id,
+            servicio_id=turno.servicio_id,
+            fecha_hora=nueva_dt,
+            sede_id=sede_id,
+            excluir_turno_id=turno_id,
+        )
+    turno.fecha_hora = nueva_dt
     if payload.get("estado"):
         try:
             turno.estado = EstadoTurno(payload["estado"])
