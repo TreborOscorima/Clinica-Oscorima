@@ -8,14 +8,16 @@ por fecha es la línea de tiempo de evolución del paciente.
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from clinica_app.models.adjunto import Adjunto
+from clinica_app.models.inventario import Producto
 from clinica_app.models.paciente import Paciente
-from clinica_app.models.sesion_estetica import SesionEstetica
+from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
 from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError, ValidationError
 
@@ -49,6 +51,42 @@ def _parse_fecha(valor: Any) -> date:
         raise ValidationError("Fecha inválida (use AAAA-MM-DD)")
 
 
+def _parse_fecha_opcional(valor: Any) -> date | None:
+    """Fecha que puede quedar vacía (p. ej. próxima sesión recomendada)."""
+    if isinstance(valor, date):
+        return valor
+    txt = (str(valor) if valor is not None else "").strip()
+    if not txt:
+        return None
+    try:
+        return datetime.strptime(txt[:10], "%Y-%m-%d").date()
+    except ValueError:
+        raise ValidationError("Fecha inválida (use AAAA-MM-DD)")
+
+
+def _parse_cantidad(valor: Any) -> Decimal:
+    if valor is None or valor == "":
+        return Decimal("0")
+    try:
+        cant = Decimal(str(valor).replace(",", "."))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValidationError("Cantidad inválida")
+    if cant < 0:
+        raise ValidationError("La cantidad no puede ser negativa")
+    return cant.quantize(Decimal("0.001"))
+
+
+def _parse_numero_sesion(valor: Any) -> int | None:
+    txt = (str(valor) if valor is not None else "").strip()
+    if not txt:
+        return None
+    try:
+        n = int(txt)
+    except (ValueError, TypeError):
+        return None
+    return n if n > 0 else None
+
+
 # ── Serialización ─────────────────────────────────────────────────────────────
 
 def _dump_foto(a: Adjunto) -> dict[str, Any]:
@@ -57,6 +95,17 @@ def _dump_foto(a: Adjunto) -> dict[str, Any]:
         "nombre":   a.nombre or "",
         "momento":  a.momento or "antes",
         "mime":     a.mime or "",
+    }
+
+
+def _dump_insumo(i: SesionInsumo) -> dict[str, Any]:
+    return {
+        "id":          i.id or 0,
+        "sesion_id":   i.sesion_id,
+        "producto_id": i.producto_id or 0,
+        "descripcion": i.descripcion or "",
+        "cantidad":    f"{(i.cantidad or Decimal('0')).normalize():f}",
+        "unidad":      i.unidad or "",
     }
 
 
@@ -69,6 +118,11 @@ def _dump_sesion(s: SesionEstetica) -> dict[str, Any]:
         "titulo":      s.titulo or "",
         "zona":        s.zona or "",
         "notas":       s.notas or "",
+        # Ficha clínica (C2)
+        "numero_sesion":     s.numero_sesion or 0,
+        "parametros":        s.parametros or "",
+        "proxima":           s.proxima_recomendada.strftime("%Y-%m-%d") if s.proxima_recomendada else "",
+        "proxima_fmt":       s.proxima_recomendada.strftime("%d/%m/%Y") if s.proxima_recomendada else "",
     }
 
 
@@ -83,6 +137,19 @@ async def _fotos_de(session: AsyncSession, clinica_id: int, sesion_id: int) -> l
             Adjunto.is_active.is_(True),
         )
         .order_by(Adjunto.created_at.asc(), Adjunto.id.asc())
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def _insumos_de(session: AsyncSession, clinica_id: int, sesion_id: int) -> list[SesionInsumo]:
+    stmt = (
+        select(SesionInsumo)
+        .where(
+            SesionInsumo.clinica_id == clinica_id,
+            SesionInsumo.sesion_id == sesion_id,
+            SesionInsumo.is_active.is_(True),
+        )
+        .order_by(SesionInsumo.created_at.asc(), SesionInsumo.id.asc())
     )
     return list((await session.execute(stmt)).scalars().all())
 
@@ -142,6 +209,7 @@ async def obtener_sesion(
     d["durante"] = [f for f in fotos if f["momento"] == "durante"]
     d["despues"] = [f for f in fotos if f["momento"] == "despues"]
     d["n_fotos"] = len(fotos)
+    d["insumos"] = [_dump_insumo(i) for i in await _insumos_de(session, clinica_id, sesion_id)]
     return d
 
 
@@ -207,6 +275,9 @@ async def actualizar_sesion(
     titulo: str | None = None,
     zona: str | None = None,
     notas: str | None = None,
+    numero_sesion: Any = None,
+    parametros: str | None = None,
+    proxima: Any = None,
     usuario_id: int | None = None,
     sede_id: int = 0,
 ) -> dict[str, Any]:
@@ -222,6 +293,12 @@ async def actualizar_sesion(
         s.zona = zona.strip()[:120] or None
     if notas is not None:
         s.notas = notas.strip() or None
+    if numero_sesion is not None:
+        s.numero_sesion = _parse_numero_sesion(numero_sesion)
+    if parametros is not None:
+        s.parametros = parametros.strip() or None
+    if proxima is not None:
+        s.proxima_recomendada = _parse_fecha_opcional(proxima)
     await session.flush()
     await auditoria.registrar(
         session, clinica_id,
@@ -248,6 +325,8 @@ async def eliminar_sesion(
     for f in await _fotos_de(session, clinica_id, sesion_id):
         stored.append(f.stored_name)
         f.soft_delete()
+    for i in await _insumos_de(session, clinica_id, sesion_id):
+        i.soft_delete()
     s.soft_delete()
     await auditoria.registrar(
         session, clinica_id,
@@ -336,3 +415,91 @@ async def eliminar_foto(
     )
     await session.flush()
     return stored_name
+
+
+# ── Insumos aplicados (ficha C2) ──────────────────────────────────────────────
+
+async def agregar_insumo(
+    session: AsyncSession,
+    clinica_id: int,
+    sesion_id: int,
+    *,
+    descripcion: str,
+    producto_id: int | None = None,
+    cantidad: Any = None,
+    unidad: str | None = None,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Registra un insumo/producto aplicado en la sesión (descriptivo, no mueve
+    stock). Si viene `producto_id`, hereda el nombre cuando falta descripción."""
+    await _get_sesion(session, clinica_id, sesion_id)  # valida pertenencia
+    descripcion = (descripcion or "").strip()
+    producto_id = producto_id or None
+
+    if producto_id:
+        prod = (await session.execute(
+            select(Producto).where(
+                Producto.id == producto_id,
+                Producto.clinica_id == clinica_id,
+                Producto.is_active.is_(True),
+            )
+        )).scalars().first()
+        if prod is None:
+            raise NotFoundError("Producto no encontrado")
+        if not descripcion:
+            descripcion = prod.nombre
+
+    if not descripcion:
+        raise ValidationError("La descripción del insumo es obligatoria")
+
+    cant = _parse_cantidad(cantidad)
+    i = SesionInsumo(
+        clinica_id=clinica_id,
+        sesion_id=sesion_id,
+        sede_id=sede_id or None,
+        producto_id=producto_id,
+        descripcion=descripcion[:200],
+        cantidad=cant,
+        unidad=(unidad or "").strip()[:20] or None,
+    )
+    session.add(i)
+    await session.flush()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="agregar_insumo", entidad="sesion_estetica", entidad_id=sesion_id,
+        detalle={"insumo_id": i.id, "descripcion": descripcion[:200], "cantidad": str(cant)},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return _dump_insumo(i)
+
+
+async def eliminar_insumo(
+    session: AsyncSession,
+    clinica_id: int,
+    insumo_id: int,
+    *,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> None:
+    i = (await session.execute(
+        select(SesionInsumo).where(
+            SesionInsumo.id == insumo_id,
+            SesionInsumo.clinica_id == clinica_id,
+            SesionInsumo.is_active.is_(True),
+        )
+    )).scalars().first()
+    if i is None:
+        raise NotFoundError("Insumo no encontrado")
+    sesion_id = i.sesion_id
+    i.soft_delete()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="eliminar_insumo", entidad="sesion_estetica", entidad_id=sesion_id,
+        detalle={"insumo_id": insumo_id},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
