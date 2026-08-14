@@ -95,8 +95,23 @@
       especialidad, firma/bloqueo de nota (una nota firmada no se edita — trazabilidad legal).
       *→ Detallado y priorizado en el bloque **P2-ESP** (Fase A: A2 adjuntos, A3 plantillas +
       firma). Este ítem se cierra al completar esa fase.*
-- [ ] **Agenda profesional real**: disponibilidad/horarios por profesional y sede,
-      bloqueos (vacaciones), detección de solapamientos al crear turno.
+- [x] **Agenda profesional real — HECHO (2026-08-14, commits 7f172d5 backend + cf92f12 UI).**
+      Modelos `DisponibilidadProfesional` (franjas semanales por profesional:
+      día 0-6 + HH:MM inicio/fin) y `BloqueoAgenda` (rango vacaciones/ausencia).
+      Migración aditiva `b4c5d6e7f8a9`. `services/agenda.py`: CRUD de
+      disponibilidad y bloqueos (auditado) + **`verificar`** que al crear/
+      reprogramar un turno detecta (a) solapamiento con otro turno del mismo
+      profesional —usa `duracion_min` del servicio—, (b) choque con un bloqueo y
+      (c) turno fuera del horario de atención (solo si hay horario cargado; sin
+      franjas = siempre disponible). `turnos.crear`/`reprogramar` ganan
+      `validar_agenda` (opt-in): la UI de turnos lo activa y corta con
+      `ConflictError`; el flujo de estética queda intacto (default off). UI:
+      modal "Agenda" por profesional (calendar-clock) con secciones de horario y
+      bloqueos; el modal de turno muestra el conflicto en rojo. +16 tests (263
+      total). Verificado E2E: prof "Ana García" con horario Lunes 09-13 → turno
+      dentro de horario se crea; contra la DB real el servicio detecta
+      solapamiento ("Se superpone con el turno de María…"), fuera de horario
+      ("Fuera del horario… (Lunes)") y `turnos.crear` corta con ConflictError.
 - [ ] **Recordatorios de turnos activos**: `tasks/recordatorios.py` existe — conectarlo a
       un scheduler real (cron/APScheduler) con envío WhatsApp/email y estado de envío.
 - [ ] **Facturación electrónica (Perú/SUNAT)**: hoy los comprobantes son internos. Integrar
