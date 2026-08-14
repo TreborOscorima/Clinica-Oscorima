@@ -175,12 +175,24 @@ def _ficha_card() -> rx.Component:
                 class_name="flex items-center justify-between mb-2",
             ),
             rx.cond(
+                S.insumo_stock_msg != "",
+                rx.el.div(
+                    rx.icon("triangle-alert", size=13, class_name="text-amber-500 mr-1.5 shrink-0"),
+                    rx.el.span(S.insumo_stock_msg, class_name="text-xs text-amber-700"),
+                    class_name="flex items-center mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg",
+                ),
+            ),
+            rx.cond(
                 S.insumos.length() > 0,
                 rx.el.div(
                     rx.foreach(S.insumos.to(list[dict]), _insumo_row),
                     class_name="border border-gray-200 rounded-lg overflow-hidden",
                 ),
                 rx.el.p("Sin insumos registrados.", class_name="text-xs text-gray-400 italic"),
+            ),
+            rx.el.p(
+                "Al elegir un producto del inventario, la cantidad se descuenta del stock.",
+                class_name="text-[11px] text-gray-400 mt-2",
             ),
             class_name="mt-4 pt-4 border-t border-gray-100",
         ),

@@ -55,6 +55,7 @@ class SesionesEsteticasState(BaseState):
     ni_descripcion: str = ""
     ni_cantidad:    str = ""
     ni_unidad:      str = ""
+    insumo_stock_msg: str = ""   # aviso de stock tras registrar un insumo
 
     # Modal agendar próxima sesión (turno)
     profesionales:  list[dict] = []       # [{id, nombre}]
@@ -377,9 +378,10 @@ class SesionesEsteticasState(BaseState):
         if not self.tiene_permiso("historia", write=True) or not self.sesion_actual_id:
             self.modal_insumo = False
             return
+        self.insumo_stock_msg = ""
         async with get_async_session() as session:
             try:
-                await svc.agregar_insumo(
+                res = await svc.agregar_insumo(
                     session, self.clinica_id, self.sesion_actual_id,
                     descripcion=self.ni_descripcion,
                     producto_id=int(self.ni_producto_id) if self.ni_producto_id not in ("", "0") else None,
@@ -387,6 +389,8 @@ class SesionesEsteticasState(BaseState):
                     unidad=self.ni_unidad,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
+                if res.get("stock_warning"):
+                    self.insumo_stock_msg = "Insumo registrado, pero el stock no se descontó: " + res["stock_warning"]
             except ServiceError as exc:
                 self.upload_error = str(exc)
         self.modal_insumo = False
