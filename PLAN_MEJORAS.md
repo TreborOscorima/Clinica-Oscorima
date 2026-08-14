@@ -251,11 +251,21 @@
 
 ### Fase D — Configuración por tipo de clínica
 
-- [ ] **D1 · Perfil de especialidad de la clínica.** Usar `Clinica.rubro` +
-      `clinica_modulos` (ambos ya existen) para que al marcar una clínica como
-      "odontológica" o "estética" se activen/desactiven módulos y se muestren las
-      plantillas de nota (A3), catálogos de servicios y campos propios del rubro.
-      Semilla de catálogos precargados por especialidad para acelerar el alta.
+- [x] **D1 · Perfil de especialidad de la clínica.** *(HECHO 2026-08-14, commits
+      b1e3dcd backend + c61d87f UI. CIERRA P2-ESP.)* Sin migración: usa
+      `Clinica.rubro` (ya se elige en Configuración). `services/especialidad`
+      mapea rubro→perfil (odontologia→dental, clinica_estetica/spa→estética,
+      general→ambos; rubro vacío/desconocido no oculta nada). `BaseState` carga
+      `clinica_rubro` al login y expone `esp_dental`/`esp_estetica`. La Historia
+      Clínica muestra los botones Odontograma/Plan (dental) y Galería (estética)
+      según el perfil, y el selector de plantillas de nota (A3) se filtra por
+      rubro. Configuración → Datos de Empresa: bloque "Perfil de especialidad"
+      con chips en vivo + botón "Sembrar catálogo de servicios de la especialidad"
+      (semilla idempotente por rubro, auditada); al guardar se refresca el perfil
+      sin re-login. +15 tests (209 total). Verificado E2E: con rubro
+      `clinica_estetica` la HC muestra solo Galería (oculta Odontograma/Plan) y la
+      plantilla de odontología desaparece; sembrar con "general" crea 12 servicios
+      (6 odonto + 6 estética); al pasar a "general" reaparecen los 3 módulos.
 
 > **Recomendación de secuencia:** A1 → A2 → A3 → (A4, A5) → B1 → B2 → C1 → C2 → D1.
 > Con la **Fase A** el producto ya da un salto de "gestión administrativa" a
