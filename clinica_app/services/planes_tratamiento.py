@@ -5,8 +5,9 @@ organizados en fases. Cada item puede referir una pieza del odontograma (B1) y u
 servicio del catálogo (para heredar precio). El presupuesto y el avance se calculan
 desde los items; el `estado` del plan resume su ciclo de vida.
 
-Reutiliza tenant + auditoría; no toca Caja ni el resto del sistema (el vínculo con
-el cobro se guarda como `comprobante_id` en el item, para enlazar a futuro).
+Reutiliza tenant + auditoría. El cobro del plan (`cobrar_plan`) NO reimplementa
+Caja: arma el payload y delega en `services.cobro.crear`, y luego enlaza cada
+item cobrado con el `comprobante_id` resultante.
 """
 from __future__ import annotations
 
@@ -21,7 +22,11 @@ from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamiento
 from clinica_app.models.servicio import Servicio
 from clinica_app.models.paciente import Paciente
 from clinica_app.services import auditoria
-from clinica_app.services.exceptions import NotFoundError, ValidationError
+from clinica_app.services import cobro as _cobro
+from clinica_app.services.exceptions import NotFoundError, ServiceError, ValidationError
+
+# Estados de item que se pueden cobrar (propuesto = aún no aprobado, no se cobra).
+_ITEM_COBRABLE = frozenset({"aprobado", "en_curso", "terminado"})
 
 # ── Catálogos de estado ───────────────────────────────────────────────────────
 # Estado global del plan (lo fija el profesional).
@@ -104,6 +109,10 @@ def _dump_item(it: PlanTratamientoItem) -> dict[str, Any]:
         "text_color":    info["text"],
         "comprobante_id": it.comprobante_id or 0,
         "cobrado":       bool(it.comprobante_id),
+        # Cobrable = aprobado/en_curso/terminado, con precio > 0 y no cobrado aún.
+        "cobrable":      (not it.comprobante_id)
+                          and (it.estado in _ITEM_COBRABLE)
+                          and (it.precio or Decimal("0")) > 0,
     }
 
 
@@ -117,16 +126,22 @@ def _totales(items: list[dict[str, Any]]) -> dict[str, Any]:
         (Decimal(i["precio"]) for i in items if i["estado"] == "terminado"),
         Decimal("0"),
     )
+    cobrado = sum((Decimal(i["precio"]) for i in items if i.get("cobrado")), Decimal("0"))
+    por_cobrar = sum((Decimal(i["precio"]) for i in items if i.get("cobrable")), Decimal("0"))
     n = len(items)
     n_term = sum(1 for i in items if i["estado"] == "terminado")
+    n_por_cobrar = sum(1 for i in items if i.get("cobrable"))
     avance = round(100 * n_term / n) if n else 0
     return {
         "total":            f"{total:.2f}",
         "total_num":        float(total),
         "total_aprobado":   f"{aprobado:.2f}",
         "total_terminado":  f"{terminado:.2f}",
+        "total_cobrado":    f"{cobrado:.2f}",
+        "total_por_cobrar": f"{por_cobrar:.2f}",
         "n_items":          n,
         "n_terminados":     n_term,
+        "n_por_cobrar":     n_por_cobrar,
         "avance":           avance,
     }
 
@@ -500,3 +515,72 @@ async def eliminar_item(
         sede_id=sede_id or None,
     )
     await session.flush()
+
+
+# ── Cobro del plan → Caja ──────────────────────────────────────────────────────
+
+async def cobrar_plan(
+    session: AsyncSession,
+    clinica_id: int,
+    plan_id: int,
+    *,
+    forma_pago: str = "efectivo",
+    item_ids: list[int] | None = None,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Genera un comprobante en Caja por los tratamientos cobrables del plan
+    (aprobado/en_curso/terminado, precio > 0 y no cobrados) y enlaza cada item con
+    el `comprobante_id` resultante. NO reimplementa Caja: delega en cobro.crear,
+    en la misma transacción. Si se pasan `item_ids`, solo cobra esos."""
+    plan = await _get_plan(session, clinica_id, plan_id)
+    items = await _items_de(session, clinica_id, plan_id)
+
+    elegibles = [
+        it for it in items
+        if not it.comprobante_id
+        and it.estado in _ITEM_COBRABLE
+        and (it.precio or Decimal("0")) > 0
+    ]
+    if item_ids:
+        ids = {int(x) for x in item_ids}
+        elegibles = [it for it in elegibles if it.id in ids]
+    if not elegibles:
+        raise ServiceError("No hay tratamientos aprobados pendientes de cobro en este plan")
+
+    payload = {
+        "paciente_id": plan.paciente_id,
+        "forma_pago": forma_pago,
+        "observacion": f"Plan de tratamiento: {plan.titulo}"[:240],
+        "items": [
+            {
+                "tipo": "servicio",
+                "ref_id": it.servicio_id or 0,
+                "nombre": it.descripcion,
+                "cantidad": "1",
+                "precio_unit": str(it.precio or Decimal("0")),
+            }
+            for it in elegibles
+        ],
+    }
+    comp = await _cobro.crear(session, clinica_id, payload, sede_id=sede_id, usuario_id=usuario_id)
+    comp_id = comp["id"]
+
+    for it in elegibles:
+        it.comprobante_id = comp_id
+    await session.flush()
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="cobrar", entidad="plan_tratamiento", entidad_id=plan_id,
+        detalle={
+            "comprobante_id": comp_id,
+            "numero": comp.get("numero"),
+            "total": comp.get("total"),
+            "items": len(elegibles),
+        },
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return {"comprobante": comp, "cobrados": len(elegibles)}
