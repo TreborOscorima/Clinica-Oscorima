@@ -464,3 +464,48 @@ async def eliminar_version(
         sede_id=sede_id or None,
     )
     await session.flush()
+
+
+# ── Exportación a PDF ─────────────────────────────────────────────────────────
+
+async def datos_export(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    *,
+    version_id: int = 0,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Reúne todo lo que el PDF necesita: paciente + arcada (viva o de versión)
+    + leyenda de estados. Si `version_id` > 0 exporta esa versión histórica; si
+    no, el odontograma vivo. Lanza NotFoundError si el paciente/versión no existe.
+    """
+    from clinica_app.models.paciente import Paciente
+
+    pac = (await session.execute(
+        select(Paciente).where(
+            Paciente.id == paciente_id,
+            Paciente.clinica_id == clinica_id,
+        )
+    )).scalars().first()
+    if pac is None:
+        raise NotFoundError("El paciente no existe")
+
+    version_titulo = ""
+    version_fecha = ""
+    if version_id:
+        arcada = await obtener_version(session, clinica_id, paciente_id, version_id)
+        version_titulo = arcada.get("titulo", "")
+        version_fecha = arcada.get("fecha", "")
+    else:
+        arcada = await listar(session, clinica_id, paciente_id, sede_id=sede_id)
+
+    return {
+        "paciente_nombre":    pac.nombre,
+        "paciente_documento": pac.documento or "",
+        "superior":           arcada["superior"],
+        "inferior":           arcada["inferior"],
+        "leyenda":            estados_catalogo(),
+        "version_titulo":     version_titulo,
+        "version_fecha":      version_fecha,
+    }

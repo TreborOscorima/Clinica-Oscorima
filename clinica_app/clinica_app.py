@@ -13,7 +13,7 @@ import os
 import reflex as rx
 from sqlmodel import SQLModel
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Route, Router
 
 from clinica_app.config import REPORT_EXPORT_DIR
@@ -115,6 +115,60 @@ async def _generar_pdf_recibo(request: Request) -> FileResponse | JSONResponse:
         return JSONResponse({"error": "Error interno"}, status_code=500)
 
 
+async def _generar_pdf_odontograma(request: Request) -> Response | JSONResponse:
+    """Exporta el odontograma (vivo o una versión histórica) a PDF.
+
+    Protegido por token efímero + chequeo de clínica, igual que el recibo. Con
+    `version_id` > 0 exporta esa versión; si no, el estado actual.
+    """
+    auth = validar_token(request.query_params.get("token", ""))
+    if auth is None:
+        return JSONResponse({"error": "No autorizado"}, status_code=401)
+    _token_user_id, token_clinica_id = auth
+
+    try:
+        paciente_id = int(request.query_params.get("paciente_id", 0))
+        clinica_id  = int(request.query_params.get("clinica_id", 0))
+        version_id  = int(request.query_params.get("version_id", 0))
+        sede_id     = int(request.query_params.get("sede_id", 0))
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "Parámetros inválidos"}, status_code=400)
+
+    if not paciente_id or not clinica_id:
+        return JSONResponse({"error": "paciente_id y clinica_id requeridos"}, status_code=400)
+    if clinica_id != token_clinica_id:
+        return JSONResponse({"error": "No autorizado para esta clínica"}, status_code=403)
+
+    try:
+        from clinica_app.services import odontograma as _odo
+        from clinica_app.services.pdf_odontograma import generar_odontograma_pdf
+        from clinica_app.services.exceptions import NotFoundError
+        from clinica_app.config import CLINICA_NOMBRE
+        async with _get_async_session() as session:
+            datos = await _odo.datos_export(
+                session, clinica_id, paciente_id,
+                version_id=version_id, sede_id=sede_id,
+            )
+        pdf_bytes = await asyncio.to_thread(
+            generar_odontograma_pdf,
+            clinica_nombre=CLINICA_NOMBRE,
+            **datos,
+        )
+        etiqueta = f"-v{version_id}" if version_id else ""
+        filename = f"odontograma-paciente{paciente_id}{etiqueta}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+    except NotFoundError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    except RuntimeError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=503)
+    except Exception:
+        return JSONResponse({"error": "Error interno"}, status_code=500)
+
+
 async def _descargar_adjunto(request: Request) -> FileResponse | JSONResponse:
     """Sirve un adjunto clínico. Protegido por token efímero + chequeo de clínica."""
     auth = validar_token(request.query_params.get("token", ""))
@@ -164,6 +218,7 @@ _custom_api = Router(routes=[
     Route("/api/health", _api_health),
     Route("/api/reportes/descargar/{filename}", _descargar_reporte),
     Route("/api/recibo/pdf", _generar_pdf_recibo),
+    Route("/api/odontograma/pdf", _generar_pdf_odontograma),
     Route("/api/adjunto", _descargar_adjunto),
     Route("/health", _health_check),
     *admin_routes,
