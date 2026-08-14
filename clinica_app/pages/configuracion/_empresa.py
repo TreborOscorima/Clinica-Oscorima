@@ -75,6 +75,51 @@ def _seccion_empresa() -> rx.Component:
             ),
             _select("Rubro del Negocio", ConfiguracionState.form_rubro,
                     ConfiguracionState.set_form_rubro, _RUBROS),
+            # ── Perfil de especialidad (D1) ────────────────────────────────────
+            rx.el.div(
+                rx.el.div(
+                    rx.icon("stethoscope", size=15, class_name="text-sky-600 mr-2"),
+                    rx.el.span("Perfil de especialidad", class_name="text-sm font-semibold text-gray-700"),
+                    class_name="flex items-center mb-2",
+                ),
+                rx.el.p(
+                    "El rubro define qué módulos clínicos ve el equipo en la Historia Clínica.",
+                    class_name="text-xs text-gray-500 mb-2",
+                ),
+                rx.el.div(
+                    rx.el.span(
+                        rx.icon("check", size=12, class_name="mr-1"),
+                        "Odontograma + Plan de tratamiento",
+                        class_name=rx.cond(
+                            ConfiguracionState.perfil_dental_sel,
+                            "inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200",
+                            "inline-flex items-center text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-400 border border-gray-200 line-through",
+                        ),
+                    ),
+                    rx.el.span(
+                        rx.icon("check", size=12, class_name="mr-1"),
+                        "Galería + Ficha estética",
+                        class_name=rx.cond(
+                            ConfiguracionState.perfil_estetica_sel,
+                            "inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200",
+                            "inline-flex items-center text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-400 border border-gray-200 line-through",
+                        ),
+                    ),
+                    class_name="flex flex-wrap gap-2 mb-3",
+                ),
+                rx.el.button(
+                    rx.icon("sprout", size=14, class_name="mr-1.5"),
+                    "Sembrar catálogo de servicios de la especialidad",
+                    on_click=ConfiguracionState.sembrar_catalogo,
+                    type="button",
+                    class_name="inline-flex items-center px-3 py-2 text-sm text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-50 cursor-pointer",
+                ),
+                rx.cond(
+                    ConfiguracionState.semilla_msg != "",
+                    rx.el.p(ConfiguracionState.semilla_msg, class_name="text-xs text-sky-700 mt-2"),
+                ),
+                class_name="p-4 bg-gray-50 border border-gray-100 rounded-xl",
+            ),
             _campo("Mensaje en Recibo/Ticket", "text",
                    ConfiguracionState.form_mensaje_recibo,
                    ConfiguracionState.set_form_mensaje_recibo, "¡GRACIAS POR SU PREFERENCIA!"),

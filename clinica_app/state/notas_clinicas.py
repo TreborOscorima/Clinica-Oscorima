@@ -12,6 +12,7 @@ from clinica_app.services import consentimientos as cons_svc
 from clinica_app.services import notas_clinicas as svc
 from clinica_app.services import plantillas_consentimiento
 from clinica_app.services import plantillas_nota
+from clinica_app.services import especialidad as _especialidad
 from clinica_app.services import recetas as rec_svc
 from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
@@ -109,7 +110,7 @@ class NotasClinicasState(BaseState):
                 self.paciente_alergias = p.alergias or ""
 
     async def _cargar_catalogos(self):
-        self.plantillas_cat = plantillas_nota.opciones()
+        self.plantillas_cat = _especialidad.plantillas_para(self.clinica_rubro)
         self.cons_tipos_cat = plantillas_consentimiento.opciones()
         self.rec_tipos_cat  = rec_svc.tipos()
         from clinica_app.models.profesional import Profesional

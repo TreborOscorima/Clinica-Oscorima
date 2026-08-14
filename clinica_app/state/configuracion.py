@@ -4,6 +4,7 @@ import reflex as rx
 
 from clinica_app.database import get_async_session
 from clinica_app.services import configuracion as svc
+from clinica_app.services import especialidad as _especialidad
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
 
@@ -31,6 +32,7 @@ class ConfiguracionState(BaseState):
     form_margen_global:     str  = "50.00"
     empresa_error:          str  = ""
     empresa_success:        str  = ""
+    semilla_msg:            str  = ""
     is_saving_empresa:      bool = False
     margenes_error:         str  = ""
     margenes_success:       str  = ""
@@ -213,6 +215,15 @@ class ConfiguracionState(BaseState):
         elif tab == "impuestos":
             await self._cargar_impuestos()
 
+    # ── Perfil de especialidad (D1) — refleja el rubro elegido en el dropdown ──
+    @rx.var
+    def perfil_dental_sel(self) -> bool:
+        return _especialidad.dental_activa(self.form_rubro)
+
+    @rx.var
+    def perfil_estetica_sel(self) -> bool:
+        return _especialidad.estetica_activa(self.form_rubro)
+
     # ── Setters ────────────────────────────────────────────────────────────────
 
     def set_form_nombre(self, v: str):            self.form_nombre = v
@@ -309,6 +320,30 @@ class ConfiguracionState(BaseState):
 
         self.is_saving_empresa = False
         self.empresa_success   = "Configuración guardada correctamente"
+        # Refresca el perfil de especialidad (D1) para que el gating de módulos se
+        # actualice de inmediato, sin necesidad de volver a iniciar sesión.
+        self.clinica_rubro = self.form_rubro.strip()
+
+    async def sembrar_catalogo(self):
+        """Crea los servicios precargados de la especialidad del rubro (D1)."""
+        if not self.tiene_permiso("configuracion", write=True):
+            return
+        self.semilla_msg = ""
+        async with get_async_session() as session:
+            try:
+                res = await _especialidad.sembrar_servicios(
+                    session, self.clinica_id, self.form_rubro.strip(),
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError as exc:
+                self.semilla_msg = str(exc)
+                return
+        if res["creados"]:
+            self.semilla_msg = f"Se agregaron {res['creados']} servicios de la especialidad al catálogo."
+        elif res["omitidos"]:
+            self.semilla_msg = "El catálogo ya tenía los servicios de la especialidad."
+        else:
+            self.semilla_msg = "Elegí un rubro con especialidad (odontología o estética) para sembrar su catálogo."
 
     async def guardar_margenes(self):
         if not self.tiene_permiso("configuracion", write=True):
