@@ -185,11 +185,18 @@
 
 ### Fase B — Diferenciador ODONTOLÓGICO
 
-- [ ] **B1 · Odontograma.** Modelo de piezas dentales (numeración FDI/universal),
-      caras y estados por pieza (sano, caries, obturado, ausente, corona,
-      implante, etc.), versionado por fecha para ver evolución. UI de odontograma
-      interactivo. *Es EL diferenciador dental: sin esto un odontólogo no lo
-      adopta como "su" software.*
+- [x] **B1 · Odontograma — HECHO (2026-08-14).** Modelo `PiezaDental` (FDI, 32
+      piezas permanentes), estado por pieza (sano/caries/obturado/corona/
+      endodoncia/extracción/ausente/implante/prótesis/fractura/sellante) + caras
+      (JSON) + nota. Migración `c9d0e1f2a3b4` (UniqueConstraint clinica+paciente+
+      numero → upsert). `services/odontograma.py`: arcada, catálogo de estados con
+      colores, listar (arcada completa + resumen), guardar_pieza (upsert + audit),
+      resetear_pieza. UI interactiva `/odontograma?paciente_id=X`: arcada
+      coloreada, resumen por hallazgo, leyenda, modal por pieza; botón desde la
+      Historia Clínica. +12 tests (150 total). Verificado E2E: pieza 16 → caries +
+      nota → se pinta roja con punto de nota y chip "Caries 1"; fila en
+      `piezas_dentales` y `audit_log`. *(Versionado por fecha para ver evolución
+      queda como mejora futura; hoy es el estado actual del odontograma.)*
 - [ ] **B2 · Plan de tratamiento por fases + presupuesto odontológico.**
       Tratamientos propuestos sobre piezas del odontograma, agrupados en fases,
       con presupuesto (aprovecha `Servicio.precio` e historial de precios) y
