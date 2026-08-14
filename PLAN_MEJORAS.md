@@ -232,10 +232,22 @@
       Verificado E2E: sesión "Relleno con ácido hialurónico" + 3 fotos reales
       (2 antes / 1 después) → las 3 cargan 200 OK, filas en `adjuntos`
       (categoria=foto, sesion_id, momento) y `audit_log` (crear/agregar_foto).
-- [ ] **C2 · Ficha de tratamiento estético.** Zonas tratadas, productos/insumos
-      aplicados por sesión (ya modelable con `servicio_insumos`), parámetros del
-      equipo (p. ej. energía/disparos) y plan de sesiones (nº de sesión, próxima
-      recomendada) enganchado a la agenda.
+- [x] **C2 · Ficha de tratamiento estético.** *(HECHO 2026-08-14, commits
+      774b419 backend + 09d34dd UI. CIERRA FASE C.)* Extiende la sesión estética
+      (C1) con la ficha clínica: columnas `numero_sesion`/`parametros`/
+      `proxima_recomendada` en `sesiones_esteticas` + tabla `sesion_insumos`
+      (insumos/productos aplicados por sesión, opcionalmente referidos a
+      `inv_productos`; descriptivo, no mueve stock). Migración aditiva
+      `f2a3b4c5d6e7`. Servicio: `actualizar_sesion` acepta los campos de ficha,
+      `obtener_sesion` incluye insumos, `agregar_insumo`/`eliminar_insumo`
+      auditados. UI en `/galeria-estetica`: tarjeta "Ficha del tratamiento"
+      (nº sesión, zonas, parámetros del equipo, próxima recomendada con enlace
+      "Agendar" a /turnos) + insumos con selector de inventario, cantidad y
+      unidad. +12 tests (194 total). Verificado E2E: ficha nº 2 / próxima
+      10/09/2026 / parámetros + insumo "Ácido hialurónico Juvederm 1 ml";
+      filas en `sesiones_esteticas`/`sesion_insumos` y `audit_log`
+      (editar/agregar_insumo). *(Decremento de stock por insumo y creación
+      automática del turno de la próxima sesión quedan como mejora futura.)*
 
 ### Fase D — Configuración por tipo de clínica
 
