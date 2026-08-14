@@ -466,6 +466,78 @@ async def eliminar_version(
     await session.flush()
 
 
+# ── Comparación de versiones ──────────────────────────────────────────────────
+
+async def _arcada_para_comparar(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    version_id: int,
+    sede_id: int,
+) -> dict[str, Any]:
+    """Arcada + etiqueta para un lado de la comparación. `version_id`==0 = vivo."""
+    if version_id:
+        arcada = await obtener_version(session, clinica_id, paciente_id, version_id)
+        titulo = arcada.get("titulo", "")
+        fecha = arcada.get("fecha", "")
+    else:
+        arcada = await listar(session, clinica_id, paciente_id, sede_id=sede_id)
+        titulo = "Estado actual"
+        fecha = ""
+    return {"arcada": arcada, "titulo": titulo, "fecha": fecha}
+
+
+async def comparar(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    a_id: int,
+    b_id: int,
+    *,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Compara dos odontogramas (versión vs versión, o versión vs estado actual).
+
+    `a_id`/`b_id` son ids de versión; 0 significa el odontograma vivo. Devuelve
+    ambas arcadas con cada pieza marcada (`cambio`) si difiere del otro lado, más
+    la lista de diferencias pieza por pieza para el panel de detalle.
+    """
+    lado_a = await _arcada_para_comparar(session, clinica_id, paciente_id, a_id, sede_id)
+    lado_b = await _arcada_para_comparar(session, clinica_id, paciente_id, b_id, sede_id)
+
+    map_a = {p["numero"]: p for p in lado_a["arcada"]["superior"] + lado_a["arcada"]["inferior"]}
+    map_b = {p["numero"]: p for p in lado_b["arcada"]["superior"] + lado_b["arcada"]["inferior"]}
+
+    def _marcar(piezas: list[dict[str, Any]], otro: dict[str, dict]) -> list[dict[str, Any]]:
+        salida = []
+        for p in piezas:
+            contra = otro.get(p["numero"], _pieza_default(p["numero"]))
+            salida.append({**p, "cambio": p["estado"] != contra["estado"]})
+        return salida
+
+    cambios = []
+    for numero in ARCADA_SUPERIOR + ARCADA_INFERIOR:
+        pa = map_a.get(numero, _pieza_default(numero))
+        pb = map_b.get(numero, _pieza_default(numero))
+        if pa["estado"] != pb["estado"]:
+            cambios.append({
+                "numero":  numero,
+                "a_label": pa["estado_label"], "a_color": pa["color"], "a_text": pa["text_color"],
+                "b_label": pb["estado_label"], "b_color": pb["color"], "b_text": pb["text_color"],
+            })
+
+    return {
+        "superior_a": _marcar(lado_a["arcada"]["superior"], map_b),
+        "inferior_a": _marcar(lado_a["arcada"]["inferior"], map_b),
+        "superior_b": _marcar(lado_b["arcada"]["superior"], map_a),
+        "inferior_b": _marcar(lado_b["arcada"]["inferior"], map_a),
+        "titulo_a":   lado_a["titulo"], "fecha_a": lado_a["fecha"],
+        "titulo_b":   lado_b["titulo"], "fecha_b": lado_b["fecha"],
+        "cambios":    cambios,
+        "n_cambios":  len(cambios),
+    }
+
+
 # ── Exportación a PDF ─────────────────────────────────────────────────────────
 
 async def datos_export(
