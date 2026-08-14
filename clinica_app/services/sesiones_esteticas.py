@@ -19,8 +19,9 @@ from clinica_app.models.inventario import Producto
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
 from clinica_app.services import auditoria
+from clinica_app.services import inventario as _inventario
 from clinica_app.services import turnos as _turnos
-from clinica_app.services.exceptions import NotFoundError, ValidationError
+from clinica_app.services.exceptions import NotFoundError, ServiceError, ValidationError
 
 # ── Momentos (etiqueta de la foto dentro de la sesión) ────────────────────────
 MOMENTOS: dict[str, str] = {
@@ -447,8 +448,11 @@ async def agregar_insumo(
     usuario_id: int | None = None,
     sede_id: int = 0,
 ) -> dict[str, Any]:
-    """Registra un insumo/producto aplicado en la sesión (descriptivo, no mueve
-    stock). Si viene `producto_id`, hereda el nombre cuando falta descripción."""
+    """Registra un insumo/producto aplicado en la sesión. Si viene `producto_id`,
+    hereda el nombre cuando falta descripción y **descuenta el stock** del producto
+    (delegando en inventario.registrar_movimiento_stock, egreso). El descuento NO
+    bloquea el registro: si falta stock o el producto no existe, el insumo se
+    registra igual y se devuelve un `stock_warning` (mismo criterio que la venta)."""
     await _get_sesion(session, clinica_id, sesion_id)  # valida pertenencia
     descripcion = (descripcion or "").strip()
     producto_id = producto_id or None
@@ -481,15 +485,38 @@ async def agregar_insumo(
     )
     session.add(i)
     await session.flush()
+
+    # Descuento de stock (no bloqueante) si el insumo está ligado a un producto.
+    stock_warning: str | None = None
+    if producto_id and cant > 0:
+        try:
+            await _inventario.registrar_movimiento_stock(
+                session, clinica_id, producto_id,
+                tipo="egreso", cantidad=cant,
+                motivo="Consumo estético",
+                referencia=f"sesion:{sesion_id}",
+                sede_id=sede_id,
+            )
+        except ServiceError as exc:
+            stock_warning = str(exc)
+
     await auditoria.registrar(
         session, clinica_id,
         usuario_id=usuario_id,
         accion="agregar_insumo", entidad="sesion_estetica", entidad_id=sesion_id,
-        detalle={"insumo_id": i.id, "descripcion": descripcion[:200], "cantidad": str(cant)},
+        detalle={
+            "insumo_id": i.id, "descripcion": descripcion[:200],
+            "cantidad": str(cant), "producto_id": producto_id,
+            "stock_descontado": producto_id is not None and cant > 0 and stock_warning is None,
+        },
         sede_id=sede_id or None,
     )
     await session.flush()
-    return _dump_insumo(i)
+
+    d = _dump_insumo(i)
+    if stock_warning:
+        d["stock_warning"] = stock_warning
+    return d
 
 
 async def eliminar_insumo(
