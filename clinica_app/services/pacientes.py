@@ -38,6 +38,12 @@ def _dump(p: Paciente) -> dict[str, Any]:
         "fecha_nacimiento":    p.fecha_nacimiento.isoformat() if isinstance(p.fecha_nacimiento, (date, datetime)) else p.fecha_nacimiento,
         "contacto_emergencia": p.contacto_emergencia,
         "edad":                p.edad,
+        # Ficha médica (A1)
+        "grupo_sanguineo":     p.grupo_sanguineo,
+        "alergias":            p.alergias,
+        "antecedentes":        p.antecedentes,
+        "medicacion":          p.medicacion,
+        "habitos":             p.habitos,
         "created_at":          p.created_at.isoformat() if isinstance(p.created_at, (date, datetime)) else p.created_at,
     }
 

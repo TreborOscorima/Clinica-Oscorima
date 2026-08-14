@@ -39,6 +39,36 @@ def _panel_detalle() -> rx.Component:
                     ),
                     class_name="flex items-start justify-between mb-6",
                 ),
+                # Alerta de alergias (destacada)
+                rx.cond(
+                    PacientesState.paciente_sel["alergias"],
+                    rx.el.div(
+                        rx.icon("triangle-alert", size=16, class_name="text-red-600 mr-2 shrink-0 mt-0.5"),
+                        rx.el.div(
+                            rx.el.p("Alergias", class_name="text-xs font-bold text-red-700 uppercase tracking-wide"),
+                            rx.el.p(
+                                PacientesState.paciente_sel["alergias"],
+                                class_name="text-sm text-red-800 whitespace-pre-wrap",
+                            ),
+                        ),
+                        class_name="flex items-start p-3 mb-4 bg-red-50 border border-red-200 rounded-xl",
+                    ),
+                ),
+                # Ficha médica
+                rx.cond(
+                    PacientesState.paciente_sel["grupo_sanguineo"]
+                    | PacientesState.paciente_sel["antecedentes"]
+                    | PacientesState.paciente_sel["medicacion"]
+                    | PacientesState.paciente_sel["habitos"],
+                    rx.el.div(
+                        rx.el.p("Ficha médica", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"),
+                        _ficha_row("Grupo sanguíneo", PacientesState.paciente_sel["grupo_sanguineo"]),
+                        _ficha_row("Antecedentes",    PacientesState.paciente_sel["antecedentes"]),
+                        _ficha_row("Medicación",      PacientesState.paciente_sel["medicacion"]),
+                        _ficha_row("Hábitos",         PacientesState.paciente_sel["habitos"]),
+                        class_name="mb-6 p-3 bg-rose-50/50 border border-rose-100 rounded-xl space-y-2",
+                    ),
+                ),
                 # Datos rápidos
                 rx.el.div(
                     rx.el.div(
@@ -192,7 +222,22 @@ def _modal_paciente() -> rx.Component:
                     _campo("Dirección",         "text",  PacientesState.form_direccion, PacientesState.set_form_direccion),
                     _campo("Fecha nacimiento",  "date",  PacientesState.form_nacimiento, PacientesState.set_form_nacimiento),
                     _campo("Contacto emergencia", "text", PacientesState.form_emergencia, PacientesState.set_form_emergencia),
-                    class_name="space-y-4",
+                    # ── Ficha médica (A1) ──
+                    rx.el.div(
+                        rx.icon("stethoscope", size=14, class_name="text-rose-500 mr-1.5"),
+                        rx.el.span("Ficha médica", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+                        class_name="flex items-center pt-2 mt-2 border-t border-gray-100",
+                    ),
+                    _campo("Grupo sanguíneo",   "text",  PacientesState.form_grupo,       PacientesState.set_form_grupo),
+                    _campo_area("Alergias",     PacientesState.form_alergias,     PacientesState.set_form_alergias,
+                                "Ej: Penicilina, látex, lidocaína…"),
+                    _campo_area("Antecedentes", PacientesState.form_antecedentes, PacientesState.set_form_antecedentes,
+                                "Personales y familiares relevantes"),
+                    _campo_area("Medicación habitual", PacientesState.form_medicacion, PacientesState.set_form_medicacion,
+                                "Medicamentos que toma actualmente"),
+                    _campo_area("Hábitos",      PacientesState.form_habitos,      PacientesState.set_form_habitos,
+                                "Ej: tabaquismo, alcohol…"),
+                    class_name="space-y-4 max-h-[60vh] overflow-y-auto pr-1",
                 ),
                 rx.cond(
                     PacientesState.form_error != "",
@@ -240,6 +285,31 @@ def _campo(label: str, tipo: str, value, on_change) -> rx.Component:
             default_value=value,
             on_change=on_change,
             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+        ),
+    )
+
+
+def _campo_area(label: str, value, on_change, placeholder: str = "") -> rx.Component:
+    return rx.el.div(
+        rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
+        rx.el.textarea(
+            default_value=value,
+            on_change=on_change,
+            placeholder=placeholder,
+            rows=2,
+            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
+        ),
+    )
+
+
+def _ficha_row(label: str, value) -> rx.Component:
+    """Fila de la ficha médica; se muestra solo si hay valor."""
+    return rx.cond(
+        value,
+        rx.el.div(
+            rx.el.span(label, class_name="text-xs text-gray-500 uppercase"),
+            rx.el.p(value, class_name="text-sm text-gray-700 whitespace-pre-wrap"),
+            class_name="flex flex-col",
         ),
     )
 

@@ -63,6 +63,43 @@ async def test_actualizar_paciente(session, clinica):
     assert actualizado["nombre"] == "Modificado"
 
 
+async def test_crear_con_ficha_medica(session, clinica):
+    # A1: la ficha médica (alergias/antecedentes/medicación/hábitos/grupo) viaja
+    # de vuelta en el dump para que la UI la muestre.
+    p = await svc.crear(session, clinica.id, payload={
+        "nombre": "Ficha Completa",
+        "documento": "77000001",
+        "grupo_sanguineo": "O+",
+        "alergias": "Penicilina, látex",
+        "antecedentes": "Hipertensión",
+        "medicacion": "Enalapril 10mg",
+        "habitos": "No fuma",
+    })
+    assert p["grupo_sanguineo"] == "O+"
+    assert p["alergias"] == "Penicilina, látex"
+    assert p["antecedentes"] == "Hipertensión"
+    assert p["medicacion"] == "Enalapril 10mg"
+    assert p["habitos"] == "No fuma"
+
+
+async def test_crear_sin_ficha_medica_ok(session, clinica):
+    # Los campos de ficha médica son opcionales: sin ellos el dump devuelve None.
+    p = await svc.crear(session, clinica.id, payload={"nombre": "Sin Ficha"})
+    assert p["alergias"] is None
+    assert p["grupo_sanguineo"] is None
+
+
+async def test_actualizar_ficha_medica(session, clinica):
+    p = await svc.crear(session, clinica.id, payload={"nombre": "Base Ficha", "documento": "77000002"})
+    assert p["alergias"] is None
+    actualizado = await svc.actualizar(
+        session, clinica.id, p["id"],
+        {"alergias": "Ibuprofeno", "grupo_sanguineo": "A-"},
+    )
+    assert actualizado["alergias"] == "Ibuprofeno"
+    assert actualizado["grupo_sanguineo"] == "A-"
+
+
 async def test_eliminar_paciente(session, clinica):
     p = await svc.crear(session, clinica.id, payload={"nombre": "A borrar", "documento": "44000001"})
     await svc.eliminar(session, clinica.id, p["id"])

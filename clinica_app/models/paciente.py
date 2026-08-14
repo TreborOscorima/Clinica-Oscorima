@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import Column, Date, UniqueConstraint
+from sqlalchemy import Column, Date, Text, UniqueConstraint
 from sqlmodel import Field
 
 from clinica_app.models.base import TenantSQLModel
@@ -25,6 +25,13 @@ class Paciente(TenantSQLModel, table=True):
         default=None, sa_column=Column(Date(), nullable=True)
     )
     contacto_emergencia: str | None = Field(default=None, max_length=160, nullable=True)
+
+    # ── Ficha médica (A1) — todo opcional; sirve a estética y odontología ──
+    grupo_sanguineo: str | None = Field(default=None, max_length=8, nullable=True)
+    alergias:        str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    antecedentes:    str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    medicacion:      str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    habitos:         str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     @property
     def edad(self) -> int | None:

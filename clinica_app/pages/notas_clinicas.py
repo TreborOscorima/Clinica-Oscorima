@@ -240,6 +240,21 @@ def notas_clinicas_page() -> rx.Component:
             ),
             # Lista de notas
             rx.el.div(
+                # Alerta de alergias del paciente (A1)
+                rx.cond(
+                    NotasClinicasState.paciente_alergias != "",
+                    rx.el.div(
+                        rx.icon("triangle-alert", size=18, class_name="text-red-600 mr-2 shrink-0 mt-0.5"),
+                        rx.el.div(
+                            rx.el.p("Alergias del paciente", class_name="text-xs font-bold text-red-700 uppercase tracking-wide"),
+                            rx.el.p(
+                                NotasClinicasState.paciente_alergias,
+                                class_name="text-sm text-red-800 whitespace-pre-wrap",
+                            ),
+                        ),
+                        class_name="flex items-start p-3 mb-4 bg-red-50 border border-red-200 rounded-xl",
+                    ),
+                ),
                 rx.cond(
                     NotasClinicasState.total == 0,
                     rx.el.div(

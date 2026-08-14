@@ -19,8 +19,9 @@ class NotasClinicasState(BaseState):
     total_pages: int        = 1
 
     # Paciente activo
-    paciente_id:     int = 0
-    paciente_nombre: str = ""
+    paciente_id:       int = 0
+    paciente_nombre:   str = ""
+    paciente_alergias: str = ""
 
     # Modal nueva/editar nota
     modal_abierto:  bool = False
@@ -66,7 +67,8 @@ class NotasClinicasState(BaseState):
                 )
             )).scalars().first()
             if p:
-                self.paciente_nombre = p.nombre
+                self.paciente_nombre   = p.nombre
+                self.paciente_alergias = p.alergias or ""
 
     async def _cargar_catalogos(self):
         from clinica_app.models.profesional import Profesional

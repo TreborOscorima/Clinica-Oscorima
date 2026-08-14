@@ -35,6 +35,12 @@ class PacientesState(BaseState):
     form_direccion:  str  = ""
     form_nacimiento: str  = ""
     form_emergencia: str  = ""
+    # Ficha médica (A1)
+    form_grupo:        str = ""
+    form_alergias:     str = ""
+    form_antecedentes: str = ""
+    form_medicacion:   str = ""
+    form_habitos:      str = ""
     form_error:      str  = ""
     is_saving:       bool = False
 
@@ -43,6 +49,8 @@ class PacientesState(BaseState):
     paciente_sel: dict = {
         "id": 0, "nombre": "", "documento": "", "email": "",
         "telefono": "", "direccion": "", "contacto_emergencia": "", "edad": 0,
+        "grupo_sanguineo": "", "alergias": "", "antecedentes": "",
+        "medicacion": "", "habitos": "",
     }
     historial_turnos:       list[dict] = []
     historial_comprobantes: list[dict] = []
@@ -97,6 +105,11 @@ class PacientesState(BaseState):
     def set_form_direccion(self, v: str):  self.form_direccion = v
     def set_form_nacimiento(self, v: str): self.form_nacimiento = v
     def set_form_emergencia(self, v: str): self.form_emergencia = v
+    def set_form_grupo(self, v: str):        self.form_grupo = v
+    def set_form_alergias(self, v: str):     self.form_alergias = v
+    def set_form_antecedentes(self, v: str): self.form_antecedentes = v
+    def set_form_medicacion(self, v: str):   self.form_medicacion = v
+    def set_form_habitos(self, v: str):      self.form_habitos = v
 
     # ── Paginación ─────────────────────────────────────────────────────────────
 
@@ -129,6 +142,11 @@ class PacientesState(BaseState):
         self.form_direccion  = paciente.get("direccion") or ""
         self.form_nacimiento = paciente.get("fecha_nacimiento") or ""
         self.form_emergencia = paciente.get("contacto_emergencia") or ""
+        self.form_grupo        = paciente.get("grupo_sanguineo") or ""
+        self.form_alergias     = paciente.get("alergias") or ""
+        self.form_antecedentes = paciente.get("antecedentes") or ""
+        self.form_medicacion   = paciente.get("medicacion") or ""
+        self.form_habitos      = paciente.get("habitos") or ""
         self.modal_abierto   = True
 
     def cerrar_modal(self):
@@ -142,6 +160,11 @@ class PacientesState(BaseState):
         self.form_direccion  = ""
         self.form_nacimiento = ""
         self.form_emergencia = ""
+        self.form_grupo        = ""
+        self.form_alergias     = ""
+        self.form_antecedentes = ""
+        self.form_medicacion   = ""
+        self.form_habitos      = ""
         self.form_error      = ""
 
     # ── Guardar ────────────────────────────────────────────────────────────────
@@ -162,6 +185,11 @@ class PacientesState(BaseState):
             "direccion":           self.form_direccion.strip() or None,
             "fecha_nacimiento":    self.form_nacimiento or None,
             "contacto_emergencia": self.form_emergencia.strip() or None,
+            "grupo_sanguineo":     self.form_grupo.strip() or None,
+            "alergias":            self.form_alergias.strip() or None,
+            "antecedentes":        self.form_antecedentes.strip() or None,
+            "medicacion":          self.form_medicacion.strip() or None,
+            "habitos":             self.form_habitos.strip() or None,
         }
 
         if not payload["nombre"]:

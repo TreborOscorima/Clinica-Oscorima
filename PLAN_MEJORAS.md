@@ -1,7 +1,7 @@
 # PLAN DE MEJORAS — WaykiSAC Clínica
 
 > Hoja de ruta para llevar el sistema a nivel **profesional y completo**.
-> Creado: 2026-08-02 · Última sincronización: 2026-08-07 · Complementa a
+> Creado: 2026-08-02 · Última sincronización: 2026-08-13 · Complementa a
 > `AUDITORIA_WAYKISAC_CLINICA.md` (estado histórico).
 > Convención: marcar `[x]` al completar cada ítem y anotar el commit.
 
@@ -93,6 +93,8 @@
 
 - [ ] **Historia clínica más rica**: adjuntos (estudios, imágenes), plantillas de nota por
       especialidad, firma/bloqueo de nota (una nota firmada no se edita — trazabilidad legal).
+      *→ Detallado y priorizado en el bloque **P2-ESP** (Fase A: A2 adjuntos, A3 plantillas +
+      firma). Este ítem se cierra al completar esa fase.*
 - [ ] **Agenda profesional real**: disponibilidad/horarios por profesional y sede,
       bloqueos (vacaciones), detección de solapamientos al crear turno.
 - [ ] **Recordatorios de turnos activos**: `tasks/recordatorios.py` existe — conectarlo a
@@ -102,6 +104,93 @@
 - [ ] **Portal de resultados / recordatorio al paciente** (opcional, diferenciador).
 - [ ] **Reportes ampliados**: producción por profesional, ocupación de agenda, análisis
       de no-shows, margen por servicio (los datos ya existen en los modelos).
+
+## P2-ESP — Multi-especialidad (Estética + Odontología)
+
+> **Contexto (diagnóstico 2026-08-13).** Hoy el sistema es una plataforma de
+> gestión **genérica** sólida (agenda, pacientes, cobro, caja, inventario,
+> cuentas, compras, reportes, multi-tenant/multi-sede) y en esa capa **ya sirve
+> para estética y odontología**. Lo que le falta para posicionarse como software
+> *especializado* (no solo administrativo) es la **capa clínica-asistencial**:
+> la historia clínica es texto libre (`NotaClinica` con `tipo` + `contenido`),
+> `Paciente` no guarda antecedentes/alergias, no hay adjuntos ni consentimientos,
+> y no existe odontograma. Este bloque cierra esa brecha, priorizado por
+> **valor para ambos rubros primero** y luego los diferenciadores de cada uno.
+>
+> Regla de oro del orden: **primero lo transversal (Fase A)**, que sube el nivel
+> clínico de las dos especialidades a la vez; recién después los módulos propios
+> de cada rubro (Fases B y C), que se apoyan en la infraestructura de la A
+> (sobre todo en adjuntos y en el motor de PDF).
+
+### Fase A — Base clínica transversal (sirve a estética Y odontología)
+
+- [x] **A1 · Ficha médica del paciente (antecedentes / alergias / medicación).**
+      *(2026-08-13)* `Paciente` ampliado con `grupo_sanguineo` (varchar 8),
+      `alergias`, `antecedentes`, `medicacion` y `habitos` (Text) — todo nullable.
+      Migración aditiva e idempotente `f6a1c2d3e4b5` (aplicada en vivo sobre
+      `life_db`). Formulario de paciente con sección "Ficha médica"; **alerta
+      roja de alergias** en el panel de detalle del paciente y como banner
+      destacado en la Historia Clínica (`NotasClinicasState.paciente_alergias`).
+      +3 tests (`test_pacientes.py`, 105 total). Verificado end-to-end en el
+      navegador (crear → listar → detalle → historia).
+- [ ] **A2 · Adjuntos / archivos clínicos** (fotos, radiografías, estudios, PDF).
+      Nueva tabla `adjunto` (`clinica_id, sede_id, paciente_id, nota_id?, tipo,
+      nombre, mime, tamaño, ruta/clave, subido_por, creado_en`) + almacenamiento
+      en volumen/objeto (definir: disco del contenedor con volumen dedicado vs.
+      S3/Backblaze — reutilizar la decisión de backups del P0). Upload con
+      validación de tipo/tamaño y borrado con trazabilidad en audit log.
+      *Es el habilitador nº1: la galería estética (C) y el RX odontológico (B)
+      cuelgan de acá. Hacerlo antes que B y C.*
+- [ ] **A3 · Historia clínica estructurada + firma/bloqueo de nota.**
+      Plantillas de nota por especialidad (campos configurables por tipo) y
+      **firmar/bloquear**: una nota firmada no se edita (trazabilidad legal;
+      reusa el `tipo` actual de `NotaClinica`). Unifica el ítem suelto de P2
+      "Historia clínica más rica".
+- [ ] **A4 · Consentimiento informado.** Plantilla por servicio/especialidad,
+      registro de aceptación (fecha, paciente, profesional) y generación de PDF
+      **reutilizando el motor `services/pdf_recibo.py`**. Queda archivado como
+      adjunto (A2).
+- [ ] **A5 · Recetas / indicaciones imprimibles.** A partir de la nota tipo
+      `indicacion`, emitir un PDF con formato de receta/indicación (mismo motor
+      de PDF). Cierra el circuito asistencial básico común a ambos rubros.
+
+### Fase B — Diferenciador ODONTOLÓGICO
+
+- [ ] **B1 · Odontograma.** Modelo de piezas dentales (numeración FDI/universal),
+      caras y estados por pieza (sano, caries, obturado, ausente, corona,
+      implante, etc.), versionado por fecha para ver evolución. UI de odontograma
+      interactivo. *Es EL diferenciador dental: sin esto un odontólogo no lo
+      adopta como "su" software.*
+- [ ] **B2 · Plan de tratamiento por fases + presupuesto odontológico.**
+      Tratamientos propuestos sobre piezas del odontograma, agrupados en fases,
+      con presupuesto (aprovecha `Servicio.precio` e historial de precios) y
+      seguimiento de avance (propuesto → aprobado → en curso → terminado).
+      Enlaza cada fase realizada con su cobro (Caja) y sus insumos
+      (`servicio_insumos`, que ya existe).
+
+### Fase C — Diferenciador ESTÉTICO
+
+- [ ] **C1 · Galería antes/después por sesión.** Sobre A2: agrupar fotos por
+      sesión/tratamiento y fecha, con vista comparativa antes/después y línea de
+      tiempo de evolución del paciente.
+- [ ] **C2 · Ficha de tratamiento estético.** Zonas tratadas, productos/insumos
+      aplicados por sesión (ya modelable con `servicio_insumos`), parámetros del
+      equipo (p. ej. energía/disparos) y plan de sesiones (nº de sesión, próxima
+      recomendada) enganchado a la agenda.
+
+### Fase D — Configuración por tipo de clínica
+
+- [ ] **D1 · Perfil de especialidad de la clínica.** Usar `Clinica.rubro` +
+      `clinica_modulos` (ambos ya existen) para que al marcar una clínica como
+      "odontológica" o "estética" se activen/desactiven módulos y se muestren las
+      plantillas de nota (A3), catálogos de servicios y campos propios del rubro.
+      Semilla de catálogos precargados por especialidad para acelerar el alta.
+
+> **Recomendación de secuencia:** A1 → A2 → A3 → (A4, A5) → B1 → B2 → C1 → C2 → D1.
+> Con la **Fase A** el producto ya da un salto de "gestión administrativa" a
+> "historia clínica profesional" para ambos rubros; **B** lo vuelve vendible como
+> software odontológico y **C** como software estético; **D** lo empaqueta como
+> plataforma multi-especialidad configurable.
 
 ## P3 — Experiencia y operación
 
