@@ -26,6 +26,7 @@ from clinica_app.models.modulo import ClinicaModulo
 from clinica_app.models.audit_log import AuditLog
 from clinica_app.models.adjunto import Adjunto
 from clinica_app.models.pieza_dental import PiezaDental
+from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamientoItem
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
@@ -44,4 +45,5 @@ __all__ = [
     "AuditLog",
     "Adjunto",
     "PiezaDental",
+    "PlanTratamiento", "PlanTratamientoItem",
 ]
