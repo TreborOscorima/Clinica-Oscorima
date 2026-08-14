@@ -219,6 +219,17 @@
       por versión en el historial. +6 tests (243 total). Verificado E2E: descarga
       `application/pdf` `%PDF-1.4` de la arcada viva y de una versión; 404/401/403
       correctos en versión inexistente/token inválido/otra clínica.
+      **Comparación de versiones lado a lado HECHO (2026-08-14, commits e15eff9
+      backend + f57be0f UI).** `odontograma.comparar(session, clinica_id, paciente_id, a_id,
+      b_id, sede_id)` (a_id/b_id: id de versión, 0 = estado actual) devuelve ambas
+      arcadas con cada pieza marcada `cambio` si difiere del otro lado + la lista
+      de diferencias pieza a pieza. UI: botón "Comparar" (visible con ≥1 versión),
+      modal con dos selectores (versión/estado actual), resumen "N piezas con
+      cambios", las dos arcadas (dientes con anilla ámbar donde hubo cambio) y el
+      detalle "Pieza X: A → B". +4 tests (247 total). Verificado E2E: Comp B
+      (obturado) vs Comp A (caries) → "1 pieza con cambios", pieza 16 resaltada en
+      ambas arcadas (2 dientes ámbar en el DOM), detalle "Pieza 16 Obturado →
+      Caries"; versión vs estado actual también OK.
 - [x] **B2 · Plan de tratamiento por fases + presupuesto odontológico.** *(HECHO
       2026-08-14, commits 6a0702a backend + 3d3c4b9 UI.)* Modelos
       `PlanTratamiento` + `PlanTratamientoItem` (item opcional sobre pieza FDI del
