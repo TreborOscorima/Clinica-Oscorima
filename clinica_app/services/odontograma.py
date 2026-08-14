@@ -16,6 +16,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from clinica_app.models.base import utcnow
+from clinica_app.models.odontograma_version import OdontogramaVersion
 from clinica_app.models.pieza_dental import PiezaDental
 from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError, ValidationError
@@ -126,6 +128,24 @@ def _pieza_default(numero: str) -> dict[str, Any]:
     }
 
 
+def _armar_arcada(guardadas: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Construye la arcada completa (superior/inferior) + resumen a partir de un
+    mapa {numero: pieza_dump}. Las piezas sin dato se completan como 'sano'."""
+    piezas = {n: guardadas.get(n, _pieza_default(n)) for n in PIEZAS_VALIDAS}
+
+    resumen: dict[str, int] = {}
+    for p in guardadas.values():
+        if p["estado"] != "sano":
+            resumen[p["estado"]] = resumen.get(p["estado"], 0) + 1
+
+    return {
+        "superior": [piezas[n] for n in ARCADA_SUPERIOR],
+        "inferior": [piezas[n] for n in ARCADA_INFERIOR],
+        "resumen":  resumen,
+        "con_datos": sum(1 for p in guardadas.values() if p["estado"] != "sano" or p["caras"] or p["nota"]),
+    }
+
+
 async def listar(
     session: AsyncSession,
     clinica_id: int,
@@ -142,20 +162,7 @@ async def listar(
         stmt = stmt.where(PiezaDental.sede_id == sede_id)
     filas = (await session.execute(stmt)).scalars().all()
     guardadas = {p.numero: _dump(p) for p in filas}
-
-    piezas = {n: guardadas.get(n, _pieza_default(n)) for n in PIEZAS_VALIDAS}
-
-    resumen: dict[str, int] = {}
-    for p in guardadas.values():
-        if p["estado"] != "sano":
-            resumen[p["estado"]] = resumen.get(p["estado"], 0) + 1
-
-    return {
-        "superior": [piezas[n] for n in ARCADA_SUPERIOR],
-        "inferior": [piezas[n] for n in ARCADA_INFERIOR],
-        "resumen":  resumen,
-        "con_datos": sum(1 for p in guardadas.values() if p["estado"] != "sano" or p["caras"] or p["nota"]),
-    }
+    return _armar_arcada(guardadas)
 
 
 async def obtener_pieza(
@@ -263,3 +270,197 @@ async def resetear_pieza(
     )
     await session.flush()
     return _pieza_default(numero)
+
+
+# ── Versionado — snapshots del odontograma en el tiempo ───────────────────────
+# Cada versión congela el estado de las piezas *con datos* en JSON, para poder
+# consultar la evolución dental sin bloquear la edición del odontograma vivo.
+
+def _pieza_desde_snapshot(item: dict[str, Any]) -> dict[str, Any]:
+    """Reconstruye el dump completo de una pieza a partir del JSON guardado."""
+    numero = item.get("numero") or ""
+    estado = item.get("estado") or "sano"
+    if estado not in ESTADOS:
+        estado = "sano"
+    info = ESTADOS[estado]
+    caras = item.get("caras")
+    return {
+        "numero":       numero,
+        "estado":       estado,
+        "caras":        caras if isinstance(caras, dict) else {},
+        "nota":         item.get("nota") or "",
+        "estado_label": info["label"],
+        "color":        info["color"],
+        "text_color":   info["text"],
+    }
+
+
+def _parse_snapshot(raw: str | None) -> list[dict[str, Any]]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [_pieza_desde_snapshot(x) for x in data if isinstance(x, dict) and x.get("numero") in PIEZAS_VALIDAS]
+
+
+def _dump_version_meta(v: OdontogramaVersion) -> dict[str, Any]:
+    """Metadatos de una versión para el historial (sin reconstruir la arcada)."""
+    snapshot = _parse_snapshot(v.piezas)
+    resumen: dict[str, int] = {}
+    for p in snapshot:
+        if p["estado"] != "sano":
+            resumen[p["estado"]] = resumen.get(p["estado"], 0) + 1
+    return {
+        "id":        v.id,
+        "titulo":    v.titulo,
+        "nota":      v.nota or "",
+        "con_datos": v.con_datos,
+        "fecha":     v.created_at.strftime("%Y-%m-%d %H:%M") if v.created_at else "",
+        "resumen": [
+            {
+                "estado": est,
+                "label":  ESTADOS.get(est, {}).get("label", est),
+                "color":  ESTADOS.get(est, {}).get("color", "#e5e7eb"),
+                "count":  cnt,
+            }
+            for est, cnt in sorted(resumen.items(), key=lambda kv: -kv[1])
+        ],
+    }
+
+
+async def crear_version(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    *,
+    titulo: str = "",
+    nota: str | None = None,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Congela el estado actual del odontograma como una versión histórica."""
+    stmt = select(PiezaDental).where(
+        PiezaDental.clinica_id == clinica_id,
+        PiezaDental.paciente_id == paciente_id,
+        PiezaDental.is_active.is_(True),
+    )
+    if sede_id:
+        stmt = stmt.where(PiezaDental.sede_id == sede_id)
+    filas = (await session.execute(stmt)).scalars().all()
+
+    snapshot = [
+        {
+            "numero": p.numero,
+            "estado": p.estado or "sano",
+            "caras":  _parse_caras(p.caras),
+            "nota":   p.nota or "",
+        }
+        for p in filas
+        if (p.estado or "sano") != "sano" or _parse_caras(p.caras) or (p.nota or "")
+    ]
+
+    titulo = (titulo or "").strip()[:120]
+    if not titulo:
+        titulo = "Versión " + utcnow().strftime("%Y-%m-%d %H:%M")
+    nota = (nota or "").strip()[:255] or None
+
+    v = OdontogramaVersion(
+        clinica_id=clinica_id,
+        paciente_id=paciente_id,
+        sede_id=sede_id or None,
+        titulo=titulo,
+        nota=nota,
+        piezas=json.dumps(snapshot, ensure_ascii=False),
+        con_datos=len(snapshot),
+        created_by_id=usuario_id,
+    )
+    session.add(v)
+    await session.flush()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="versionar", entidad="odontograma_version", entidad_id=v.id,
+        detalle={"paciente_id": paciente_id, "titulo": titulo, "con_datos": len(snapshot)},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return _dump_version_meta(v)
+
+
+async def listar_versiones(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    sede_id: int = 0,
+) -> list[dict[str, Any]]:
+    """Historial de versiones del paciente, de la más reciente a la más antigua."""
+    stmt = select(OdontogramaVersion).where(
+        OdontogramaVersion.clinica_id == clinica_id,
+        OdontogramaVersion.paciente_id == paciente_id,
+        OdontogramaVersion.is_active.is_(True),
+    )
+    if sede_id:
+        stmt = stmt.where(OdontogramaVersion.sede_id == sede_id)
+    stmt = stmt.order_by(OdontogramaVersion.created_at.desc())
+    filas = (await session.execute(stmt)).scalars().all()
+    return [_dump_version_meta(v) for v in filas]
+
+
+async def obtener_version(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    version_id: int,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Reconstruye la arcada completa de una versión, en el mismo formato que `listar`."""
+    stmt = select(OdontogramaVersion).where(
+        OdontogramaVersion.id == version_id,
+        OdontogramaVersion.clinica_id == clinica_id,
+        OdontogramaVersion.paciente_id == paciente_id,
+        OdontogramaVersion.is_active.is_(True),
+    )
+    v = (await session.execute(stmt)).scalars().first()
+    if v is None:
+        raise NotFoundError("La versión no existe")
+    guardadas = {p["numero"]: p for p in _parse_snapshot(v.piezas)}
+    arcada = _armar_arcada(guardadas)
+    arcada["id"] = v.id
+    arcada["titulo"] = v.titulo
+    arcada["nota"] = v.nota or ""
+    arcada["fecha"] = v.created_at.strftime("%Y-%m-%d %H:%M") if v.created_at else ""
+    return arcada
+
+
+async def eliminar_version(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    version_id: int,
+    *,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> None:
+    """Baja lógica de una versión histórica."""
+    stmt = select(OdontogramaVersion).where(
+        OdontogramaVersion.id == version_id,
+        OdontogramaVersion.clinica_id == clinica_id,
+        OdontogramaVersion.paciente_id == paciente_id,
+        OdontogramaVersion.is_active.is_(True),
+    )
+    v = (await session.execute(stmt)).scalars().first()
+    if v is None:
+        raise NotFoundError("La versión no existe")
+    v.soft_delete()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="eliminar", entidad="odontograma_version", entidad_id=v.id,
+        detalle={"paciente_id": paciente_id, "titulo": v.titulo},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
