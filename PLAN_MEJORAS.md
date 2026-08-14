@@ -252,8 +252,13 @@
       unidad. +12 tests (194 total). Verificado E2E: ficha nº 2 / próxima
       10/09/2026 / parámetros + insumo "Ácido hialurónico Juvederm 1 ml";
       filas en `sesiones_esteticas`/`sesion_insumos` y `audit_log`
-      (editar/agregar_insumo). *(Decremento de stock por insumo y creación
-      automática del turno de la próxima sesión quedan como mejora futura.)*
+      (editar/agregar_insumo). *(Decremento de stock por insumo queda como mejora
+      futura.)* **Turno automático de próxima sesión HECHO (2026-08-14, commits
+      432eff3 backend + d6a0ce5 UI):** `agendar_proxima_sesion` crea un turno para
+      la `proxima_recomendada` delegando en `services.turnos.crear` (no
+      reimplementa la agenda); botón en la ficha → modal (fecha/hora/profesional)
+      que crea el turno PENDIENTE. +6 tests (222 total). Verificado E2E: turno
+      id=41 para 2026-09-10 15:00, `audit_log` agendar_turno.
 
 ### Fase D — Configuración por tipo de clínica
 
