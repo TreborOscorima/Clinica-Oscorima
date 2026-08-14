@@ -22,6 +22,10 @@ class Adjunto(TenantSQLModel, table=True):
     sede_id:      int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     paciente_id:  int        = Field(foreign_key="pacientes.id", nullable=False, index=True)
     nota_id:      int | None = Field(default=None, foreign_key="notas_clinicas.id", nullable=True, index=True)
+    # C1 — galería estética: una foto puede pertenecer a una sesión y a un momento
+    # (antes/durante/después). Nullable: los adjuntos genéricos de A2 no los usan.
+    sesion_id:    int | None = Field(default=None, foreign_key="sesiones_esteticas.id", nullable=True, index=True)
+    momento:      str | None = Field(default=None, max_length=12, nullable=True)
     nombre:       str        = Field(max_length=255, nullable=False)   # nombre original visible
     stored_name:  str        = Field(max_length=255, nullable=False)   # uuid.ext en disco
     mime:         str | None = Field(default=None, max_length=120, nullable=True)
