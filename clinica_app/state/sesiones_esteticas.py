@@ -34,6 +34,28 @@ class SesionesEsteticasState(BaseState):
     fotos_durante: list[dict] = []
     fotos_despues: list[dict] = []
 
+    # ── Ficha clínica (C2) ──────────────────────────────────────────────────────
+    sa_numero_sesion: int = 0
+    sa_parametros:    str = ""
+    sa_proxima:       str = ""
+    sa_proxima_fmt:   str = ""
+    insumos:   list[dict] = []
+    productos: list[dict] = []          # catálogo de inventario [{id,nombre}]
+
+    # Modal editar ficha
+    modal_ficha: bool = False
+    ef_numero:     str = ""
+    ef_zona:       str = ""
+    ef_parametros: str = ""
+    ef_proxima:    str = ""
+
+    # Modal agregar insumo
+    modal_insumo:   bool = False
+    ni_producto_id: str = "0"
+    ni_descripcion: str = ""
+    ni_cantidad:    str = ""
+    ni_unidad:      str = ""
+
     # ── Modal: nueva sesión ─────────────────────────────────────────────────────
     modal_sesion: bool = False
     ns_fecha:  str = ""
@@ -65,7 +87,22 @@ class SesionesEsteticasState(BaseState):
                 self.paciente_id = 0
         if self.paciente_id:
             await self._cargar_paciente()
+            await self._cargar_productos()
             await self._cargar_sesiones()
+
+    async def _cargar_productos(self):
+        from clinica_app.models.inventario import Producto
+        async with get_async_session() as session:
+            stmt = (
+                select(Producto)
+                .where(Producto.clinica_id == self.clinica_id, Producto.is_active.is_(True))
+                .order_by(Producto.nombre.asc())
+                .limit(300)
+            )
+            if self.sede_actual_id:
+                stmt = stmt.where(Producto.sede_id == self.sede_actual_id)
+            prods = (await session.execute(stmt)).scalars().all()
+        self.productos = [{"id": str(p.id), "nombre": p.nombre} for p in prods]
 
     async def _cargar_paciente(self):
         from clinica_app.models.paciente import Paciente
@@ -104,6 +141,11 @@ class SesionesEsteticasState(BaseState):
         self.fotos_antes   = full["antes"]
         self.fotos_durante = full["durante"]
         self.fotos_despues = full["despues"]
+        self.sa_numero_sesion = full["numero_sesion"]
+        self.sa_parametros    = full["parametros"]
+        self.sa_proxima       = full["proxima"]
+        self.sa_proxima_fmt   = full["proxima_fmt"]
+        self.insumos          = full["insumos"]
 
     async def seleccionar_sesion(self, sesion_id: int):
         await self._cargar_sesion(sesion_id)
@@ -238,4 +280,95 @@ class SesionesEsteticasState(BaseState):
                 pass
         if stored_name:
             await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
+        await self._cargar_sesiones()
+
+    # ── Ficha clínica (C2) ──────────────────────────────────────────────────────
+
+    def abrir_modal_ficha(self):
+        self.ef_numero = self.sa_numero_sesion.to_string() if self.sa_numero_sesion else ""
+        self.ef_zona = self.sa_zona
+        self.ef_parametros = self.sa_parametros
+        self.ef_proxima = self.sa_proxima
+        self.modal_ficha = True
+
+    def cerrar_modal_ficha(self):
+        self.modal_ficha = False
+
+    def set_ef_numero(self, v: str):     self.ef_numero = v
+    def set_ef_zona(self, v: str):       self.ef_zona = v
+    def set_ef_parametros(self, v: str): self.ef_parametros = v
+    def set_ef_proxima(self, v: str):    self.ef_proxima = v
+
+    async def guardar_ficha(self):
+        if not self.tiene_permiso("historia", write=True) or not self.sesion_actual_id:
+            self.modal_ficha = False
+            return
+        async with get_async_session() as session:
+            try:
+                await svc.actualizar_sesion(
+                    session, self.clinica_id, self.sesion_actual_id,
+                    zona=self.ef_zona,
+                    numero_sesion=self.ef_numero,
+                    parametros=self.ef_parametros,
+                    proxima=self.ef_proxima,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError as exc:
+                self.upload_error = str(exc)
+        self.modal_ficha = False
+        await self._cargar_sesiones()
+
+    # ── Insumos aplicados (C2) ──────────────────────────────────────────────────
+
+    def abrir_modal_insumo(self):
+        self.ni_producto_id = "0"
+        self.ni_descripcion = ""
+        self.ni_cantidad = ""
+        self.ni_unidad = ""
+        self.modal_insumo = True
+
+    def cerrar_modal_insumo(self):
+        self.modal_insumo = False
+
+    def set_ni_descripcion(self, v: str): self.ni_descripcion = v
+    def set_ni_cantidad(self, v: str):    self.ni_cantidad = v
+    def set_ni_unidad(self, v: str):      self.ni_unidad = v
+
+    def set_ni_producto(self, pid: str):
+        self.ni_producto_id = pid
+        for p in self.productos:
+            if p["id"] == pid and not self.ni_descripcion.strip():
+                self.ni_descripcion = p["nombre"]
+                break
+
+    async def guardar_insumo(self):
+        if not self.tiene_permiso("historia", write=True) or not self.sesion_actual_id:
+            self.modal_insumo = False
+            return
+        async with get_async_session() as session:
+            try:
+                await svc.agregar_insumo(
+                    session, self.clinica_id, self.sesion_actual_id,
+                    descripcion=self.ni_descripcion,
+                    producto_id=int(self.ni_producto_id) if self.ni_producto_id not in ("", "0") else None,
+                    cantidad=self.ni_cantidad,
+                    unidad=self.ni_unidad,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError as exc:
+                self.upload_error = str(exc)
+        self.modal_insumo = False
+        await self._cargar_sesiones()
+
+    async def eliminar_insumo(self, insumo_id: int):
+        if not self.tiene_permiso("historia", write=True):
+            return
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar_insumo(
+                    session, self.clinica_id, insumo_id,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError:
+                pass
         await self._cargar_sesiones()
