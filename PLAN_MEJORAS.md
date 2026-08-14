@@ -209,6 +209,16 @@
       trata a obturado → v2 "Post-tratamiento"; el visor de v1 sigue mostrando
       caries mientras el odontograma vivo muestra obturado (inmutabilidad); borrar
       v2 baja el badge y marca `is_active=0`; JSON congelado y `audit_log` OK.
+      **Exportación a PDF HECHO (2026-08-14, commits a7c743d backend + db5b184 UI).**
+      `services/pdf_odontograma.py::generar_odontograma_pdf` (ReportLab, A4
+      apaisado, devuelve bytes) dibuja la arcada FDI coloreada por estado +
+      detalle de hallazgos + leyenda + datos del paciente. `odontograma.datos_export`
+      reúne paciente+arcada (viva o de versión)+leyenda. Endpoint
+      `/api/odontograma/pdf` (token efímero + chequeo de clínica, patrón recibo;
+      `version_id` opcional). UI: botón "Exportar PDF" en la barra y enlace "PDF"
+      por versión en el historial. +6 tests (243 total). Verificado E2E: descarga
+      `application/pdf` `%PDF-1.4` de la arcada viva y de una versión; 404/401/403
+      correctos en versión inexistente/token inválido/otra clínica.
 - [x] **B2 · Plan de tratamiento por fases + presupuesto odontológico.** *(HECHO
       2026-08-14, commits 6a0702a backend + 3d3c4b9 UI.)* Modelos
       `PlanTratamiento` + `PlanTratamientoItem` (item opcional sobre pieza FDI del
