@@ -5,9 +5,12 @@ from typing import Any
 
 import reflex as rx
 
+from clinica_app.config import CLINICA_NOMBRE
 from clinica_app.database import get_async_session
 from clinica_app.services import adjuntos as adj_svc
+from clinica_app.services import consentimientos as cons_svc
 from clinica_app.services import notas_clinicas as svc
+from clinica_app.services import plantillas_consentimiento
 from clinica_app.services import plantillas_nota
 from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
@@ -49,6 +52,16 @@ class NotasClinicasState(BaseState):
     adj_error:     str        = ""
     is_uploading:  bool       = False
 
+    # ── Consentimiento informado (A4) ───────────────────────────────────────────
+    cons_tipos_cat:      list[dict] = []
+    modal_cons_abierto:  bool = False
+    cons_tipo:           str  = "general"
+    cons_procedimiento:  str  = ""
+    cons_profesional:    str  = ""
+    cons_observaciones:  str  = ""
+    cons_error:          str  = ""
+    is_generating_cons:  bool = False
+
     async def on_mount(self):
         self._expirar_si_vencio()
         if not self.is_authenticated:
@@ -86,6 +99,7 @@ class NotasClinicasState(BaseState):
 
     async def _cargar_catalogos(self):
         self.plantillas_cat = plantillas_nota.opciones()
+        self.cons_tipos_cat = plantillas_consentimiento.opciones()
         from clinica_app.models.profesional import Profesional
         from sqlmodel import select
         async with get_async_session() as session:
@@ -202,6 +216,67 @@ class NotasClinicasState(BaseState):
         # El archivo físico se borra fuera de la transacción (idempotente).
         if stored_name:
             await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
+        await self._cargar_adjuntos()
+
+    # ── Consentimiento informado (A4) ───────────────────────────────────────────
+
+    def set_cons_tipo(self, v: str):          self.cons_tipo = v
+    def set_cons_procedimiento(self, v: str): self.cons_procedimiento = v
+    def set_cons_profesional(self, v: str):   self.cons_profesional = v
+    def set_cons_observaciones(self, v: str): self.cons_observaciones = v
+
+    def abrir_consentimiento(self):
+        self.cons_tipo          = "general"
+        self.cons_procedimiento = ""
+        self.cons_profesional   = ""
+        self.cons_observaciones = ""
+        self.cons_error         = ""
+        self.modal_cons_abierto = True
+
+    def cerrar_consentimiento(self):
+        self.modal_cons_abierto = False
+
+    async def generar_consentimiento(self):
+        self.cons_error = ""
+        if not self.tiene_permiso("historia", write=True):
+            self.cons_error = "Sin permiso de escritura"
+            return
+        if not self.paciente_id:
+            self.cons_error = "Seleccioná un paciente primero"
+            return
+        if not self.cons_procedimiento.strip():
+            self.cons_error = "Indicá el procedimiento"
+            return
+
+        self.is_generating_cons = True
+        yield
+        try:
+            async with get_async_session() as session:
+                await cons_svc.generar(
+                    session, self.clinica_id, self.paciente_id,
+                    tipo=self.cons_tipo,
+                    procedimiento=self.cons_procedimiento,
+                    profesional_nombre=self.cons_profesional,
+                    observaciones=self.cons_observaciones,
+                    usuario_id=self.user_id,
+                    sede_id=self.sede_actual_id,
+                    clinica_nombre=CLINICA_NOMBRE,
+                )
+        except ServiceError as exc:
+            self.cons_error = str(exc)
+            self.is_generating_cons = False
+            return
+        except RuntimeError as exc:
+            self.cons_error = str(exc)
+            self.is_generating_cons = False
+            return
+        except Exception:
+            self.cons_error = "No se pudo generar el consentimiento."
+            self.is_generating_cons = False
+            return
+
+        self.is_generating_cons = False
+        self.modal_cons_abierto = False
         await self._cargar_adjuntos()
 
     async def prev_page(self):

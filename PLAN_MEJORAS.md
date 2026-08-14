@@ -156,10 +156,17 @@
       anamnesis, evolución, odontología, estética — selector en el modal que
       inserta el esqueleto (textarea pasa a controlado). +9 tests (124 total).
       Verificado E2E en el navegador. Cierra el ítem "Historia clínica más rica".
-- [ ] **A4 · Consentimiento informado.** Plantilla por servicio/especialidad,
-      registro de aceptación (fecha, paciente, profesional) y generación de PDF
-      **reutilizando el motor `services/pdf_recibo.py`**. Queda archivado como
-      adjunto (A2).
+- [x] **A4 · Consentimiento informado — HECHO (2026-08-14).** PDF A4 generado con
+      ReportLab (`services/pdf_consentimiento.py`, devuelve **bytes** para archivar),
+      plantillas por especialidad (`services/plantillas_consentimiento.py`: general,
+      estética, odontología, quirúrgico menor — marcador `{procedimiento}`).
+      Orquestación en `services/consentimientos.py`: genera → guarda en disco (storage
+      A2) → registra como `Adjunto` categoría "consentimiento" → auditoría
+      (`accion=generar`). Sin migración (reusa tabla `adjuntos`). Modal en Historia
+      Clínica con datos del paciente, procedimiento, profesional y observaciones; el
+      PDF queda descargable/imprimible en la lista de adjuntos. +7 tests (131 total).
+      Verificado E2E: consentimiento estético para paciente → PDF `%PDF-1.4` en disco,
+      fila en `adjuntos` y `audit_log`.
 - [ ] **A5 · Recetas / indicaciones imprimibles.** A partir de la nota tipo
       `indicacion`, emitir un PDF con formato de receta/indicación (mismo motor
       de PDF). Cierra el circuito asistencial básico común a ambos rubros.

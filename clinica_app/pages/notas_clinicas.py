@@ -168,6 +168,132 @@ def _modal_nota() -> rx.Component:
     )
 
 
+def _modal_consentimiento() -> rx.Component:
+    return rx.cond(
+        NotasClinicasState.modal_cons_abierto,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=NotasClinicasState.cerrar_consentimiento,
+            ),
+            rx.el.div(
+                # Header
+                rx.el.div(
+                    rx.el.div(
+                        rx.icon("file-signature", size=18, class_name="text-green-600 mr-2"),
+                        rx.el.h2("Consentimiento informado", class_name="text-lg font-semibold text-gray-900"),
+                        class_name="flex items-center",
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=NotasClinicasState.cerrar_consentimiento,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
+                ),
+                # Paciente info
+                rx.el.div(
+                    rx.icon("user", size=14, class_name="text-gray-400 mr-1"),
+                    rx.el.span(NotasClinicasState.paciente_nombre, class_name="text-sm text-gray-600"),
+                    class_name="flex items-center mb-4 bg-gray-50 px-3 py-2 rounded-lg",
+                ),
+                # Tipo
+                rx.el.div(
+                    rx.el.label("Tipo de consentimiento", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.select(
+                        rx.foreach(
+                            NotasClinicasState.cons_tipos_cat.to(list[dict]),
+                            lambda t: rx.el.option(t["label"], value=t["clave"]),
+                        ),
+                        default_value=NotasClinicasState.cons_tipo,
+                        on_change=NotasClinicasState.set_cons_tipo,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500",
+                    ),
+                    class_name="mb-4",
+                ),
+                # Procedimiento
+                rx.el.div(
+                    rx.el.label("Procedimiento *", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.input(
+                        type="text",
+                        placeholder="Ej: Aplicación de toxina botulínica en tercio superior",
+                        default_value=NotasClinicasState.cons_procedimiento,
+                        on_change=NotasClinicasState.set_cons_procedimiento,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500",
+                    ),
+                    class_name="mb-4",
+                ),
+                # Profesional (aclaración de la firma)
+                rx.el.div(
+                    rx.el.label("Profesional (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.input(
+                        type="text",
+                        placeholder="Nombre y matrícula del profesional",
+                        default_value=NotasClinicasState.cons_profesional,
+                        on_change=NotasClinicasState.set_cons_profesional,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500",
+                    ),
+                    class_name="mb-4",
+                ),
+                # Observaciones
+                rx.el.div(
+                    rx.el.label("Observaciones (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.textarea(
+                        placeholder="Aclaraciones específicas para este paciente…",
+                        default_value=NotasClinicasState.cons_observaciones,
+                        on_change=NotasClinicasState.set_cons_observaciones,
+                        rows=3,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none",
+                    ),
+                    class_name="mb-4",
+                ),
+                rx.el.p(
+                    rx.icon("info", size=12, class_name="inline mr-1 -mt-0.5"),
+                    "Se generará un PDF y quedará archivado como adjunto del paciente, listo para imprimir y firmar.",
+                    class_name="text-xs text-gray-400 mb-3",
+                ),
+                # Error
+                rx.cond(
+                    NotasClinicasState.cons_error != "",
+                    rx.el.p(
+                        NotasClinicasState.cons_error,
+                        class_name="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded",
+                    ),
+                ),
+                # Botones
+                rx.el.div(
+                    rx.el.button(
+                        "Cancelar",
+                        on_click=NotasClinicasState.cerrar_consentimiento,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.cond(
+                            NotasClinicasState.is_generating_cons,
+                            rx.el.div(
+                                rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"),
+                                "Generando…",
+                                class_name="flex items-center",
+                            ),
+                            rx.el.div(
+                                rx.icon("file-down", size=16, class_name="mr-1"),
+                                "Generar PDF",
+                                class_name="flex items-center",
+                            ),
+                        ),
+                        on_click=NotasClinicasState.generar_consentimiento,
+                        disabled=NotasClinicasState.is_generating_cons,
+                        class_name="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 cursor-pointer",
+                    ),
+                    class_name="flex gap-3 justify-end",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 _ADJ_UPLOAD_ID = "hc_adjuntos"
 
 
@@ -220,9 +346,19 @@ def _fila_adjunto(a: dict) -> rx.Component:
 def _seccion_adjuntos() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.icon("paperclip", size=15, class_name="text-gray-500 mr-1.5"),
-            rx.el.span("Archivos del paciente", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
-            class_name="flex items-center mb-2",
+            rx.el.div(
+                rx.icon("paperclip", size=15, class_name="text-gray-500 mr-1.5"),
+                rx.el.span("Archivos del paciente", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+                class_name="flex items-center",
+            ),
+            rx.el.button(
+                rx.icon("file-signature", size=14, class_name="mr-1.5"),
+                rx.el.span("Consentimiento", class_name="text-sm"),
+                on_click=NotasClinicasState.abrir_consentimiento,
+                title="Generar un consentimiento informado en PDF",
+                class_name="inline-flex items-center px-2.5 py-1 text-green-700 border border-green-300 bg-green-50 rounded-lg hover:bg-green-100 cursor-pointer",
+            ),
+            class_name="flex items-center justify-between mb-2",
         ),
         # Controles de subida
         rx.el.div(
@@ -367,6 +503,7 @@ def _fila_nota(n: dict) -> rx.Component:
 def notas_clinicas_page() -> rx.Component:
     return shell(
         _modal_nota(),
+        _modal_consentimiento(),
         page_header(
             "Historia Clínica",
             "Evoluciones, diagnósticos e indicaciones por paciente",
