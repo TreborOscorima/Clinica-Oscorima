@@ -195,8 +195,20 @@
       coloreada, resumen por hallazgo, leyenda, modal por pieza; botón desde la
       Historia Clínica. +12 tests (150 total). Verificado E2E: pieza 16 → caries +
       nota → se pinta roja con punto de nota y chip "Caries 1"; fila en
-      `piezas_dentales` y `audit_log`. *(Versionado por fecha para ver evolución
-      queda como mejora futura; hoy es el estado actual del odontograma.)*
+      `piezas_dentales` y `audit_log`. **Versionado del odontograma HECHO
+      (2026-08-14, commits <backend> + <ui>).** Modelo `OdontogramaVersion`
+      (`odontograma_versiones`, snapshot de las piezas con datos en JSON +
+      `con_datos`), migración `a3b4c5d6e7f8`. Servicio: `crear_version` (congela
+      el estado actual, título por defecto = fecha/hora, audit accion="versionar"),
+      `listar_versiones` (historial reciente→antiguo), `obtener_version`
+      (reconstruye la arcada completa vía `_armar_arcada`, compartido con
+      `listar`), `eliminar_version` (baja lógica + audit). UI: botón "Guardar
+      versión", panel "Historial" (con badge de cantidad, chips de resumen por
+      versión, Ver/Eliminar) y visor de solo lectura de cada versión. +11 tests
+      (237 total). Verificado E2E: v1 "Estado inicial" (pieza 16 caries) → se
+      trata a obturado → v2 "Post-tratamiento"; el visor de v1 sigue mostrando
+      caries mientras el odontograma vivo muestra obturado (inmutabilidad); borrar
+      v2 baja el badge y marca `is_active=0`; JSON congelado y `audit_log` OK.
 - [x] **B2 · Plan de tratamiento por fases + presupuesto odontológico.** *(HECHO
       2026-08-14, commits 6a0702a backend + 3d3c4b9 UI.)* Modelos
       `PlanTratamiento` + `PlanTratamientoItem` (item opcional sobre pieza FDI del

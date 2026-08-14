@@ -32,6 +32,31 @@ def _arcada(piezas, etiqueta: str) -> rx.Component:
     )
 
 
+def _diente_ro(p: dict) -> rx.Component:
+    """Diente en modo solo lectura (visor de versión histórica)."""
+    return rx.el.div(
+        rx.el.span(p["numero"], class_name="text-xs font-bold leading-none"),
+        rx.cond(
+            p["nota"] != "",
+            rx.el.span(class_name="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-white/80 ring-1 ring-gray-500"),
+        ),
+        style={"backgroundColor": p["color"], "color": p["text_color"]},
+        title=p["estado_label"],
+        class_name="relative w-9 h-11 rounded-md border border-gray-300 flex items-center justify-center shrink-0",
+    )
+
+
+def _arcada_ro(piezas, etiqueta: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.span(etiqueta, class_name="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1"),
+        rx.el.div(
+            rx.foreach(piezas.to(list[dict]), _diente_ro),
+            class_name="flex gap-1 justify-center min-w-max",
+        ),
+        class_name="flex flex-col items-center",
+    )
+
+
 def _leyenda_item(e: dict) -> rx.Component:
     return rx.el.div(
         rx.el.span(style={"backgroundColor": e["color"]}, class_name="w-3 h-3 rounded-sm border border-gray-300 shrink-0"),
@@ -129,9 +154,221 @@ def _modal_pieza() -> rx.Component:
     )
 
 
+def _version_row(v: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.icon("clock", size=13, class_name="text-gray-400 mr-1.5 shrink-0"),
+            rx.el.span(v["fecha"], class_name="text-xs text-gray-500 shrink-0"),
+            rx.el.span(v["titulo"], class_name="text-sm font-medium text-gray-800 ml-3 truncate"),
+            rx.el.span(
+                v["con_datos"], " ",
+                rx.cond(v["con_datos"] == 1, "hallazgo", "hallazgos"),
+                class_name="text-xs text-gray-400 ml-auto shrink-0",
+            ),
+            class_name="flex items-center min-w-0",
+        ),
+        rx.cond(
+            v["nota"] != "",
+            rx.el.p(v["nota"], class_name="text-xs text-gray-500 mt-1 italic truncate"),
+        ),
+        rx.el.div(
+            rx.foreach(v["resumen"].to(list[dict]), _resumen_chip),
+            class_name="flex flex-wrap gap-1.5 mt-2",
+        ),
+        rx.el.div(
+            rx.el.button(
+                rx.icon("eye", size=14, class_name="mr-1"),
+                "Ver",
+                on_click=lambda: OdontogramaState.ver_version(v["id"]),
+                class_name="inline-flex items-center px-2.5 py-1 text-xs text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 cursor-pointer",
+            ),
+            rx.cond(
+                OdontogramaState.puede_versionar,
+                rx.el.button(
+                    rx.icon("trash-2", size=14),
+                    on_click=lambda: OdontogramaState.eliminar_version(v["id"]),
+                    title="Eliminar versión",
+                    class_name="inline-flex items-center px-2 py-1 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-red-50 hover:text-red-600 cursor-pointer",
+                ),
+                rx.fragment(),
+            ),
+            class_name="flex items-center gap-2 mt-3",
+        ),
+        class_name="p-3 bg-white border border-gray-200 rounded-xl",
+    )
+
+
+def _panel_historial() -> rx.Component:
+    return rx.cond(
+        OdontogramaState.mostrar_historial,
+        rx.el.div(
+            rx.el.div(
+                rx.icon("history", size=15, class_name="text-gray-500 mr-2"),
+                rx.el.span("Historial de versiones", class_name="text-sm font-semibold text-gray-700"),
+                class_name="flex items-center mb-3",
+            ),
+            rx.cond(
+                OdontogramaState.versiones.length() > 0,
+                rx.el.div(
+                    rx.foreach(OdontogramaState.versiones.to(list[dict]), _version_row),
+                    class_name="flex flex-col gap-2",
+                ),
+                rx.el.p(
+                    "Todavía no guardaste versiones. Guardá una para registrar la evolución dental en el tiempo.",
+                    class_name="text-sm text-gray-400 italic",
+                ),
+            ),
+            class_name="mt-5 p-4 bg-gray-50 border border-gray-100 rounded-xl",
+        ),
+    )
+
+
+def _modal_crear_version() -> rx.Component:
+    return rx.cond(
+        OdontogramaState.modal_version,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=OdontogramaState.cerrar_modal_version,
+            ),
+            rx.el.div(
+                rx.el.div(
+                    rx.el.div(
+                        rx.icon("camera", size=18, class_name="text-sky-600 mr-2"),
+                        rx.el.h2("Guardar versión del odontograma", class_name="text-lg font-semibold text-gray-900"),
+                        class_name="flex items-center",
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=OdontogramaState.cerrar_modal_version,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
+                ),
+                rx.el.p(
+                    "Se congelará el estado actual de todas las piezas como una versión histórica. El odontograma vivo se sigue editando normalmente.",
+                    class_name="text-sm text-gray-500 mb-4",
+                ),
+                rx.el.div(
+                    rx.el.label("Título", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.input(
+                        type="text",
+                        placeholder="Ej: Estado inicial, Post-tratamiento…",
+                        value=OdontogramaState.ver_titulo,
+                        on_change=OdontogramaState.set_ver_titulo,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    ),
+                    rx.el.p("Si lo dejás vacío, se usa la fecha y hora.", class_name="text-xs text-gray-400 mt-1"),
+                    class_name="mb-4",
+                ),
+                rx.el.div(
+                    rx.el.label("Nota (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                    rx.el.input(
+                        type="text",
+                        placeholder="Contexto de la versión…",
+                        value=OdontogramaState.ver_nota,
+                        on_change=OdontogramaState.set_ver_nota,
+                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                    ),
+                    class_name="mb-5",
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cancelar",
+                        on_click=OdontogramaState.cerrar_modal_version,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.cond(
+                            OdontogramaState.is_versionando,
+                            rx.el.div(rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"), "Guardando…", class_name="flex items-center"),
+                            rx.el.div(rx.icon("camera", size=16, class_name="mr-1.5"), "Guardar versión", class_name="flex items-center"),
+                        ),
+                        on_click=OdontogramaState.crear_version,
+                        disabled=OdontogramaState.is_versionando,
+                        class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-end gap-3",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
+def _modal_ver_version() -> rx.Component:
+    return rx.cond(
+        OdontogramaState.viendo_version,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=OdontogramaState.cerrar_version,
+            ),
+            rx.el.div(
+                rx.el.div(
+                    rx.el.div(
+                        rx.icon("history", size=18, class_name="text-sky-600 mr-2"),
+                        rx.el.div(
+                            rx.el.h2(OdontogramaState.v_titulo, class_name="text-lg font-semibold text-gray-900 leading-tight"),
+                            rx.el.span(OdontogramaState.v_fecha, class_name="text-xs text-gray-400"),
+                            class_name="flex flex-col",
+                        ),
+                        class_name="flex items-center",
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=OdontogramaState.cerrar_version,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-between pb-4 mb-4 border-b border-gray-100",
+                ),
+                rx.el.div(
+                    rx.icon("eye", size=13, class_name="text-amber-500 mr-1.5"),
+                    rx.el.span("Solo lectura — es una versión histórica.", class_name="text-xs text-amber-700"),
+                    class_name="flex items-center px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-lg mb-4 w-fit",
+                ),
+                rx.cond(
+                    OdontogramaState.v_nota != "",
+                    rx.el.p(OdontogramaState.v_nota, class_name="text-sm text-gray-500 italic mb-3"),
+                ),
+                rx.cond(
+                    OdontogramaState.v_resumen.length() > 0,
+                    rx.el.div(
+                        rx.foreach(OdontogramaState.v_resumen.to(list[dict]), _resumen_chip),
+                        class_name="flex flex-wrap gap-2 mb-4",
+                    ),
+                    rx.el.p("Sin hallazgos — todas las piezas figuraban como sanas.", class_name="text-sm text-gray-400 italic mb-4"),
+                ),
+                rx.el.div(
+                    rx.el.div(
+                        _arcada_ro(OdontogramaState.v_superior, "Superior"),
+                        rx.el.div(class_name="h-px bg-gray-200 my-4 w-full"),
+                        _arcada_ro(OdontogramaState.v_inferior, "Inferior"),
+                        class_name="inline-flex flex-col gap-1 min-w-max",
+                    ),
+                    class_name="overflow-x-auto p-4 bg-white border border-gray-100 rounded-xl",
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cerrar",
+                        on_click=OdontogramaState.cerrar_version,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    class_name="flex justify-end mt-5",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-3xl mx-4 z-50 max-h-[90vh] overflow-y-auto",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 def odontograma_page() -> rx.Component:
     return shell(
         _modal_pieza(),
+        _modal_crear_version(),
+        _modal_ver_version(),
         page_header(
             "Odontograma",
             "Estado dental por pieza (numeración FDI)",
@@ -165,11 +402,41 @@ def odontograma_page() -> rx.Component:
                 class_name="flex flex-col items-center justify-center py-20 text-center",
             ),
             rx.el.div(
-                # Paciente
+                # Paciente + acciones
                 rx.el.div(
-                    rx.icon("user", size=15, class_name="text-gray-400 mr-1.5"),
-                    rx.el.span(OdontogramaState.paciente_nombre, class_name="text-sm font-medium text-gray-700"),
-                    class_name="flex items-center mb-4 bg-gray-50 px-3 py-2 rounded-lg w-fit",
+                    rx.el.div(
+                        rx.icon("user", size=15, class_name="text-gray-400 mr-1.5"),
+                        rx.el.span(OdontogramaState.paciente_nombre, class_name="text-sm font-medium text-gray-700"),
+                        class_name="flex items-center bg-gray-50 px-3 py-2 rounded-lg w-fit",
+                    ),
+                    rx.el.div(
+                        rx.cond(
+                            OdontogramaState.puede_versionar,
+                            rx.el.button(
+                                rx.icon("camera", size=15, class_name="mr-1.5"),
+                                "Guardar versión",
+                                on_click=OdontogramaState.abrir_modal_version,
+                                class_name="inline-flex items-center px-3 py-2 text-sm text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 cursor-pointer",
+                            ),
+                            rx.fragment(),
+                        ),
+                        rx.el.button(
+                            rx.icon("history", size=15, class_name="mr-1.5"),
+                            "Historial",
+                            rx.cond(
+                                OdontogramaState.versiones.length() > 0,
+                                rx.el.span(
+                                    OdontogramaState.versiones.length(),
+                                    class_name="ml-1.5 px-1.5 py-0.5 text-xs font-bold bg-gray-100 text-gray-600 rounded-full",
+                                ),
+                                rx.fragment(),
+                            ),
+                            on_click=OdontogramaState.toggle_historial,
+                            class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                        ),
+                        class_name="flex items-center gap-2",
+                    ),
+                    class_name="flex items-center justify-between flex-wrap gap-3 mb-4",
                 ),
                 # Resumen
                 rx.cond(
@@ -203,6 +470,8 @@ def odontograma_page() -> rx.Component:
                     ),
                     class_name="mt-5 p-4 bg-gray-50 border border-gray-100 rounded-xl",
                 ),
+                # Historial de versiones
+                _panel_historial(),
             ),
         ),
         on_mount=OdontogramaState.on_mount,

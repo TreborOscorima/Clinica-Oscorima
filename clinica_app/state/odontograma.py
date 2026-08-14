@@ -27,6 +27,28 @@ class OdontogramaState(BaseState):
     sel_nota:      str  = ""
     is_saving:     bool = False
 
+    # ── Versionado (evolución en el tiempo) ─────────────────────────────────────
+    versiones:        list[dict] = []
+    mostrar_historial: bool = False
+    # Crear versión
+    modal_version:    bool = False
+    ver_titulo:       str  = ""
+    ver_nota:         str  = ""
+    is_versionando:   bool = False
+    # Ver una versión histórica (solo lectura)
+    viendo_version:   bool = False
+    v_id:             int  = 0
+    v_titulo:         str  = ""
+    v_fecha:          str  = ""
+    v_nota:           str  = ""
+    v_superior:       list[dict] = []
+    v_inferior:       list[dict] = []
+    v_resumen:        list[dict] = []
+
+    @rx.var
+    def puede_versionar(self) -> bool:
+        return self.tiene_permiso("historia", write=True)
+
     async def on_mount(self):
         self._expirar_si_vencio()
         if not self.is_authenticated:
@@ -79,7 +101,16 @@ class OdontogramaState(BaseState):
             }
             for est, cnt in sorted(data["resumen"].items(), key=lambda kv: -kv[1])
         ]
+        await self._cargar_versiones()
         self.is_loading = False
+
+    async def _cargar_versiones(self):
+        if not self.paciente_id:
+            return
+        async with get_async_session() as session:
+            self.versiones = await svc.listar_versiones(
+                session, self.clinica_id, self.paciente_id, sede_id=self.sede_actual_id
+            )
 
     # ── Modal ────────────────────────────────────────────────────────────────────
 
@@ -130,3 +161,80 @@ class OdontogramaState(BaseState):
                 pass
         self.modal_abierto = False
         await self._cargar()
+
+    # ── Versionado ───────────────────────────────────────────────────────────────
+
+    def toggle_historial(self):
+        self.mostrar_historial = not self.mostrar_historial
+
+    def abrir_modal_version(self):
+        self.ver_titulo = ""
+        self.ver_nota = ""
+        self.modal_version = True
+
+    def cerrar_modal_version(self):
+        self.modal_version = False
+
+    def set_ver_titulo(self, v: str): self.ver_titulo = v
+    def set_ver_nota(self, v: str):   self.ver_nota = v
+
+    async def crear_version(self):
+        if not self.tiene_permiso("historia", write=True):
+            self.modal_version = False
+            return
+        self.is_versionando = True
+        yield
+        try:
+            async with get_async_session() as session:
+                await svc.crear_version(
+                    session, self.clinica_id, self.paciente_id,
+                    titulo=self.ver_titulo, nota=self.ver_nota,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+        except ServiceError:
+            pass
+        self.is_versionando = False
+        self.modal_version = False
+        self.mostrar_historial = True
+        await self._cargar_versiones()
+
+    async def ver_version(self, version_id: int):
+        async with get_async_session() as session:
+            try:
+                data = await svc.obtener_version(
+                    session, self.clinica_id, self.paciente_id, version_id,
+                )
+            except ServiceError:
+                return
+        self.v_id = data["id"]
+        self.v_titulo = data["titulo"]
+        self.v_fecha = data["fecha"]
+        self.v_nota = data["nota"]
+        self.v_superior = data["superior"]
+        self.v_inferior = data["inferior"]
+        self.v_resumen = [
+            {
+                "estado": est,
+                "label":  svc.ESTADOS.get(est, {}).get("label", est),
+                "color":  svc.ESTADOS.get(est, {}).get("color", "#e5e7eb"),
+                "count":  cnt,
+            }
+            for est, cnt in sorted(data["resumen"].items(), key=lambda kv: -kv[1])
+        ]
+        self.viendo_version = True
+
+    def cerrar_version(self):
+        self.viendo_version = False
+
+    async def eliminar_version(self, version_id: int):
+        if not self.tiene_permiso("historia", write=True):
+            return
+        async with get_async_session() as session:
+            try:
+                await svc.eliminar_version(
+                    session, self.clinica_id, self.paciente_id, version_id,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError:
+                pass
+        await self._cargar_versiones()
