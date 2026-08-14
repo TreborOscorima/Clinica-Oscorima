@@ -57,6 +57,35 @@ def _arcada_ro(piezas, etiqueta: str) -> rx.Component:
     )
 
 
+def _diente_cmp(p: dict) -> rx.Component:
+    """Diente de comparación (solo lectura); anilla ámbar si la pieza cambió."""
+    return rx.el.div(
+        rx.el.span(p["numero"], class_name="text-xs font-bold leading-none"),
+        rx.cond(
+            p["cambio"],
+            rx.el.span(class_name="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white"),
+        ),
+        style={"backgroundColor": p["color"], "color": p["text_color"]},
+        title=p["estado_label"],
+        class_name=rx.cond(
+            p["cambio"],
+            "relative w-9 h-11 rounded-md border-2 border-amber-400 flex items-center justify-center shrink-0",
+            "relative w-9 h-11 rounded-md border border-gray-300 flex items-center justify-center shrink-0",
+        ),
+    )
+
+
+def _arcada_cmp(piezas, etiqueta: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.span(etiqueta, class_name="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1"),
+        rx.el.div(
+            rx.foreach(piezas.to(list[dict]), _diente_cmp),
+            class_name="flex gap-1 justify-center min-w-max",
+        ),
+        class_name="flex flex-col items-center",
+    )
+
+
 def _leyenda_item(e: dict) -> rx.Component:
     return rx.el.div(
         rx.el.span(style={"backgroundColor": e["color"]}, class_name="w-3 h-3 rounded-sm border border-gray-300 shrink-0"),
@@ -371,11 +400,156 @@ def _modal_ver_version() -> rx.Component:
     )
 
 
+def _bloque_arcada_cmp(titulo, fecha, sup, inf) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(titulo, class_name="text-sm font-semibold text-gray-800"),
+            rx.cond(
+                fecha != "",
+                rx.el.span(fecha, class_name="text-xs text-gray-400 ml-2"),
+            ),
+            class_name="flex items-baseline mb-2",
+        ),
+        rx.el.div(
+            rx.el.div(
+                _arcada_cmp(sup, "Superior"),
+                rx.el.div(class_name="h-px bg-gray-200 my-3 w-full"),
+                _arcada_cmp(inf, "Inferior"),
+                class_name="inline-flex flex-col gap-1 min-w-max",
+            ),
+            class_name="overflow-x-auto p-3 bg-white border border-gray-100 rounded-xl",
+        ),
+        class_name="mb-4",
+    )
+
+
+def _cambio_row(c: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.span("Pieza ", c["numero"], class_name="text-sm font-semibold text-gray-800 w-20 shrink-0"),
+        rx.el.span(
+            rx.el.span(style={"backgroundColor": c["a_color"]}, class_name="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"),
+            c["a_label"],
+            class_name="text-xs text-gray-600",
+        ),
+        rx.icon("arrow-right", size=14, class_name="text-gray-400 mx-2 shrink-0"),
+        rx.el.span(
+            rx.el.span(style={"backgroundColor": c["b_color"]}, class_name="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"),
+            c["b_label"],
+            class_name="text-xs font-medium text-gray-800",
+        ),
+        class_name="flex items-center py-1.5 border-b border-gray-100 last:border-0",
+    )
+
+
+def _select_cmp(valor, on_change) -> rx.Component:
+    return rx.el.select(
+        rx.foreach(
+            OdontogramaState.cmp_opciones.to(list[dict]),
+            lambda o: rx.el.option(o["label"], value=o["value"]),
+        ),
+        value=valor.to_string(),
+        on_change=on_change,
+        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white",
+    )
+
+
+def _modal_comparar() -> rx.Component:
+    return rx.cond(
+        OdontogramaState.cmp_abierto,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=OdontogramaState.cerrar_comparar,
+            ),
+            rx.el.div(
+                rx.el.div(
+                    rx.el.div(
+                        rx.icon("git-compare-arrows", size=18, class_name="text-sky-600 mr-2"),
+                        rx.el.h2("Comparar versiones", class_name="text-lg font-semibold text-gray-900"),
+                        class_name="flex items-center",
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=OdontogramaState.cerrar_comparar,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-between pb-4 mb-4 border-b border-gray-100",
+                ),
+                # Selectores A / B
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.label("Versión A", class_name="block text-xs font-medium text-gray-500 mb-1"),
+                        _select_cmp(OdontogramaState.cmp_a_id, OdontogramaState.set_cmp_a),
+                        class_name="flex-1",
+                    ),
+                    rx.icon("arrow-right", size=18, class_name="text-gray-300 mt-5 shrink-0"),
+                    rx.el.div(
+                        rx.el.label("Versión B", class_name="block text-xs font-medium text-gray-500 mb-1"),
+                        _select_cmp(OdontogramaState.cmp_b_id, OdontogramaState.set_cmp_b),
+                        class_name="flex-1",
+                    ),
+                    class_name="flex items-start gap-3 mb-4",
+                ),
+                # Resumen de cambios
+                rx.cond(
+                    OdontogramaState.cmp_n > 0,
+                    rx.el.div(
+                        rx.icon("triangle-alert", size=14, class_name="text-amber-500 mr-1.5"),
+                        rx.el.span(OdontogramaState.cmp_n, class_name="text-sm font-bold text-gray-900 mr-1"),
+                        rx.el.span(
+                            rx.cond(OdontogramaState.cmp_n == 1, "pieza con cambios", "piezas con cambios"),
+                            class_name="text-sm text-gray-600",
+                        ),
+                        class_name="flex items-center px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-lg mb-4 w-fit",
+                    ),
+                    rx.el.div(
+                        rx.icon("check", size=14, class_name="text-green-500 mr-1.5"),
+                        rx.el.span("Sin diferencias entre A y B.", class_name="text-sm text-gray-600"),
+                        class_name="flex items-center px-3 py-1.5 bg-green-50 border border-green-100 rounded-lg mb-4 w-fit",
+                    ),
+                ),
+                # Arcadas A y B
+                _bloque_arcada_cmp(
+                    OdontogramaState.cmp_titulo_a, OdontogramaState.cmp_fecha_a,
+                    OdontogramaState.cmp_sup_a, OdontogramaState.cmp_inf_a,
+                ),
+                _bloque_arcada_cmp(
+                    OdontogramaState.cmp_titulo_b, OdontogramaState.cmp_fecha_b,
+                    OdontogramaState.cmp_sup_b, OdontogramaState.cmp_inf_b,
+                ),
+                # Detalle de cambios
+                rx.cond(
+                    OdontogramaState.cmp_cambios.length() > 0,
+                    rx.el.div(
+                        rx.el.span("Detalle de cambios (A → B)", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+                        rx.el.div(
+                            rx.foreach(OdontogramaState.cmp_cambios.to(list[dict]), _cambio_row),
+                            class_name="mt-2",
+                        ),
+                        class_name="mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl",
+                    ),
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cerrar",
+                        on_click=OdontogramaState.cerrar_comparar,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    class_name="flex justify-end mt-5",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-4xl mx-4 z-50 max-h-[90vh] overflow-y-auto",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 def odontograma_page() -> rx.Component:
     return shell(
         _modal_pieza(),
         _modal_crear_version(),
         _modal_ver_version(),
+        _modal_comparar(),
         page_header(
             "Odontograma",
             "Estado dental por pieza (numeración FDI)",
@@ -447,6 +621,16 @@ def odontograma_page() -> rx.Component:
                             ),
                             on_click=OdontogramaState.toggle_historial,
                             class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                        ),
+                        rx.cond(
+                            OdontogramaState.puede_comparar,
+                            rx.el.button(
+                                rx.icon("git-compare-arrows", size=15, class_name="mr-1.5"),
+                                "Comparar",
+                                on_click=OdontogramaState.abrir_comparar,
+                                class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                            ),
+                            rx.fragment(),
                         ),
                         class_name="flex items-center gap-2",
                     ),

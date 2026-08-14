@@ -45,9 +45,29 @@ class OdontogramaState(BaseState):
     v_inferior:       list[dict] = []
     v_resumen:        list[dict] = []
 
+    # ── Comparar dos versiones (lado a lado) ────────────────────────────────────
+    cmp_abierto:  bool = False
+    cmp_a_id:     int  = 0
+    cmp_b_id:     int  = 0
+    cmp_opciones: list[dict] = []   # [{value, label}] para los selectores
+    cmp_sup_a:    list[dict] = []
+    cmp_inf_a:    list[dict] = []
+    cmp_sup_b:    list[dict] = []
+    cmp_inf_b:    list[dict] = []
+    cmp_cambios:  list[dict] = []
+    cmp_n:        int  = 0
+    cmp_titulo_a: str  = ""
+    cmp_fecha_a:  str  = ""
+    cmp_titulo_b: str  = ""
+    cmp_fecha_b:  str  = ""
+
     @rx.var
     def puede_versionar(self) -> bool:
         return self.tiene_permiso("historia", write=True)
+
+    @rx.var
+    def puede_comparar(self) -> bool:
+        return len(self.versiones) >= 1
 
     async def on_mount(self):
         self._expirar_si_vencio()
@@ -238,3 +258,54 @@ class OdontogramaState(BaseState):
             except ServiceError:
                 pass
         await self._cargar_versiones()
+
+    # ── Comparar versiones ───────────────────────────────────────────────────────
+
+    async def abrir_comparar(self):
+        # Opciones: cada versión + "Estado actual" (value 0).
+        self.cmp_opciones = (
+            [{"value": str(v["id"]), "label": v["titulo"] + " — " + v["fecha"]} for v in self.versiones]
+            + [{"value": "0", "label": "Estado actual"}]
+        )
+        # Por defecto: A = versión más reciente, B = estado actual.
+        self.cmp_a_id = self.versiones[0]["id"] if self.versiones else 0
+        self.cmp_b_id = 0
+        await self._cargar_comparacion()
+        self.cmp_abierto = True
+
+    def cerrar_comparar(self):
+        self.cmp_abierto = False
+
+    async def set_cmp_a(self, v: str):
+        try:
+            self.cmp_a_id = int(v)
+        except (ValueError, TypeError):
+            self.cmp_a_id = 0
+        await self._cargar_comparacion()
+
+    async def set_cmp_b(self, v: str):
+        try:
+            self.cmp_b_id = int(v)
+        except (ValueError, TypeError):
+            self.cmp_b_id = 0
+        await self._cargar_comparacion()
+
+    async def _cargar_comparacion(self):
+        async with get_async_session() as session:
+            try:
+                data = await svc.comparar(
+                    session, self.clinica_id, self.paciente_id,
+                    self.cmp_a_id, self.cmp_b_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError:
+                return
+        self.cmp_sup_a = data["superior_a"]
+        self.cmp_inf_a = data["inferior_a"]
+        self.cmp_sup_b = data["superior_b"]
+        self.cmp_inf_b = data["inferior_b"]
+        self.cmp_cambios = data["cambios"]
+        self.cmp_n = data["n_cambios"]
+        self.cmp_titulo_a = data["titulo_a"]
+        self.cmp_fecha_a = data["fecha_a"]
+        self.cmp_titulo_b = data["titulo_b"]
+        self.cmp_fecha_b = data["fecha_b"]
