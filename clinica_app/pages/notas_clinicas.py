@@ -663,6 +663,13 @@ def notas_clinicas_page() -> rx.Component:
                         title="Abrir odontograma del paciente",
                         class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
                     ),
+                    rx.el.a(
+                        rx.icon("clipboard-list", size=16),
+                        rx.el.span("Plan de tratamiento", class_name="ml-1.5"),
+                        href="/plan-tratamiento?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
+                        title="Abrir plan de tratamiento del paciente",
+                        class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                    ),
                     rx.el.button(
                         rx.icon("plus", size=16),
                         rx.el.span("Nueva nota", class_name="ml-1.5"),

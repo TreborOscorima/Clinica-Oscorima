@@ -42,6 +42,7 @@ from clinica_app.pages.compras           import compras_page
 from clinica_app.pages.promociones       import promociones_page
 from clinica_app.pages.notas_clinicas    import notas_clinicas_page
 from clinica_app.pages.odontograma        import odontograma_page
+from clinica_app.pages.planes_tratamiento import planes_tratamiento_page
 from clinica_app.pages.calendario        import calendario_page
 
 
@@ -234,4 +235,5 @@ app.add_page(compras_page,        route="/compras",         title="TUWAYKILIFE |
 app.add_page(promociones_page,    route="/promociones",     title="TUWAYKILIFE | Promociones")
 app.add_page(notas_clinicas_page, route="/historia-clinica", title="TUWAYKILIFE | Historia clínica")
 app.add_page(odontograma_page,    route="/odontograma",     title="TUWAYKILIFE | Odontograma")
+app.add_page(planes_tratamiento_page, route="/plan-tratamiento", title="TUWAYKILIFE | Plan de tratamiento")
 app.add_page(calendario_page,     route="/calendario",      title="TUWAYKILIFE | Calendario")
