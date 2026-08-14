@@ -33,8 +33,12 @@ class CalendarioState(BaseState):
     form_error:          str  = ""
     is_saving:           bool = False
     is_loading:          bool = False
-    pacientes_cat:       list[dict] = []
     servicios_cat:       list[dict] = []
+
+    # Selector de paciente (búsqueda server-side, sin tope — patrón cobro)
+    pac_busqueda:   str        = ""
+    pac_resultados: list[dict] = []
+    pac_nombre_sel: str        = ""
 
     # ── Computed vars ──────────────────────────────────────────────────────────
 
@@ -120,19 +124,10 @@ class CalendarioState(BaseState):
             yield s
 
     async def _cargar_catalogos(self):
-        from clinica_app.models.paciente import Paciente
         from clinica_app.models.profesional import Profesional
         from clinica_app.models.servicio import Servicio
         from sqlmodel import select
         async with get_async_session() as session:
-            stmt_pacs = select(Paciente).where(
-                Paciente.clinica_id == self.clinica_id,
-                Paciente.is_active.is_(True),
-            )
-            if self.sede_actual_id:
-                stmt_pacs = stmt_pacs.where(Paciente.sede_id == self.sede_actual_id)
-            pacs = (await session.execute(stmt_pacs.limit(300))).scalars().all()
-
             stmt_profs = select(Profesional).where(
                 Profesional.clinica_id == self.clinica_id,
                 Profesional.is_active.is_(True),
@@ -149,7 +144,6 @@ class CalendarioState(BaseState):
                 stmt_servs = stmt_servs.where(Servicio.sede_id == self.sede_actual_id)
             servs = (await session.execute(stmt_servs.limit(200))).scalars().all()
 
-            self.pacientes_cat = [{"id": str(p.id), "nombre": p.nombre} for p in pacs]
             self.profesionales_cat = [
                 {"id": str(p.id), "nombre": f"{p.nombres} {p.apellidos}"}
                 for p in profs
@@ -254,6 +248,9 @@ class CalendarioState(BaseState):
         self.form_servicio_id    = ""
         self.form_fecha_hora     = fecha_hora
         self.form_error          = ""
+        self.pac_busqueda        = ""
+        self.pac_nombre_sel      = ""
+        self.pac_resultados      = []
         self.modal_nuevo         = True
 
     def cerrar_nuevo(self):
@@ -264,8 +261,59 @@ class CalendarioState(BaseState):
     def set_form_servicio_id(self, v: str):    self.form_servicio_id = v
     def set_form_fecha_hora(self, v: str):     self.form_fecha_hora = v
 
+    # ── Selector de paciente (búsqueda server-side, sin tope) ────────────────────
+
+    async def set_pac_busqueda(self, v: str):
+        self.pac_busqueda = v
+        if self.form_paciente_id:
+            self.form_paciente_id = ""
+            self.pac_nombre_sel   = ""
+
+        if len(v) >= 2:
+            from clinica_app.models.paciente import Paciente
+            from sqlalchemy import String, cast, or_
+            from sqlmodel import select
+
+            like = f"%{v}%"
+            async with get_async_session() as session:
+                q_pacs = select(Paciente).where(
+                    Paciente.clinica_id == self.clinica_id,
+                    Paciente.is_active.is_(True),
+                    or_(
+                        Paciente.nombre.ilike(like),
+                        cast(Paciente.documento, String).ilike(like),
+                    ),
+                )
+                if self.sede_actual_id:
+                    q_pacs = q_pacs.where(Paciente.sede_id == self.sede_actual_id)
+                pacs = (await session.execute(q_pacs.limit(8))).scalars().all()
+            self.pac_resultados = [
+                {"id": str(p.id), "nombre": p.nombre, "documento": p.documento or ""}
+                for p in pacs
+            ]
+        else:
+            self.pac_resultados = []
+
+    def seleccionar_paciente(self, pac_id: str, pac_nombre: str):
+        self.form_paciente_id = pac_id
+        self.pac_nombre_sel   = pac_nombre
+        self.pac_busqueda     = pac_nombre
+        self.pac_resultados   = []
+
+    def limpiar_paciente(self):
+        self.form_paciente_id = ""
+        self.pac_nombre_sel   = ""
+        self.pac_busqueda     = ""
+        self.pac_resultados   = []
+
+    async def handle_pac_busqueda_key(self, key: str):
+        if key == "Escape" and self.pac_busqueda:
+            async for s in self.set_pac_busqueda(""):
+                yield s
+
     async def guardar_turno(self):
         if not self.tiene_permiso("turnos", write=True):
+            self.form_error = "No tenés permiso para crear turnos"
             return
         self.is_saving  = True
         self.form_error = ""

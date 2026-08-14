@@ -6,6 +6,59 @@ from clinica_app.components.layout import shell
 from clinica_app.components.ui import page_header
 from clinica_app.state.calendario import CalendarioState
 
+def _pac_resultado(pac: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.span(pac["nombre"], class_name="text-sm font-medium text-gray-900 block"),
+        rx.el.span(pac["documento"], class_name="text-xs text-gray-500"),
+        on_click=CalendarioState.seleccionar_paciente(pac["id"], pac["nombre"]),
+        class_name="px-3 py-2 hover:bg-sky-50 cursor-pointer border-b border-gray-100 last:border-0",
+    )
+
+
+def _paciente_search() -> rx.Component:
+    """Selector de paciente con búsqueda server-side (sin tope de resultados)."""
+    return rx.el.div(
+        rx.el.label("Paciente *", class_name="block text-sm font-medium text-gray-700 mb-1"),
+        rx.el.div(
+            rx.el.div(
+                rx.icon("search", size=15, class_name="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"),
+                rx.el.input(
+                    placeholder="Buscar por nombre o DNI…",
+                    value=CalendarioState.pac_busqueda,
+                    on_change=CalendarioState.set_pac_busqueda,
+                    on_key_down=CalendarioState.handle_pac_busqueda_key,
+                    class_name="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500",
+                ),
+                class_name="relative",
+            ),
+            rx.cond(
+                CalendarioState.pac_resultados,
+                rx.el.div(
+                    rx.foreach(CalendarioState.pac_resultados, _pac_resultado),
+                    class_name=(
+                        "absolute z-20 left-0 right-0 bg-white border border-gray-200 "
+                        "rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto"
+                    ),
+                ),
+            ),
+            class_name="relative",
+        ),
+        rx.cond(
+            CalendarioState.form_paciente_id != "",
+            rx.el.div(
+                rx.icon("user-check", size=14, class_name="text-green-600 flex-shrink-0"),
+                rx.el.span(CalendarioState.pac_nombre_sel, class_name="text-sm font-medium text-gray-800 flex-1 truncate"),
+                rx.el.button(
+                    rx.icon("x", size=13),
+                    on_click=CalendarioState.limpiar_paciente,
+                    class_name="ml-2 text-gray-400 hover:text-red-500 cursor-pointer flex-shrink-0",
+                ),
+                class_name="flex items-center gap-2 mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg",
+            ),
+        ),
+    )
+
+
 def _chip_turno(t: dict) -> rx.Component:
     """Tarjeta compacta de turno dentro del calendario."""
     return rx.el.div(
@@ -60,20 +113,7 @@ def _modal_nuevo() -> rx.Component:
                     class_name="flex items-center justify-between pb-4 mb-5 border-b border-gray-100",
                 ),
                 rx.el.div(
-                    # Paciente
-                    rx.el.div(
-                        rx.el.label("Paciente *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                        rx.el.select(
-                            rx.el.option("— Seleccioná un paciente —", value=""),
-                            rx.foreach(
-                                CalendarioState.pacientes_cat,
-                                lambda o: rx.el.option(o["nombre"], value=o["id"]),
-                            ),
-                            default_value=CalendarioState.form_paciente_id,
-                            on_change=CalendarioState.set_form_paciente_id,
-                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
-                        ),
-                    ),
+                    _paciente_search(),
                     # Profesional
                     rx.el.div(
                         rx.el.label("Profesional", class_name="block text-sm font-medium text-gray-700 mb-1"),

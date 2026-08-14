@@ -349,8 +349,19 @@
 
 ## P3 — Experiencia y operación
 
-- [ ] **Paginación/virtualización en listados grandes** (pacientes, movimientos de caja)
-      — verificar que todos los listados paginan en servidor, no en memoria.
+- [x] **Paginación/virtualización en listados grandes** — HECHO (2026-08-14). Auditoría:
+      los 12 listados grandes (pacientes, turnos, caja/movimientos+cierres, cobro, cuentas,
+      compras, inventario, servicios, promociones, profesionales, notas, auditoría) **ya
+      paginaban en servidor** (`offset/limit` + `total`/`pages`, con controles anterior/
+      siguiente en la UP). El hueco real estaba en los **selectores de paciente** de los
+      flujos que crean turnos: `/turnos` (modal "Nuevo turno") y `/calendario` (modal desde
+      la grilla) cargaban una lista **estática capada** (`.limit(200/300)`) en un `<select>`,
+      así que el paciente #201+ era **inseleccionable** al agendar (riesgo "no puedo cargar el
+      turno de X" a escala). Se reemplazaron por **búsqueda server-side** (typeahead por
+      nombre/DNI, `ilike` + `.limit(8)`, sin tope) reutilizando el patrón ya probado de
+      `/cobro`. Verificado E2E: búsqueda → resultado → chip de selección → turno creado.
+      *Nota: los selectores de profesional/servicio siguen como `<select>` (catálogos
+      acotados por diseño).*
 - [x] **Estados vacíos y mensajes de error consistentes** — HECHO (2026-08-14). Barrido de
       todos los `except ServiceError: pass` silenciosos en `state/*.py`: los handlers de
       borrado/toggle/guardado ahora surfacean el error de negocio con
