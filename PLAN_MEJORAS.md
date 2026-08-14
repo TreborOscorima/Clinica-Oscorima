@@ -117,8 +117,19 @@
 - [ ] **Facturación electrónica (Perú/SUNAT)**: hoy los comprobantes son internos. Integrar
       facturación electrónica (OSE/PSE) o al menos exportación contable formal.
 - [ ] **Portal de resultados / recordatorio al paciente** (opcional, diferenciador).
-- [ ] **Reportes ampliados**: producción por profesional, ocupación de agenda, análisis
-      de no-shows, margen por servicio (los datos ya existen en los modelos).
+- [x] **Reportes ampliados** — HECHO. Panel de analíticas en `/reportes` con rango de
+      fechas propio (por defecto mes en curso): resumen (turnos, atendidos, cancelados,
+      tasa de asistencia, tasa de cancelación, horas agendadas, producción), tabla
+      **producción por profesional** (turnos/atendidos/cancelados/asistencia/horas/S/)
+      y **producción por servicio** (veces + S/). Núcleo puro `_calcular_analiticas`
+      reusado por el servicio async (panel) y el task sync (Excel, tipo "produccion" con
+      3 hojas). La producción por turno usa los ítems (`TurnoServicio`: precio×cant−desc)
+      y cae al precio del servicio si no hay ítems; ocupación = minutos agendados de
+      turnos no cancelados. No hay campo de costo en `Servicio`, así que "margen" se
+      implementa como producción/ingreso por servicio (honesto, sin costo ficticio).
+      +8 tests (271 total). Verificado E2E contra la life_db real: rango amplio → 40
+      turnos, 30 atendidos, 75% asistencia, S/ 8780 producción; panel interactivo
+      "Aplicar" repobla resumen+tablas; export Excel descarga 200 (xlsx válido).
 
 ## P2-ESP — Multi-especialidad (Estética + Odontología)
 

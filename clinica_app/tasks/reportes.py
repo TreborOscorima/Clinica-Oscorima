@@ -11,7 +11,10 @@ from clinica_app.database import get_session
 from clinica_app.models.caja import CajaMovimiento
 from clinica_app.models.inventario import Compra, CompraItem, Producto, Proveedor
 from clinica_app.models.paciente import Paciente
+from clinica_app.models.profesional import Profesional
+from clinica_app.models.servicio import Servicio
 from clinica_app.models.turno import Turno
+from clinica_app.models.turno_servicio import TurnoServicio
 
 
 def generar_reporte(clinica_id: int, tipo: str, params: dict[str, Any]) -> str:
@@ -24,6 +27,7 @@ def generar_reporte(clinica_id: int, tipo: str, params: dict[str, Any]) -> str:
         "turnos":     _reporte_turnos,
         "inventario": _reporte_inventario,
         "compras":    _reporte_compras,
+        "produccion": _reporte_produccion,
     }
     fn = dispatch.get(tipo)
     if fn is None:
@@ -219,6 +223,77 @@ def _reporte_compras(clinica_id: int, params: dict) -> str:
         ])
 
     return _guardar(wb, f"compras_{clinica_id}")
+
+
+# ── Producción / analíticas ─────────────────────────────────────────────────────
+
+def _reporte_produccion(clinica_id: int, params: dict) -> str:
+    import openpyxl
+
+    from decimal import Decimal
+
+    from clinica_app.services.reportes import _calcular_analiticas, _rango_fechas
+
+    desde_dt, hasta_dt = _rango_fechas(params.get("desde"), params.get("hasta"))
+    sid = params.get("sede_id", 0)
+
+    with get_session() as session:
+        stmt = select(Turno).where(Turno.clinica_id == clinica_id, Turno.is_active.is_(True))
+        if sid:
+            stmt = stmt.where(Turno.sede_id == sid)
+        if desde_dt:
+            stmt = stmt.where(Turno.fecha_hora >= desde_dt)
+        if hasta_dt:
+            stmt = stmt.where(Turno.fecha_hora <= hasta_dt)
+        turnos = list(session.execute(stmt).scalars().all())
+
+        servicios: dict[int, dict] = {}
+        for s in session.execute(select(Servicio).where(Servicio.clinica_id == clinica_id)).scalars().all():
+            servicios[s.id] = {"nombre": s.nombre, "precio": s.precio or Decimal("0"), "duracion_min": s.duracion_min}
+
+        profesionales: dict[int, str] = {}
+        for p in session.execute(select(Profesional).where(Profesional.clinica_id == clinica_id)).scalars().all():
+            profesionales[p.id] = p.nombre_completo
+
+        items_por_turno: dict[int, list] = {}
+        turno_ids = [t.id for t in turnos]
+        if turno_ids:
+            for it in session.execute(
+                select(TurnoServicio).where(TurnoServicio.turno_id.in_(turno_ids))
+            ).scalars().all():
+                items_por_turno.setdefault(it.turno_id, []).append(it)
+
+    data = _calcular_analiticas(turnos, items_por_turno, servicios, profesionales)
+    r = data["resumen"]
+
+    wb = openpyxl.Workbook()
+
+    ws0 = wb.active
+    ws0.title = "Resumen"
+    ws0.append(["Métrica", "Valor"])
+    ws0.append(["Turnos totales", r["total"]])
+    ws0.append(["Atendidos", r["atendidos"]])
+    ws0.append(["Confirmados", r["confirmados"]])
+    ws0.append(["Pendientes", r["pendientes"]])
+    ws0.append(["Cancelados / no-show", r["cancelados"]])
+    ws0.append(["Tasa de asistencia (%)", r["tasa_asistencia"]])
+    ws0.append(["Tasa de cancelación (%)", r["tasa_cancelacion"]])
+    ws0.append(["Horas agendadas", r["horas_agendadas"]])
+    ws0.append(["Producción (S/)", r["produccion"]])
+
+    ws1 = wb.create_sheet("Por Profesional")
+    ws1.append(["Profesional", "Turnos", "Atendidos", "Cancelados",
+                 "Tasa asistencia (%)", "Horas", "Producción (S/)"])
+    for p in data["por_profesional"]:
+        ws1.append([p["nombre"], p["total"], p["atendidos"], p["cancelados"],
+                     p["tasa_asistencia"], p["horas"], p["produccion"]])
+
+    ws2 = wb.create_sheet("Por Servicio")
+    ws2.append(["Servicio", "Veces realizado", "Producción (S/)"])
+    for s in data["por_servicio"]:
+        ws2.append([s["nombre"], s["veces"], s["produccion"]])
+
+    return _guardar(wb, f"produccion_{clinica_id}")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

@@ -22,6 +22,20 @@ class ReportesState(BaseState):
     kpi_turnos:           str = "0"
     kpi_pacientes_nuevos: str = "0"
 
+    # ── Analíticas ampliadas ──────────────────────────────────────────────────
+    ana_desde:       str = ""
+    ana_hasta:       str = ""
+    ana_loading:     bool = False
+    ana_total:       str = "0"
+    ana_atendidos:   str = "0"
+    ana_cancelados:  str = "0"
+    ana_asistencia:  str = "0.00"
+    ana_cancelacion: str = "0.00"
+    ana_horas:       str = "0.00"
+    ana_produccion:  str = "0.00"
+    ana_por_profesional: list[dict] = []
+    ana_por_servicio:    list[dict] = []
+
     # ── Estado de generación ──────────────────────────────────────────────────
     is_generating: bool = False
     is_loading:    bool = False
@@ -39,6 +53,8 @@ class ReportesState(BaseState):
             yield rx.redirect("/")
             return
         async for s in self._cargar_kpis():
+            yield s
+        async for s in self.cargar_analiticas():
             yield s
 
     async def _cargar_kpis(self):
@@ -64,6 +80,38 @@ class ReportesState(BaseState):
 
     def set_fecha_desde(self, v: str): self.fecha_desde = v
     def set_fecha_hasta(self, v: str): self.fecha_hasta = v
+
+    def set_ana_desde(self, v: str): self.ana_desde = v
+    def set_ana_hasta(self, v: str): self.ana_hasta = v
+
+    # ── Analíticas ampliadas ──────────────────────────────────────────────────
+
+    async def cargar_analiticas(self):
+        self.ana_loading = True
+        yield
+        try:
+            async with get_async_session() as session:
+                data = await svc.analiticas(
+                    session, self.clinica_id,
+                    desde=self.ana_desde or None, hasta=self.ana_hasta or None,
+                    sede_id=self.sede_actual_id,
+                )
+            r = data["resumen"]
+            self.ana_total           = str(r["total"])
+            self.ana_atendidos       = str(r["atendidos"])
+            self.ana_cancelados      = str(r["cancelados"])
+            self.ana_asistencia      = r["tasa_asistencia"]
+            self.ana_cancelacion     = r["tasa_cancelacion"]
+            self.ana_horas           = r["horas_agendadas"]
+            self.ana_produccion      = r["produccion"]
+            self.ana_por_profesional = data["por_profesional"]
+            self.ana_por_servicio    = data["por_servicio"]
+            # Si no había rango, refleja el mes en curso que aplicó el servicio
+            if not self.ana_desde:
+                self.ana_desde = data.get("desde", "")
+        except Exception:
+            pass
+        self.ana_loading = False
 
     # ── Generar ────────────────────────────────────────────────────────────────
 
@@ -105,4 +153,9 @@ class ReportesState(BaseState):
 
     @rx.var
     def mostrar_fechas(self) -> bool:
-        return (self.tipo_reporte == "caja") | (self.tipo_reporte == "turnos") | (self.tipo_reporte == "compras")
+        return (
+            (self.tipo_reporte == "caja")
+            | (self.tipo_reporte == "turnos")
+            | (self.tipo_reporte == "compras")
+            | (self.tipo_reporte == "produccion")
+        )
