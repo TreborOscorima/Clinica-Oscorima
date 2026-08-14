@@ -211,11 +211,17 @@
       plan con Fase 1 (Extracción 18, $8000) + Fase 2 (Corona 21, $15000),
       presupuesto $23000, marcar terminado/en_curso recalcula aprobado $23000 /
       terminado $8000 / avance 50%; filas en `planes_tratamiento`/
-      `plan_tratamiento_items` y `audit_log`. *(El cobro automático desde el plan
-      hacia Caja y el consumo de `servicio_insumos` quedan como mejora futura; hoy
-      el vínculo con Caja es el campo `comprobante_id`. Edición completa de un item
-      —descripción/precio/fase— también futura; hoy se cambia estado o se borra y
-      recarga.)*
+      `plan_tratamiento_items` y `audit_log`. *(El consumo de `servicio_insumos`
+      queda como mejora futura. Edición completa de un item —descripción/precio/
+      fase— también futura; hoy se cambia estado o se borra y recarga.)*
+      **Cobro automático plan→Caja HECHO (2026-08-14, commits a769a17 backend +
+      2aadf1f UI):** `cobrar_plan` genera un comprobante por los items cobrables
+      (aprobado/en_curso/terminado, precio > 0, no cobrados) delegando en
+      `services.cobro.crear` (no reimplementa Caja) y enlaza cada item con el
+      `comprobante_id`; franja de cobro (Cobrado / Por cobrar) + modal con forma
+      de pago en la UI, badge "Cobrado" por item. +7 tests (216 total). Verificado
+      E2E: plan de $23000 → comprobante `REC-1-...` + movimiento de ingreso en
+      Caja + items enlazados + `audit_log` cobrar/plan_tratamiento.
 
 ### Fase C — Diferenciador ESTÉTICO
 
