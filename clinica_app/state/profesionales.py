@@ -3,6 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.database import get_async_session
+from clinica_app.services import agenda as agenda_svc
 from clinica_app.services import profesionales as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -30,6 +31,23 @@ class ProfesionalesState(BaseState):
     form_email:        str  = ""
     form_error:        str  = ""
     is_saving:         bool = False
+
+    # ── Agenda (disponibilidad + bloqueos) ──────────────────────────────────────
+    modal_agenda:       bool = False
+    agenda_prof_id:     int  = 0
+    agenda_prof_nombre: str  = ""
+    disponibilidad:     list[dict] = []
+    bloqueos:           list[dict] = []
+    dias_cat:           list[dict] = []
+    agenda_error:       str  = ""
+    # Form disponibilidad
+    disp_dia:    str = "0"
+    disp_inicio: str = "09:00"
+    disp_fin:    str = "13:00"
+    # Form bloqueo
+    bloq_inicio: str = ""
+    bloq_fin:    str = ""
+    bloq_motivo: str = ""
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
@@ -167,6 +185,106 @@ class ProfesionalesState(BaseState):
                 pass
         async for s in self.cargar():
             yield s
+
+    # ── Agenda (disponibilidad + bloqueos) ──────────────────────────────────────
+
+    async def abrir_agenda(self, prof: dict):
+        self.agenda_prof_id     = prof.get("id") or 0
+        self.agenda_prof_nombre = f"{prof.get('nombres', '')} {prof.get('apellidos', '')}".strip()
+        self.agenda_error       = ""
+        self.disp_dia    = "0"
+        self.disp_inicio = "09:00"
+        self.disp_fin    = "13:00"
+        self.bloq_inicio = ""
+        self.bloq_fin    = ""
+        self.bloq_motivo = ""
+        self.dias_cat    = agenda_svc.dias_catalogo()
+        await self._cargar_agenda()
+        self.modal_agenda = True
+
+    def cerrar_agenda(self):
+        self.modal_agenda = False
+
+    def set_disp_dia(self, v: str):    self.disp_dia = v
+    def set_disp_inicio(self, v: str): self.disp_inicio = v
+    def set_disp_fin(self, v: str):    self.disp_fin = v
+    def set_bloq_inicio(self, v: str): self.bloq_inicio = v
+    def set_bloq_fin(self, v: str):    self.bloq_fin = v
+    def set_bloq_motivo(self, v: str): self.bloq_motivo = v
+
+    async def _cargar_agenda(self):
+        if not self.agenda_prof_id:
+            return
+        async with get_async_session() as session:
+            self.disponibilidad = await agenda_svc.listar_disponibilidad(
+                session, self.clinica_id, self.agenda_prof_id, sede_id=self.sede_actual_id
+            )
+            self.bloqueos = await agenda_svc.listar_bloqueos(
+                session, self.clinica_id, self.agenda_prof_id, sede_id=self.sede_actual_id
+            )
+
+    async def agregar_disponibilidad(self):
+        if not self.tiene_permiso("profesionales", write=True):
+            return
+        self.agenda_error = ""
+        try:
+            async with get_async_session() as session:
+                await agenda_svc.agregar_disponibilidad(
+                    session, self.clinica_id, self.agenda_prof_id,
+                    dia_semana=int(self.disp_dia),
+                    hora_inicio=self.disp_inicio, hora_fin=self.disp_fin,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+        except (ServiceError, ValueError) as exc:
+            self.agenda_error = str(exc)
+            return
+        await self._cargar_agenda()
+
+    async def eliminar_disponibilidad(self, disp_id: int):
+        if not self.tiene_permiso("profesionales", write=True):
+            return
+        async with get_async_session() as session:
+            try:
+                await agenda_svc.eliminar_disponibilidad(
+                    session, self.clinica_id, disp_id, usuario_id=self.user_id, sede_id=self.sede_actual_id
+                )
+            except ServiceError:
+                pass
+        await self._cargar_agenda()
+
+    async def agregar_bloqueo(self):
+        if not self.tiene_permiso("profesionales", write=True):
+            return
+        self.agenda_error = ""
+        if not self.bloq_inicio or not self.bloq_fin:
+            self.agenda_error = "Inicio y fin son obligatorios"
+            return
+        try:
+            async with get_async_session() as session:
+                await agenda_svc.agregar_bloqueo(
+                    session, self.clinica_id, self.agenda_prof_id,
+                    inicio=self.bloq_inicio, fin=self.bloq_fin, motivo=self.bloq_motivo,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+        except ServiceError as exc:
+            self.agenda_error = str(exc)
+            return
+        self.bloq_inicio = ""
+        self.bloq_fin    = ""
+        self.bloq_motivo = ""
+        await self._cargar_agenda()
+
+    async def eliminar_bloqueo(self, bloqueo_id: int):
+        if not self.tiene_permiso("profesionales", write=True):
+            return
+        async with get_async_session() as session:
+            try:
+                await agenda_svc.eliminar_bloqueo(
+                    session, self.clinica_id, bloqueo_id, usuario_id=self.user_id, sede_id=self.sede_actual_id
+                )
+            except ServiceError:
+                pass
+        await self._cargar_agenda()
 
     # ── Atajos de teclado ──────────────────────────────────────────────────────
 

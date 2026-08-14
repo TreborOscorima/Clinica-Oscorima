@@ -185,6 +185,12 @@ def _fila(prof: dict) -> rx.Component:
         rx.el.td(
             rx.el.div(
                 rx.el.button(
+                    rx.icon("calendar-clock", size=15),
+                    on_click=ProfesionalesState.abrir_agenda(prof),
+                    title="Agenda (horarios y bloqueos)",
+                    class_name="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer",
+                ),
+                rx.el.button(
                     rx.icon("pencil", size=15),
                     on_click=ProfesionalesState.abrir_editar(prof),
                     class_name="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg cursor-pointer",
@@ -202,11 +208,190 @@ def _fila(prof: dict) -> rx.Component:
     )
 
 
+# ── Modal de agenda (disponibilidad + bloqueos) ───────────────────────────────
+
+def _disp_row(d: dict) -> rx.Component:
+    return rx.el.div(
+        rx.icon("clock", size=14, class_name="text-emerald-500 mr-2 shrink-0"),
+        rx.el.span(d["dia_label"], class_name="text-sm font-medium text-gray-800 w-24 shrink-0"),
+        rx.el.span(d["hora_inicio"], " – ", d["hora_fin"], class_name="text-sm text-gray-600"),
+        rx.el.button(
+            rx.icon("trash-2", size=14),
+            on_click=lambda: ProfesionalesState.eliminar_disponibilidad(d["id"]),
+            class_name="ml-auto p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
+        ),
+        class_name="flex items-center py-1.5 border-b border-gray-100 last:border-0",
+    )
+
+
+def _bloq_row(b: dict) -> rx.Component:
+    return rx.el.div(
+        rx.icon("ban", size=14, class_name="text-rose-500 mr-2 shrink-0"),
+        rx.el.div(
+            rx.el.span(b["inicio"], " → ", b["fin"], class_name="text-sm text-gray-800"),
+            rx.cond(
+                b["motivo"] != "",
+                rx.el.p(b["motivo"], class_name="text-xs text-gray-500 italic"),
+            ),
+            class_name="flex flex-col",
+        ),
+        rx.el.button(
+            rx.icon("trash-2", size=14),
+            on_click=lambda: ProfesionalesState.eliminar_bloqueo(b["id"]),
+            class_name="ml-auto p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
+        ),
+        class_name="flex items-center py-1.5 border-b border-gray-100 last:border-0",
+    )
+
+
+def _modal_agenda() -> rx.Component:
+    return rx.cond(
+        ProfesionalesState.modal_agenda,
+        rx.el.div(
+            rx.el.div(class_name="fixed inset-0 bg-black/40 z-40", on_click=ProfesionalesState.cerrar_agenda),
+            rx.el.div(
+                # header
+                rx.el.div(
+                    rx.el.div(
+                        rx.icon("calendar-clock", size=18, class_name="text-emerald-600 mr-2"),
+                        rx.el.div(
+                            rx.el.h2("Agenda del profesional", class_name="text-lg font-semibold text-gray-900 leading-tight"),
+                            rx.el.span(ProfesionalesState.agenda_prof_nombre, class_name="text-xs text-gray-400"),
+                            class_name="flex flex-col",
+                        ),
+                        class_name="flex items-center",
+                    ),
+                    rx.el.button(
+                        rx.icon("x", size=18),
+                        on_click=ProfesionalesState.cerrar_agenda,
+                        class_name="text-gray-400 hover:text-gray-600 cursor-pointer",
+                    ),
+                    class_name="flex items-center justify-between pb-4 mb-4 border-b border-gray-100",
+                ),
+                rx.cond(
+                    ProfesionalesState.agenda_error != "",
+                    rx.el.p(ProfesionalesState.agenda_error, class_name="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded-lg"),
+                ),
+                # ── Disponibilidad semanal ──
+                rx.el.div(
+                    rx.el.span("Horario de atención", class_name="text-sm font-semibold text-gray-700"),
+                    rx.el.p("Franjas semanales en las que el profesional atiende. Sin franjas = siempre disponible.",
+                            class_name="text-xs text-gray-400 mt-0.5 mb-2"),
+                    rx.cond(
+                        ProfesionalesState.disponibilidad.length() > 0,
+                        rx.el.div(
+                            rx.foreach(ProfesionalesState.disponibilidad.to(list[dict]), _disp_row),
+                            class_name="mb-3",
+                        ),
+                        rx.el.p("Sin horario cargado.", class_name="text-sm text-gray-400 italic mb-3"),
+                    ),
+                    # form agregar franja
+                    rx.el.div(
+                        rx.el.select(
+                            rx.foreach(
+                                ProfesionalesState.dias_cat.to(list[dict]),
+                                lambda d: rx.el.option(d["label"], value=d["valor"].to_string()),
+                            ),
+                            value=ProfesionalesState.disp_dia,
+                            on_change=ProfesionalesState.set_disp_dia,
+                            class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        ),
+                        rx.el.input(
+                            type="time",
+                            value=ProfesionalesState.disp_inicio,
+                            on_change=ProfesionalesState.set_disp_inicio,
+                            class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        ),
+                        rx.el.span("a", class_name="text-sm text-gray-400"),
+                        rx.el.input(
+                            type="time",
+                            value=ProfesionalesState.disp_fin,
+                            on_change=ProfesionalesState.set_disp_fin,
+                            class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        ),
+                        rx.el.button(
+                            rx.icon("plus", size=16, class_name="mr-1"),
+                            "Agregar",
+                            on_click=ProfesionalesState.agregar_disponibilidad,
+                            class_name="inline-flex items-center px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer",
+                        ),
+                        class_name="flex items-center gap-2 flex-wrap",
+                    ),
+                    class_name="mb-6 p-4 bg-gray-50 border border-gray-100 rounded-xl",
+                ),
+                # ── Bloqueos ──
+                rx.el.div(
+                    rx.el.span("Bloqueos (vacaciones / ausencias)", class_name="text-sm font-semibold text-gray-700"),
+                    rx.el.p("Rangos en los que NO se pueden agendar turnos.",
+                            class_name="text-xs text-gray-400 mt-0.5 mb-2"),
+                    rx.cond(
+                        ProfesionalesState.bloqueos.length() > 0,
+                        rx.el.div(
+                            rx.foreach(ProfesionalesState.bloqueos.to(list[dict]), _bloq_row),
+                            class_name="mb-3",
+                        ),
+                        rx.el.p("Sin bloqueos cargados.", class_name="text-sm text-gray-400 italic mb-3"),
+                    ),
+                    rx.el.div(
+                        rx.el.div(
+                            rx.el.label("Desde", class_name="block text-xs text-gray-500 mb-1"),
+                            rx.el.input(
+                                type="datetime-local",
+                                value=ProfesionalesState.bloq_inicio,
+                                on_change=ProfesionalesState.set_bloq_inicio,
+                                class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500",
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.label("Hasta", class_name="block text-xs text-gray-500 mb-1"),
+                            rx.el.input(
+                                type="datetime-local",
+                                value=ProfesionalesState.bloq_fin,
+                                on_change=ProfesionalesState.set_bloq_fin,
+                                class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500",
+                            ),
+                        ),
+                        rx.el.div(
+                            rx.el.label("Motivo", class_name="block text-xs text-gray-500 mb-1"),
+                            rx.el.input(
+                                type="text",
+                                placeholder="Ej: Vacaciones",
+                                value=ProfesionalesState.bloq_motivo,
+                                on_change=ProfesionalesState.set_bloq_motivo,
+                                class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500",
+                            ),
+                        ),
+                        rx.el.button(
+                            rx.icon("plus", size=16, class_name="mr-1"),
+                            "Bloquear",
+                            on_click=ProfesionalesState.agregar_bloqueo,
+                            class_name="inline-flex items-center px-3 py-1.5 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 cursor-pointer self-end",
+                        ),
+                        class_name="flex items-end gap-2 flex-wrap",
+                    ),
+                    class_name="mb-2 p-4 bg-gray-50 border border-gray-100 rounded-xl",
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cerrar",
+                        on_click=ProfesionalesState.cerrar_agenda,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    class_name="flex justify-end mt-4",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl mx-4 z-50 max-h-[90vh] overflow-y-auto",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 # ── Página principal ──────────────────────────────────────────────────────────
 
 def profesionales_page() -> rx.Component:
     return shell(
         _modal(),
+        _modal_agenda(),
         page_header(
             "Profesionales",
             "Médicos y especialistas de la clínica",

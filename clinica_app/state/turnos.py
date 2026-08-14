@@ -40,6 +40,7 @@ class TurnosState(BaseState):
     # Modal reprogramar
     modal_reprogramar:      bool = False
     form_reprogramar_fecha: str  = ""
+    form_reprogramar_error: str  = ""
 
     # Catálogos
     pacientes_cat:    list[dict] = []
@@ -198,7 +199,11 @@ class TurnosState(BaseState):
         }
         try:
             async with get_async_session() as session:
-                await svc.crear(session, self.clinica_id, payload, created_by_id=self.user_id, sede_id=self.sede_actual_id)
+                await svc.crear(
+                    session, self.clinica_id, payload,
+                    created_by_id=self.user_id, sede_id=self.sede_actual_id,
+                    validar_agenda=True,
+                )
         except ServiceError as exc:
             self.form_error = str(exc)
             self.is_saving  = False
@@ -264,6 +269,7 @@ class TurnosState(BaseState):
     def abrir_reprogramar(self, turno: dict):
         self.turno_sel_id           = turno.get("id") or 0
         self.form_reprogramar_fecha = turno.get("fecha_hora", "").replace(" ", "T")
+        self.form_reprogramar_error = ""
         self.modal_reprogramar      = True
 
     def cerrar_reprogramar(self):
@@ -274,6 +280,7 @@ class TurnosState(BaseState):
             return
         if not self.form_reprogramar_fecha:
             return
+        self.form_reprogramar_error = ""
         async with get_async_session() as session:
             try:
                 await svc.reprogramar(
@@ -282,9 +289,11 @@ class TurnosState(BaseState):
                     self.turno_sel_id,
                     {"fecha_hora": self.form_reprogramar_fecha},
                     sede_id=self.sede_actual_id,
+                    validar_agenda=True,
                 )
-            except ServiceError:
-                pass
+            except ServiceError as exc:
+                self.form_reprogramar_error = str(exc)
+                return
         self.modal_reprogramar = False
         async for s in self.cargar():
             yield s

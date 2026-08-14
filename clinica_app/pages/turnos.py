@@ -81,6 +81,10 @@ def _modal_reprogramar() -> rx.Component:
                     ),
                     class_name="mb-6",
                 ),
+                rx.cond(
+                    TurnosState.form_reprogramar_error != "",
+                    rx.el.p(TurnosState.form_reprogramar_error, class_name="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded"),
+                ),
                 rx.el.div(
                     rx.el.button("Cancelar", on_click=TurnosState.cerrar_reprogramar,
                                  class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"),
