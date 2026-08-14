@@ -182,6 +182,13 @@ def _version_row(v: dict) -> rx.Component:
                 on_click=lambda: OdontogramaState.ver_version(v["id"]),
                 class_name="inline-flex items-center px-2.5 py-1 text-xs text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 cursor-pointer",
             ),
+            rx.el.a(
+                rx.icon("file-down", size=14, class_name="mr-1"),
+                "PDF",
+                href=f"/api/odontograma/pdf?paciente_id={OdontogramaState.paciente_id}&clinica_id={OdontogramaState.clinica_id}&sede_id={OdontogramaState.sede_actual_id}&version_id={v['id']}&token={OdontogramaState.download_token}",
+                target="_blank",
+                class_name="inline-flex items-center px-2.5 py-1 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+            ),
             rx.cond(
                 OdontogramaState.puede_versionar,
                 rx.el.button(
@@ -410,6 +417,13 @@ def odontograma_page() -> rx.Component:
                         class_name="flex items-center bg-gray-50 px-3 py-2 rounded-lg w-fit",
                     ),
                     rx.el.div(
+                        rx.el.a(
+                            rx.icon("file-down", size=15, class_name="mr-1.5"),
+                            "Exportar PDF",
+                            href=f"/api/odontograma/pdf?paciente_id={OdontogramaState.paciente_id}&clinica_id={OdontogramaState.clinica_id}&sede_id={OdontogramaState.sede_actual_id}&token={OdontogramaState.download_token}",
+                            target="_blank",
+                            class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                        ),
                         rx.cond(
                             OdontogramaState.puede_versionar,
                             rx.el.button(
