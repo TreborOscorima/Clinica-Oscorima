@@ -103,13 +103,27 @@ def _modal_nota() -> rx.Component:
                 ),
                 # Contenido
                 rx.el.div(
-                    rx.el.label("Contenido *", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    
+                    rx.el.div(
+                        rx.el.label("Contenido *", class_name="block text-sm font-medium text-gray-700"),
+                        # Selector de plantilla por especialidad
+                        rx.el.select(
+                            rx.el.option("Insertar plantilla…", value=""),
+                            rx.foreach(
+                                NotasClinicasState.plantillas_cat.to(list[dict]),
+                                lambda p: rx.el.option(p["label"], value=p["clave"]),
+                            ),
+                            value="",
+                            on_change=NotasClinicasState.aplicar_plantilla,
+                            title="Inserta un esqueleto estructurado en el contenido",
+                            class_name="text-xs px-2 py-1 border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer",
+                        ),
+                        class_name="flex items-center justify-between mb-1",
+                    ),
                     rx.el.textarea(
                         placeholder="Escribí la nota clínica aquí…",
-                        default_value=NotasClinicasState.form_contenido,
+                        value=NotasClinicasState.form_contenido,
                         on_change=NotasClinicasState.set_form_contenido,
-                        rows=6,
+                        rows=8,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none",
                     ),
                     class_name="mb-4",
@@ -297,17 +311,36 @@ def _fila_nota(n: dict) -> rx.Component:
                     n["profesional_nombre"],
                     rx.el.span(n["profesional_nombre"], class_name="text-xs text-gray-500 mr-3"),
                 ),
-                rx.el.button(
-                    rx.icon("pencil", size=14),
-                    on_click=lambda: NotasClinicasState.abrir_editar(n),
-                    class_name="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded cursor-pointer transition",
-                    title="Editar",
-                ),
-                rx.el.button(
-                    rx.icon("trash-2", size=14),
-                    on_click=lambda: NotasClinicasState.eliminar(n["id"]),
-                    class_name="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition",
-                    title="Eliminar",
+                rx.cond(
+                    n["firmada"],
+                    # Nota firmada → candado + firmante, sin acciones de edición
+                    rx.el.span(
+                        rx.icon("lock", size=12, class_name="mr-1"),
+                        "Firmada",
+                        class_name="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700",
+                    ),
+                    # Nota sin firmar → firmar / editar / eliminar
+                    rx.el.div(
+                        rx.el.button(
+                            rx.icon("pen-line", size=14),
+                            on_click=lambda: NotasClinicasState.firmar_nota(n["id"]),
+                            class_name="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer transition",
+                            title="Firmar (la nota quedará inmutable)",
+                        ),
+                        rx.el.button(
+                            rx.icon("pencil", size=14),
+                            on_click=lambda: NotasClinicasState.abrir_editar(n),
+                            class_name="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded cursor-pointer transition",
+                            title="Editar",
+                        ),
+                        rx.el.button(
+                            rx.icon("trash-2", size=14),
+                            on_click=lambda: NotasClinicasState.eliminar(n["id"]),
+                            class_name="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition",
+                            title="Eliminar",
+                        ),
+                        class_name="flex items-center gap-1",
+                    ),
                 ),
                 class_name="flex items-center gap-1",
             ),
@@ -317,6 +350,15 @@ def _fila_nota(n: dict) -> rx.Component:
         rx.el.p(
             n["contenido"],
             class_name="mt-2 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed",
+        ),
+        # Pie de firma
+        rx.cond(
+            n["firmada"],
+            rx.el.p(
+                rx.icon("shield-check", size=12, class_name="mr-1 text-emerald-600"),
+                "Firmada por ", n["firmada_por_nombre"], " · ", n["firmada_en"],
+                class_name="flex items-center mt-2 pt-2 border-t border-gray-100 text-xs text-emerald-700",
+            ),
         ),
         class_name="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition",
     )

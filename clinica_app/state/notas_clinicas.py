@@ -8,6 +8,7 @@ import reflex as rx
 from clinica_app.database import get_async_session
 from clinica_app.services import adjuntos as adj_svc
 from clinica_app.services import notas_clinicas as svc
+from clinica_app.services import plantillas_nota
 from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
@@ -40,6 +41,7 @@ class NotasClinicasState(BaseState):
 
     # Catálogos
     profesionales_cat: list[dict] = []
+    plantillas_cat:    list[dict] = []
 
     # ── Adjuntos (A2) ──────────────────────────────────────────────────────────
     adjuntos:      list[dict] = []
@@ -83,6 +85,7 @@ class NotasClinicasState(BaseState):
                 self.paciente_alergias = p.alergias or ""
 
     async def _cargar_catalogos(self):
+        self.plantillas_cat = plantillas_nota.opciones()
         from clinica_app.models.profesional import Profesional
         from sqlmodel import select
         async with get_async_session() as session:
@@ -219,6 +222,12 @@ class NotasClinicasState(BaseState):
     def set_form_contenido(self, v: str): self.form_contenido = v
     def set_form_turno_id(self, v: str):  self.form_turno_id = v
 
+    def aplicar_plantilla(self, clave: str):
+        """Inserta el esqueleto de la plantilla elegida en el contenido."""
+        if not clave:
+            return
+        self.form_contenido = plantillas_nota.contenido(clave)
+
     # ── Modal ──────────────────────────────────────────────────────────────────
 
     def abrir_nueva(self):
@@ -230,6 +239,10 @@ class NotasClinicasState(BaseState):
         self.modal_abierto  = True
 
     def abrir_editar(self, nota: dict):
+        # Defensa: una nota firmada no se edita (el botón se oculta en la UI, pero
+        # blindamos el handler igual).
+        if nota.get("firmada"):
+            return
         self.editar_id      = nota.get("id") or 0
         self.form_tipo      = nota.get("tipo") or "evolucion"
         self.form_contenido = nota.get("contenido") or ""
@@ -277,6 +290,21 @@ class NotasClinicasState(BaseState):
         async with get_async_session() as session:
             try:
                 await svc.eliminar(session, self.clinica_id, nota_id)
+            except ServiceError:
+                pass
+        async for s in self.cargar():
+            yield s
+
+    async def firmar_nota(self, nota_id: int):
+        """Firma una nota (la vuelve inmutable). Requiere permiso de escritura."""
+        if not self.tiene_permiso("historia", write=True):
+            return
+        async with get_async_session() as session:
+            try:
+                await svc.firmar(
+                    session, self.clinica_id, nota_id,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
             except ServiceError:
                 pass
         async for s in self.cargar():

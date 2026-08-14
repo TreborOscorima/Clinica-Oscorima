@@ -7,12 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from clinica_app.models.base import utcnow
 from clinica_app.models.nota_clinica import NotaClinica, TipoNota
-from clinica_app.services.exceptions import NotFoundError, ServiceError
+from clinica_app.services import auditoria
+from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
 
-def _with_profesional():
-    return selectinload(NotaClinica.profesional)
+def _with_relaciones():
+    return (
+        selectinload(NotaClinica.profesional),
+        selectinload(NotaClinica.firmada_por),
+    )
 
 
 def _dump(n: NotaClinica) -> dict[str, Any]:
@@ -21,6 +26,7 @@ def _dump(n: NotaClinica) -> dict[str, Any]:
         f"{(prof.nombres or '').strip()} {(prof.apellidos or '').strip()}".strip()
         if prof else None
     )
+    firmante = getattr(n, "firmada_por", None)
     return {
         "id":              n.id,
         "paciente_id":     n.paciente_id,
@@ -30,6 +36,9 @@ def _dump(n: NotaClinica) -> dict[str, Any]:
         "tipo":            n.tipo.value if n.tipo else "evolucion",
         "contenido":       n.contenido,
         "created_at":      n.created_at.strftime("%Y-%m-%d %H:%M") if n.created_at else "",
+        "firmada":         bool(n.firmada),
+        "firmada_en":      n.firmada_en.strftime("%Y-%m-%d %H:%M") if n.firmada_en else "",
+        "firmada_por_nombre": (firmante.nombre if firmante else ""),
     }
 
 
@@ -43,7 +52,7 @@ async def listar_por_paciente(
 ) -> dict[str, Any]:
     base = (
         select(NotaClinica)
-        .options(_with_profesional())
+        .options(*_with_relaciones())
         .where(
             NotaClinica.clinica_id == clinica_id,
             NotaClinica.paciente_id == paciente_id,
@@ -99,7 +108,7 @@ async def crear(
     session.add(nota)
     await session.flush()
     nota = (await session.execute(
-        select(NotaClinica).options(_with_profesional()).where(NotaClinica.id == nota.id)
+        select(NotaClinica).options(*_with_relaciones()).where(NotaClinica.id == nota.id)
     )).scalars().first()
     return _dump(nota)
 
@@ -112,7 +121,7 @@ async def actualizar(
 ) -> dict[str, Any]:
     nota = (await session.execute(
         select(NotaClinica)
-        .options(_with_profesional())
+        .options(*_with_relaciones())
         .where(
             NotaClinica.id == nota_id,
             NotaClinica.clinica_id == clinica_id,
@@ -121,6 +130,8 @@ async def actualizar(
     )).scalars().first()
     if nota is None:
         raise NotFoundError("Nota no encontrada")
+    if nota.firmada:
+        raise ConflictError("La nota está firmada y no puede editarse")
 
     contenido = (payload.get("contenido") or "").strip()
     if not contenido:
@@ -146,5 +157,49 @@ async def eliminar(session: AsyncSession, clinica_id: int, nota_id: int) -> None
     )).scalars().first()
     if nota is None:
         raise NotFoundError("Nota no encontrada")
+    if nota.firmada:
+        raise ConflictError("La nota está firmada y no puede eliminarse")
     nota.soft_delete()
     await session.flush()
+
+
+async def firmar(
+    session: AsyncSession,
+    clinica_id: int,
+    nota_id: int,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Firma una nota: la vuelve inmutable y deja registro de auditoría.
+
+    Idempotencia estricta: una nota ya firmada no puede re-firmarse.
+    """
+    nota = (await session.execute(
+        select(NotaClinica)
+        .options(*_with_relaciones())
+        .where(
+            NotaClinica.id == nota_id,
+            NotaClinica.clinica_id == clinica_id,
+            NotaClinica.is_active.is_(True),
+        )
+    )).scalars().first()
+    if nota is None:
+        raise NotFoundError("Nota no encontrada")
+    if nota.firmada:
+        raise ConflictError("La nota ya está firmada")
+
+    nota.firmada        = True
+    nota.firmada_en     = utcnow()
+    nota.firmada_por_id = usuario_id
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="firmar", entidad="nota_clinica", entidad_id=nota_id,
+        detalle={"paciente_id": nota.paciente_id, "tipo": nota.tipo.value if nota.tipo else ""},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    # `firmada_por` ya estaba cargada como None (se cargó con selectinload antes de
+    # asignar el FK); refrescamos solo esa relación para traer el nombre del firmante.
+    await session.refresh(nota, ["firmada_por"])
+    return _dump(nota)
