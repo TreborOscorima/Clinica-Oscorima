@@ -219,9 +219,19 @@
 
 ### Fase C — Diferenciador ESTÉTICO
 
-- [ ] **C1 · Galería antes/después por sesión.** Sobre A2: agrupar fotos por
-      sesión/tratamiento y fecha, con vista comparativa antes/después y línea de
-      tiempo de evolución del paciente.
+- [x] **C1 · Galería antes/después por sesión.** *(HECHO 2026-08-14, commits
+      e0f4513 backend + a55a573 UI.)* Sobre A2: modelo `SesionEstetica` (cabecera
+      por fecha/zona) + columnas `sesion_id`/`momento` en `adjuntos` para colgar
+      cada foto de una sesión y un momento (antes/durante/después), reutilizando
+      `storage` y el endpoint `/api/adjunto`. Migración aditiva `e1f2a3b4c5d6`.
+      Servicio `sesiones_esteticas` con CRUD de sesión, `registrar_foto`/
+      `eliminar_foto`, línea de tiempo con conteos y agrupamiento antes/después;
+      todo auditado. UI `/galeria-estetica?paciente_id=X`: timeline, selector de
+      momento, subida (`rx.upload`) y vista comparativa con miniaturas servidas
+      por `/api/adjunto`; botón desde la Historia Clínica. +14 tests (182 total).
+      Verificado E2E: sesión "Relleno con ácido hialurónico" + 3 fotos reales
+      (2 antes / 1 después) → las 3 cargan 200 OK, filas en `adjuntos`
+      (categoria=foto, sesion_id, momento) y `audit_log` (crear/agregar_foto).
 - [ ] **C2 · Ficha de tratamiento estético.** Zonas tratadas, productos/insumos
       aplicados por sesión (ya modelable con `servicio_insumos`), parámetros del
       equipo (p. ej. energía/disparos) y plan de sesiones (nº de sesión, próxima
