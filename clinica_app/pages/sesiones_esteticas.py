@@ -154,11 +154,11 @@ def _ficha_card() -> rx.Component:
         ),
         _dato("Parámetros del equipo", S.sa_parametros),
         rx.cond(
-            S.sa_proxima_fmt != "",
-            rx.el.a(
+            (S.sa_proxima_fmt != "") & S.puede_agendar,
+            rx.el.button(
                 rx.icon("calendar-plus", size=14, class_name="mr-1.5"),
                 "Agendar próxima sesión (" + S.sa_proxima_fmt + ")",
-                href="/turnos?paciente_id=" + S.paciente_id.to_string(),
+                on_click=S.abrir_modal_agendar,
                 class_name="inline-flex items-center mt-3 px-3 py-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 cursor-pointer",
             ),
         ),
@@ -447,6 +447,96 @@ def _modal_insumo() -> rx.Component:
     )
 
 
+def _modal_agendar() -> rx.Component:
+    return rx.cond(
+        S.modal_agendar,
+        rx.el.div(
+            rx.el.div(class_name="fixed inset-0 bg-black/40 z-40", on_click=S.cerrar_modal_agendar),
+            rx.el.div(
+                rx.el.div(
+                    rx.icon("calendar-plus", size=20, class_name="text-sky-600 mr-2"),
+                    rx.el.h2("Agendar próxima sesión", class_name="text-lg font-semibold text-gray-900"),
+                    class_name="flex items-center mb-4",
+                ),
+                rx.el.p(
+                    "Se creará un turno pendiente para " + S.paciente_nombre + " en la agenda.",
+                    class_name="text-sm text-gray-500 mb-4",
+                ),
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.label("Fecha", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                        rx.el.input(
+                            type="date", default_value=S.ag_fecha, on_change=S.set_ag_fecha,
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        ),
+                        class_name="flex-1",
+                    ),
+                    rx.el.div(
+                        rx.el.label("Hora", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                        rx.el.input(
+                            type="time", default_value=S.ag_hora, on_change=S.set_ag_hora,
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        ),
+                        class_name="w-32",
+                    ),
+                    class_name="flex gap-3 mb-4",
+                ),
+                rx.el.label("Profesional (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                rx.el.select(
+                    rx.el.option("— Sin asignar —", value="0"),
+                    rx.foreach(
+                        S.profesionales.to(list[dict]),
+                        lambda p: rx.el.option(p["nombre"], value=p["id"]),
+                    ),
+                    value=S.ag_profesional_id,
+                    on_change=S.set_ag_profesional,
+                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500",
+                ),
+                rx.cond(
+                    S.ag_msg != "",
+                    rx.el.p(
+                        S.ag_msg,
+                        class_name=rx.cond(
+                            S.ag_ok,
+                            "text-xs text-green-600 mb-3",
+                            "text-xs text-red-500 mb-3",
+                        ),
+                    ),
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        rx.cond(S.ag_ok, "Cerrar", "Cancelar"),
+                        on_click=S.cerrar_modal_agendar,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    rx.cond(
+                        ~S.ag_ok,
+                        rx.el.button(
+                            rx.cond(
+                                S.is_agendando,
+                                rx.el.div(rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"), "Agendando…", class_name="flex items-center"),
+                                "Confirmar turno",
+                            ),
+                            on_click=S.agendar_turno,
+                            disabled=S.is_agendando,
+                            class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer",
+                        ),
+                        rx.el.a(
+                            rx.icon("calendar", size=15, class_name="mr-1.5"),
+                            "Ver en Turnos",
+                            href="/turnos?paciente_id=" + S.paciente_id.to_string(),
+                            class_name="inline-flex items-center px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 cursor-pointer",
+                        ),
+                    ),
+                    class_name="flex justify-end gap-3",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
+    )
+
+
 # ── Página ────────────────────────────────────────────────────────────────────
 
 def sesiones_esteticas_page() -> rx.Component:
@@ -454,6 +544,7 @@ def sesiones_esteticas_page() -> rx.Component:
         _modal_sesion(),
         _modal_ficha(),
         _modal_insumo(),
+        _modal_agendar(),
         page_header(
             "Galería estética",
             "Fotos antes/después por sesión y evolución del paciente",

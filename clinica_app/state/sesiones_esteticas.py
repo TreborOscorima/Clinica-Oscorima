@@ -56,6 +56,16 @@ class SesionesEsteticasState(BaseState):
     ni_cantidad:    str = ""
     ni_unidad:      str = ""
 
+    # Modal agendar próxima sesión (turno)
+    profesionales:  list[dict] = []       # [{id, nombre}]
+    modal_agendar:  bool = False
+    ag_fecha:       str = ""
+    ag_hora:        str = "09:00"
+    ag_profesional_id: str = "0"
+    is_agendando:   bool = False
+    ag_msg:         str = ""
+    ag_ok:          bool = False
+
     # ── Modal: nueva sesión ─────────────────────────────────────────────────────
     modal_sesion: bool = False
     ns_fecha:  str = ""
@@ -88,7 +98,12 @@ class SesionesEsteticasState(BaseState):
         if self.paciente_id:
             await self._cargar_paciente()
             await self._cargar_productos()
+            await self._cargar_profesionales()
             await self._cargar_sesiones()
+
+    @rx.var
+    def puede_agendar(self) -> bool:
+        return self.tiene_permiso("turnos", write=True)
 
     async def _cargar_productos(self):
         from clinica_app.models.inventario import Producto
@@ -103,6 +118,23 @@ class SesionesEsteticasState(BaseState):
                 stmt = stmt.where(Producto.sede_id == self.sede_actual_id)
             prods = (await session.execute(stmt)).scalars().all()
         self.productos = [{"id": str(p.id), "nombre": p.nombre} for p in prods]
+
+    async def _cargar_profesionales(self):
+        from clinica_app.models.profesional import Profesional
+        async with get_async_session() as session:
+            stmt = (
+                select(Profesional)
+                .where(Profesional.clinica_id == self.clinica_id, Profesional.is_active.is_(True))
+                .order_by(Profesional.apellidos.asc())
+                .limit(300)
+            )
+            if self.sede_actual_id:
+                stmt = stmt.where(Profesional.sede_id == self.sede_actual_id)
+            profs = (await session.execute(stmt)).scalars().all()
+        self.profesionales = [
+            {"id": str(p.id), "nombre": f"{(p.nombres or '').strip()} {(p.apellidos or '').strip()}".strip()}
+            for p in profs
+        ]
 
     async def _cargar_paciente(self):
         from clinica_app.models.paciente import Paciente
@@ -372,3 +404,45 @@ class SesionesEsteticasState(BaseState):
             except ServiceError:
                 pass
         await self._cargar_sesiones()
+
+    # ── Agendar próxima sesión (turno) ──────────────────────────────────────────
+
+    def abrir_modal_agendar(self):
+        self.ag_fecha = self.sa_proxima          # prefill con la fecha recomendada
+        self.ag_hora = "09:00"
+        self.ag_profesional_id = "0"
+        self.ag_msg = ""
+        self.ag_ok = False
+        self.modal_agendar = True
+
+    def cerrar_modal_agendar(self):
+        self.modal_agendar = False
+
+    def set_ag_fecha(self, v: str):        self.ag_fecha = v
+    def set_ag_hora(self, v: str):         self.ag_hora = v
+    def set_ag_profesional(self, v: str):  self.ag_profesional_id = v
+
+    async def agendar_turno(self):
+        if not self.tiene_permiso("turnos", write=True):
+            self.ag_msg = "No tenés permiso para agendar turnos."
+            return
+        if not self.sesion_actual_id:
+            return
+        self.is_agendando = True
+        self.ag_msg = ""
+        self.ag_ok = False
+        yield
+        async with get_async_session() as session:
+            try:
+                turno = await svc.agendar_proxima_sesion(
+                    session, self.clinica_id, self.sesion_actual_id,
+                    fecha=self.ag_fecha,
+                    hora=self.ag_hora,
+                    profesional_id=int(self.ag_profesional_id) if self.ag_profesional_id not in ("", "0") else None,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+                self.ag_msg = f"Turno agendado para el {turno['fecha_hora']}."
+                self.ag_ok = True
+            except ServiceError as exc:
+                self.ag_msg = str(exc)
+        self.is_agendando = False
