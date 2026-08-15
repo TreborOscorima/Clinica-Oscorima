@@ -30,6 +30,8 @@ from clinica_app.models.odontograma_version import OdontogramaVersion
 from clinica_app.models.agenda import DisponibilidadProfesional, BloqueoAgenda
 from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamientoItem
 from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
+from clinica_app.models.evaluacion_estetica import EvaluacionEstetica
+from clinica_app.models.procedimiento_estetico import ProcedimientoEstetico, PuntoAplicacion
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
@@ -52,4 +54,6 @@ __all__ = [
     "DisponibilidadProfesional", "BloqueoAgenda",
     "PlanTratamiento", "PlanTratamientoItem",
     "SesionEstetica", "SesionInsumo",
+    "EvaluacionEstetica",
+    "ProcedimientoEstetico", "PuntoAplicacion",
 ]
