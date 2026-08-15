@@ -92,7 +92,6 @@ _SEVERIDAD_VALORES: frozenset[int] = frozenset(s["valor"] for s in SEVERIDADES)
 
 def zonas_catalogo(grupo: str | None = None) -> list[dict[str, str]]:
     """Zonas del catálogo, opcionalmente filtradas por grupo (facial|corporal)."""
-    fuente = _FACIAL if grupo == "facial" else _CORPORAL if grupo == "corporal" else (_FACIAL + _CORPORAL)
     grupo_de = {"facial": _FACIAL, "corporal": _CORPORAL}
     salida = []
     for g_nombre, lista in grupo_de.items():
