@@ -43,17 +43,19 @@ def anatomy_viewer(on_pick, *, height: str = "440px") -> rx.Component:
     )
 
 
-def anatomy_boot_script(payload_json: str) -> str:
+def anatomy_boot_script(payload_json: str, scene_type: str = "dental") -> str:
     """JS que inyecta el módulo (si falta), espera a que cargue y arranca init()+setData().
 
     Inyecta viewer.js con document.createElement (React no ejecutaría un <script>
     renderizado por JSX). Idempotente: no re-inyecta si ya está cargando/cargado.
+    `scene_type` selecciona la escena del motor: "dental" (arcadas) o "facial"
+    (rostro con zonas estéticas).
     """
     return (
         "(function(){"
         f"  var P={payload_json};"
         "  function start(n){"
-        f"    if(window.AnatomyViewer){{window.AnatomyViewer.init('{CANVAS_ID}','{BRIDGE_ID}');"
+        f"    if(window.AnatomyViewer){{window.AnatomyViewer.init('{CANVAS_ID}','{BRIDGE_ID}','{scene_type}');"
         "      window.AnatomyViewer.setData(P);return;}"
         "    if(n<=0)return;setTimeout(function(){start(n-1);},100);}"
         "  if(!window.AnatomyViewer&&!window.__anatomyLoading){"

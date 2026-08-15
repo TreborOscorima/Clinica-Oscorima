@@ -1,0 +1,408 @@
+from __future__ import annotations
+
+import reflex as rx
+
+from clinica_app.components.anatomy_viewer import anatomy_viewer
+from clinica_app.components.layout import shell
+from clinica_app.components.ui import empty_state, page_header
+from clinica_app.state.mapa_estetico import MapaEsteticoState
+
+_CAMARAS = [
+    ("frontal", "Frontal", "eye"),
+    ("perfil_izq", "Perfil izq.", "chevron-left"),
+    ("perfil_der", "Perfil der.", "chevron-right"),
+    ("superior", "Superior", "arrow-down-to-line"),
+]
+
+
+def _cam_btn(par) -> rx.Component:
+    return rx.el.button(
+        rx.icon(par[2], size=13, class_name="mr-1"),
+        par[1],
+        on_click=lambda: MapaEsteticoState.set_camara(par[0]),
+        class_name="inline-flex items-center px-2.5 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+    )
+
+
+def _select(label, value, options, on_change) -> rx.Component:
+    return rx.el.label(
+        rx.el.span(label, class_name="block text-xs font-medium text-gray-600 mb-1"),
+        rx.el.select(
+            rx.foreach(
+                options,
+                lambda o: rx.el.option(o["label"], value=o["value"]),
+            ),
+            value=value,
+            on_change=on_change,
+            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white",
+        ),
+        class_name="block",
+    )
+
+
+def _text_input(label, value, on_change, placeholder="") -> rx.Component:
+    return rx.el.label(
+        rx.el.span(label, class_name="block text-xs font-medium text-gray-600 mb-1"),
+        rx.el.input(
+            value=value,
+            on_change=on_change,
+            placeholder=placeholder,
+            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm",
+        ),
+        class_name="block",
+    )
+
+
+# ── Leyenda del mapa ──────────────────────────────────────────────────────────
+
+def _leyenda() -> rx.Component:
+    def _chip(color, txt):
+        return rx.el.div(
+            rx.el.span(class_name="w-3 h-3 rounded-full inline-block mr-1.5", style={"background_color": color}),
+            rx.el.span(txt, class_name="text-xs text-gray-600"),
+            class_name="inline-flex items-center mr-3",
+        )
+    return rx.el.div(
+        _chip("#64748b", "Sin actividad"),
+        _chip("#a855f7", "Evaluada"),
+        _chip("#0284c7", "Con procedimiento"),
+        _chip("#0284c7", ""),  # placeholder spacing
+        class_name="flex items-center flex-wrap mt-3",
+    )
+
+
+# ── Panel de la zona seleccionada ─────────────────────────────────────────────
+
+def _punto_row(p) -> rx.Component:
+    return rx.el.div(
+        rx.icon("map-pin", size=13, class_name="text-sky-600 mt-0.5 shrink-0"),
+        rx.el.div(
+            rx.el.p(
+                rx.el.span(p["cantidad"], class_name="font-medium"),
+                rx.el.span(" " + p["unidad"].to(str), class_name="text-gray-500"),
+                rx.cond(
+                    p["lote"].to(str) != "",
+                    rx.el.span(" · lote " + p["lote"].to(str), class_name="text-gray-500"),
+                    rx.fragment(),
+                ),
+                class_name="text-xs text-gray-700",
+            ),
+            rx.cond(
+                p["observacion"] != "",
+                rx.el.p(p["observacion"], class_name="text-xs text-gray-400"),
+                rx.fragment(),
+            ),
+            class_name="flex-1",
+        ),
+        rx.cond(
+            MapaEsteticoState.puede_editar,
+            rx.el.button(
+                rx.icon("x", size=13),
+                on_click=lambda: MapaEsteticoState.eliminar_punto(p["id"]),
+                class_name="text-gray-300 hover:text-red-500 cursor-pointer",
+            ),
+            rx.fragment(),
+        ),
+        class_name="flex items-start gap-2 py-1.5 px-2 bg-gray-50 rounded-lg",
+    )
+
+
+def _proc_card(pr) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div(
+                rx.icon("syringe", size=14, class_name="text-sky-600 mr-1.5"),
+                rx.el.span(pr["tipo_label"], class_name="text-sm font-semibold text-gray-800"),
+                class_name="inline-flex items-center",
+            ),
+            rx.cond(
+                MapaEsteticoState.puede_editar,
+                rx.el.div(
+                    rx.el.button(
+                        rx.icon("plus", size=13, class_name="mr-1"),
+                        "Punto",
+                        on_click=lambda: MapaEsteticoState.abrir_punto(pr["id"]),
+                        class_name="inline-flex items-center px-2 py-1 text-xs text-sky-700 border border-sky-300 bg-sky-50 rounded-lg hover:bg-sky-100 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.icon("trash-2", size=13),
+                        on_click=lambda: MapaEsteticoState.eliminar_proc(pr["id"]),
+                        class_name="ml-1.5 text-gray-300 hover:text-red-500 cursor-pointer",
+                    ),
+                    class_name="inline-flex items-center",
+                ),
+                rx.fragment(),
+            ),
+            class_name="flex items-center justify-between mb-1.5",
+        ),
+        rx.cond(
+            pr["observacion"].to(str) != "",
+            rx.el.p(pr["observacion"], class_name="text-xs text-gray-500 mb-2"),
+            rx.fragment(),
+        ),
+        rx.cond(
+            pr["puntos"].to(list[dict]).length() > 0,
+            rx.el.div(rx.foreach(pr["puntos"].to(list[dict]), _punto_row), class_name="space-y-1"),
+            rx.el.p("Sin puntos de aplicación aún.", class_name="text-xs text-gray-400 italic"),
+        ),
+        class_name="border border-gray-200 rounded-xl p-3 bg-white",
+    )
+
+
+def _eval_row(e) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(e["categoria_label"], class_name="text-sm font-medium text-gray-800"),
+            rx.cond(
+                e["severidad"].to(str) != "",
+                rx.el.span(
+                    "sev. " + e["severidad"].to(str),
+                    class_name="ml-2 text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700",
+                ),
+                rx.fragment(),
+            ),
+            class_name="inline-flex items-center",
+        ),
+        rx.cond(
+            e["observacion"].to(str) != "",
+            rx.el.p(e["observacion"], class_name="text-xs text-gray-500"),
+            rx.fragment(),
+        ),
+        rx.cond(
+            MapaEsteticoState.puede_editar,
+            rx.el.button(
+                rx.icon("x", size=13),
+                on_click=lambda: MapaEsteticoState.eliminar_eval(e["id"]),
+                class_name="text-gray-300 hover:text-red-500 cursor-pointer",
+            ),
+            rx.fragment(),
+        ),
+        class_name="flex items-center justify-between gap-2 py-2 border-b border-gray-100 last:border-0",
+    )
+
+
+def _panel_zona() -> rx.Component:
+    return rx.el.div(
+        rx.cond(
+            MapaEsteticoState.tiene_zona,
+            rx.el.div(
+                # Cabecera de la zona.
+                rx.el.div(
+                    rx.el.div(
+                        rx.el.h3(MapaEsteticoState.zona_sel_label, class_name="text-lg font-bold text-gray-900"),
+                        rx.el.p(MapaEsteticoState.coord_label, class_name="text-xs text-gray-400"),
+                    ),
+                    rx.cond(
+                        MapaEsteticoState.puede_editar,
+                        rx.el.div(
+                            rx.el.button(
+                                rx.icon("clipboard-check", size=14, class_name="mr-1"),
+                                "Evaluar",
+                                on_click=MapaEsteticoState.abrir_eval,
+                                class_name="inline-flex items-center px-3 py-1.5 text-xs font-medium text-violet-700 border border-violet-300 bg-violet-50 rounded-lg hover:bg-violet-100 cursor-pointer",
+                            ),
+                            rx.el.button(
+                                rx.icon("syringe", size=14, class_name="mr-1"),
+                                "Procedimiento",
+                                on_click=MapaEsteticoState.abrir_proc,
+                                class_name="ml-1.5 inline-flex items-center px-3 py-1.5 text-xs font-medium text-sky-700 border border-sky-300 bg-sky-50 rounded-lg hover:bg-sky-100 cursor-pointer",
+                            ),
+                            class_name="flex items-center",
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name="flex items-start justify-between mb-4",
+                ),
+                # Evaluaciones.
+                rx.el.p("Evaluaciones", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1"),
+                rx.cond(
+                    MapaEsteticoState.evaluaciones.length() > 0,
+                    rx.el.div(rx.foreach(MapaEsteticoState.evaluaciones, _eval_row), class_name="mb-4"),
+                    rx.el.p("Sin evaluaciones en esta zona.", class_name="text-xs text-gray-400 italic mb-4"),
+                ),
+                # Procedimientos.
+                rx.el.p("Procedimientos", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5"),
+                rx.cond(
+                    MapaEsteticoState.procedimientos.length() > 0,
+                    rx.el.div(rx.foreach(MapaEsteticoState.procedimientos, _proc_card), class_name="space-y-2"),
+                    rx.el.p("Sin procedimientos en esta zona.", class_name="text-xs text-gray-400 italic"),
+                ),
+            ),
+            empty_state("mouse-pointer-click", "Elegí una zona", "Hacé click en una zona del rostro o en la lista."),
+        ),
+        class_name="bg-white border border-gray-200 rounded-2xl p-5",
+    )
+
+
+# ── Lista de zonas (fallback y navegación) ────────────────────────────────────
+
+def _zona_btn(z) -> rx.Component:
+    return rx.el.button(
+        z["label"],
+        on_click=lambda: MapaEsteticoState.seleccionar_zona(z["codigo"]),
+        class_name=rx.cond(
+            MapaEsteticoState.zona_sel == z["codigo"],
+            "text-left px-2.5 py-1.5 text-xs rounded-lg bg-sky-600 text-white cursor-pointer",
+            "text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer",
+        ),
+    )
+
+
+# ── Modales ───────────────────────────────────────────────────────────────────
+
+def _modal(abierto, titulo, cuerpo, on_cerrar, on_guardar, guardar_label="Guardar") -> rx.Component:
+    return rx.cond(
+        abierto,
+        rx.el.div(
+            rx.el.div(
+                rx.el.div(
+                    rx.el.h3(titulo, class_name="text-base font-bold text-gray-900 mb-4"),
+                    cuerpo,
+                    rx.el.div(
+                        rx.el.button(
+                            "Cancelar", on_click=on_cerrar,
+                            class_name="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer",
+                        ),
+                        rx.el.button(
+                            guardar_label, on_click=on_guardar,
+                            disabled=MapaEsteticoState.is_saving,
+                            class_name="px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400 rounded-lg cursor-pointer",
+                        ),
+                        class_name="flex items-center justify-end gap-2 mt-5",
+                    ),
+                    class_name="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl",
+                ),
+                class_name="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40",
+                on_click=on_cerrar,
+            ),
+            # Evita cierre al click dentro (stop propagation vía capa interna).
+        ),
+        rx.fragment(),
+    )
+
+
+def _modal_eval() -> rx.Component:
+    return _modal(
+        MapaEsteticoState.modal_eval,
+        "Nueva evaluación — " + MapaEsteticoState.zona_sel_label,
+        rx.el.div(
+            _select("Categoría", MapaEsteticoState.ev_categoria, MapaEsteticoState.categorias_cat, MapaEsteticoState.set_ev_categoria),
+            _select("Severidad", MapaEsteticoState.ev_severidad, MapaEsteticoState.severidades_cat, MapaEsteticoState.set_ev_severidad),
+            rx.el.label(
+                rx.el.span("Observación", class_name="block text-xs font-medium text-gray-600 mb-1"),
+                rx.el.textarea(
+                    value=MapaEsteticoState.ev_obs,
+                    on_change=MapaEsteticoState.set_ev_obs,
+                    rows="2",
+                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm",
+                ),
+            ),
+            class_name="space-y-3",
+        ),
+        MapaEsteticoState.cerrar_eval,
+        MapaEsteticoState.guardar_eval,
+    )
+
+
+def _modal_proc() -> rx.Component:
+    return _modal(
+        MapaEsteticoState.modal_proc,
+        "Nuevo procedimiento — " + MapaEsteticoState.zona_sel_label,
+        rx.el.div(
+            _select("Tipo", MapaEsteticoState.pr_tipo, MapaEsteticoState.tipos_cat, MapaEsteticoState.set_pr_tipo),
+            rx.el.label(
+                rx.el.span("Observación", class_name="block text-xs font-medium text-gray-600 mb-1"),
+                rx.el.textarea(
+                    value=MapaEsteticoState.pr_obs,
+                    on_change=MapaEsteticoState.set_pr_obs,
+                    rows="2",
+                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm",
+                ),
+            ),
+            class_name="space-y-3",
+        ),
+        MapaEsteticoState.cerrar_proc,
+        MapaEsteticoState.guardar_proc,
+    )
+
+
+def _modal_punto() -> rx.Component:
+    return _modal(
+        MapaEsteticoState.modal_punto,
+        "Punto de aplicación",
+        rx.el.div(
+            _select("Producto (trazabilidad)", MapaEsteticoState.pt_producto, MapaEsteticoState.productos_cat, MapaEsteticoState.set_pt_producto),
+            rx.el.div(
+                _text_input("Lote", MapaEsteticoState.pt_lote, MapaEsteticoState.set_pt_lote, "LOT-…"),
+                _text_input("Cantidad", MapaEsteticoState.pt_cantidad, MapaEsteticoState.set_pt_cantidad, "0"),
+                _text_input("Unidad", MapaEsteticoState.pt_unidad, MapaEsteticoState.set_pt_unidad, "UI / ml"),
+                class_name="grid grid-cols-3 gap-2",
+            ),
+            _text_input("Observación", MapaEsteticoState.pt_obs, MapaEsteticoState.set_pt_obs),
+            rx.el.p(
+                "Coordenada del punto: " + MapaEsteticoState.coord_label,
+                class_name="text-xs text-gray-400",
+            ),
+            class_name="space-y-3",
+        ),
+        MapaEsteticoState.cerrar_punto,
+        MapaEsteticoState.guardar_punto,
+    )
+
+
+# ── Página ────────────────────────────────────────────────────────────────────
+
+def mapa_estetico_page() -> rx.Component:
+    return shell(
+        rx.el.div(
+            page_header(
+                "Mapa estético 3D",
+                rx.cond(
+                    MapaEsteticoState.paciente_nombre != "",
+                    "Paciente: " + MapaEsteticoState.paciente_nombre,
+                    "Evaluaciones y puntos de aplicación por zona",
+                ),
+            ),
+            rx.cond(
+                MapaEsteticoState.paciente_id != 0,
+                rx.el.div(
+                    # Columna izquierda: rostro 3D.
+                    rx.el.div(
+                        rx.el.div(
+                            rx.el.span("Rostro 3D", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+                            rx.el.div(rx.foreach(_CAMARAS, _cam_btn), class_name="flex items-center gap-1.5 flex-wrap"),
+                            class_name="flex items-center justify-between gap-3 mb-3 flex-wrap",
+                        ),
+                        anatomy_viewer(MapaEsteticoState.on_pick, height="480px"),
+                        rx.el.p(
+                            "Arrastrá para rotar · rueda para zoom · click en una zona para seleccionarla.",
+                            class_name="text-xs text-gray-400 mt-2",
+                        ),
+                        _leyenda(),
+                        # Totales.
+                        rx.el.div(
+                            rx.el.span("Evaluaciones: " + MapaEsteticoState.n_evaluaciones.to_string(), class_name="text-xs text-gray-500 mr-3"),
+                            rx.el.span("Procedimientos: " + MapaEsteticoState.n_procedimientos.to_string(), class_name="text-xs text-gray-500 mr-3"),
+                            rx.el.span("Puntos: " + MapaEsteticoState.n_puntos.to_string(), class_name="text-xs text-gray-500"),
+                            class_name="mt-3",
+                        ),
+                        # Lista de zonas.
+                        rx.el.div(
+                            rx.foreach(MapaEsteticoState.zonas_cat, _zona_btn),
+                            class_name="flex flex-wrap gap-1 mt-4 pt-4 border-t border-gray-100",
+                        ),
+                        class_name="bg-white border border-gray-200 rounded-2xl p-5",
+                    ),
+                    # Columna derecha: panel de la zona.
+                    _panel_zona(),
+                    class_name="grid grid-cols-1 lg:grid-cols-2 gap-5",
+                ),
+                empty_state("user-round-search", "Sin paciente", "Abrí el mapa desde la Historia Clínica de un paciente."),
+            ),
+            _modal_eval(),
+            _modal_proc(),
+            _modal_punto(),
+            class_name="p-6 max-w-6xl mx-auto",
+        ),
+        on_mount=MapaEsteticoState.on_mount,
+    )

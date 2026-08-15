@@ -679,12 +679,21 @@ def notas_clinicas_page() -> rx.Component:
                     # Módulos estéticos (D1): solo si el perfil de la clínica los activa.
                     rx.cond(
                         NotasClinicasState.esp_estetica,
-                        rx.el.a(
-                            rx.icon("images", size=16),
-                            rx.el.span("Galería estética", class_name="ml-1.5"),
-                            href="/galeria-estetica?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
-                            title="Abrir galería antes/después del paciente",
-                            class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                        rx.fragment(
+                            rx.el.a(
+                                rx.icon("images", size=16),
+                                rx.el.span("Galería estética", class_name="ml-1.5"),
+                                href="/galeria-estetica?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
+                                title="Abrir galería antes/después del paciente",
+                                class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                            ),
+                            rx.el.a(
+                                rx.icon("scan-face", size=16),
+                                rx.el.span("Mapa estético", class_name="ml-1.5"),
+                                href="/mapa-estetico?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
+                                title="Abrir mapa facial 3D del paciente",
+                                class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                            ),
                         ),
                     ),
                     rx.el.button(
