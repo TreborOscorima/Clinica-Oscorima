@@ -14,6 +14,7 @@
  */
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 // Se importa para validar la cadena del loader (se usará al cargar GLB en E10).
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 
@@ -23,12 +24,17 @@ const ARCADA_SUPERIOR = ["18","17","16","15","14","13","12","11",
 const ARCADA_INFERIOR = ["48","47","46","45","44","43","42","41",
                          "31","32","33","34","35","36","37","38"];
 
-const COLOR_DEFAULT  = 0xe5e7eb; // gray-200 (pieza sana / sin estado)
+const COLOR_DEFAULT  = 0xf3f1ea; // esmalte (pieza sana / sin estado)
 const COLOR_SELECTED = 0x0284c7; // sky-600 (selección)
 const COLOR_HOVER    = 0x7dd3fc; // sky-300
-const COLOR_ROOT     = 0xeceadf; // marfil (raíz)
+const COLOR_ROOT     = 0xe7e2d2; // marfil (raíz)
+const COLOR_GUM      = 0xd08a86; // encía (gingiva)
 const COLOR_ZONA     = 0x64748b; // slate-500 (marcador de zona sin actividad)
 const COLOR_SKIN     = 0xf0cfb8; // piel estilizada (rostro)
+const COLOR_LIP      = 0xc47f7a; // labios
+const COLOR_HAIR     = 0x4a3b32; // cejas / vello
+const COLOR_EYE      = 0xf7f6f3; // esclerótica
+const COLOR_IRIS     = 0x5b4636; // iris
 
 const CAMERAS_DENTAL = {
   frontal:  { pos: [0, 0.2, 9],   target: [0, 0, 0] },
@@ -96,31 +102,64 @@ const AnatomyViewer = (() => {
   }
 
   // ── Construcción dental ─────────────────────────────────────────────────────
-  function _crown(tipo, mat) {
+  const _ARCO = { radiusX: 3.5, radiusZ: 2.7, ySup: 1.15, yInf: -1.15, span: Math.PI * 1.12 };
+
+  // Corona bulbosa (elipsoide) + cúspides, fusionada en UNA geometría para que
+  // siga siendo un solo mesh pintable por estado clínico.
+  function _crownGeo(tipo) {
     const [w, h, d] = _DIM[tipo];
-    let geo;
-    if (tipo === "premolar" || tipo === "molar") {
-      geo = new THREE.CylinderGeometry(w * 0.52, w * 0.46, h, 10);
-    } else {
-      geo = new THREE.BoxGeometry(w, h, d);
+    const parts = [];
+    const body = new THREE.SphereGeometry(0.5, 18, 16);
+    body.scale(w, h, d);
+    parts.push(body);
+    const topY = h * 0.42;
+    if (tipo === "canino") {
+      // Cúspide puntiaguda en el borde incisal (abajo).
+      const tip = new THREE.ConeGeometry(w * 0.34, h * 0.5, 12);
+      tip.rotateX(Math.PI);
+      tip.translate(0, -h * 0.4, d * 0.06);
+      parts.push(tip);
+    } else if (tipo === "premolar" || tipo === "molar") {
+      const cusps = tipo === "premolar"
+        ? [[-w * 0.24, 0], [w * 0.24, 0]]
+        : [[-w * 0.26, -d * 0.24], [w * 0.26, -d * 0.24],
+           [-w * 0.26, d * 0.24], [w * 0.26, d * 0.24]];
+      for (const [cx, cz] of cusps) {
+        const cusp = new THREE.SphereGeometry(w * 0.2, 10, 8);
+        cusp.scale(1, 0.72, 1);
+        cusp.translate(cx, topY * 0.9, cz);
+        parts.push(cusp);
+      }
     }
-    return new THREE.Mesh(geo, mat);
+    const geo = mergeGeometries(parts, false);
+    parts.forEach((p) => p.dispose());
+    geo.computeVertexNormals();
+    return geo;
   }
 
   function _root(tipo) {
     const [w, h] = _DIM[tipo];
-    const rootLen = h * (tipo === "incisivo" ? 1.05 : 0.9);
-    const geo = new THREE.ConeGeometry(w * 0.34, rootLen, 6);
-    const mat = new THREE.MeshStandardMaterial({ color: COLOR_ROOT, roughness: 0.7 });
-    const m = new THREE.Mesh(geo, mat);
-    m.position.y = h / 2 + rootLen / 2 - 0.05;
-    return m;
+    const mat = new THREE.MeshStandardMaterial({ color: COLOR_ROOT, roughness: 0.85 });
+    const g = new THREE.Group();
+    const rootLen = h * (tipo === "incisivo" ? 1.15 : tipo === "molar" ? 0.85 : 1.0);
+    const mk = (r, offx) => {
+      const m = new THREE.Mesh(new THREE.ConeGeometry(r, rootLen, 8), mat);
+      m.position.set(offx, h / 2 + rootLen / 2 - 0.1, 0);
+      return m;
+    };
+    if (tipo === "molar") {          // dos raíces
+      g.add(mk(w * 0.19, -w * 0.24));
+      g.add(mk(w * 0.19, w * 0.24));
+    } else {                          // raíz única cónica
+      g.add(mk(w * 0.32, 0));
+    }
+    return g;
   }
 
   function _tooth(fdi, arcada) {
     const tipo = _tipo(fdi);
-    const mat = new THREE.MeshStandardMaterial({ color: defaultColor, roughness: 0.55, metalness: 0.04 });
-    const crown = _crown(tipo, mat);
+    const mat = new THREE.MeshStandardMaterial({ color: defaultColor, roughness: 0.32, metalness: 0.02 });
+    const crown = new THREE.Mesh(_crownGeo(tipo), mat);
     const g = new THREE.Group();
     g.add(crown);
     g.add(_root(tipo));
@@ -131,11 +170,11 @@ const AnatomyViewer = (() => {
 
   function _colocarArcada(fdis, arcada) {
     const n = fdis.length;
-    const radiusX = 3.5, radiusZ = 2.7;
-    const yArco = arcada === "superior" ? 1.15 : -1.15;
+    const { radiusX, radiusZ, span } = _ARCO;
+    const yArco = arcada === "superior" ? _ARCO.ySup : _ARCO.yInf;
     fdis.forEach((fdi, i) => {
       const t = i / (n - 1);
-      const ang = (t - 0.5) * Math.PI * 1.12;
+      const ang = (t - 0.5) * span;
       const g = _tooth(fdi, arcada);
       g.position.set(Math.sin(ang) * radiusX, yArco, Math.cos(ang) * radiusZ);
       g.rotateY(ang);
@@ -144,9 +183,30 @@ const AnatomyViewer = (() => {
     });
   }
 
+  // Encía: tubo rosado siguiendo la curva de la arcada, sobre la línea gingival.
+  function _gumArc(arcada) {
+    const { radiusX, radiusZ, span } = _ARCO;
+    const yArco = arcada === "superior" ? _ARCO.ySup : _ARCO.yInf;
+    const pts = [];
+    for (let i = 0; i <= 24; i++) {
+      const ang = (i / 24 - 0.5) * span;
+      pts.push(new THREE.Vector3(Math.sin(ang) * radiusX, yArco, Math.cos(ang) * radiusZ));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const geo = new THREE.TubeGeometry(curve, 48, 0.34, 14, false);
+    const mat = new THREE.MeshStandardMaterial({ color: COLOR_GUM, roughness: 0.85 });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = arcada === "superior" ? 0.47 : -0.47; // sube/baja a la línea gingival
+    return m;
+  }
+
   function _buildDental() {
     _colocarArcada(ARCADA_SUPERIOR, "superior");
     _colocarArcada(ARCADA_INFERIOR, "inferior");
+    for (const arc of ["superior", "inferior"]) {
+      const gum = _gumArc(arc);
+      scene.add(gum); decor.push(gum);
+    }
   }
 
   // ── Construcción facial ─────────────────────────────────────────────────────
@@ -163,37 +223,98 @@ const AnatomyViewer = (() => {
     return [x, y, z];
   }
 
+  function _add(mesh) { scene.add(mesh); decor.push(mesh); }
+
   function _faceDecor() {
-    const skin = new THREE.MeshStandardMaterial({ color: COLOR_SKIN, roughness: 0.9, metalness: 0.0 });
-    // Cabeza (elipsoide).
-    const head = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 48), skin);
+    const skin = new THREE.MeshStandardMaterial({ color: COLOR_SKIN, roughness: 0.85, metalness: 0.0 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: COLOR_HAIR, roughness: 0.8 });
+
+    // Cabeza: elipsoide con mentón afinado (escala en Y de los vértices bajos).
+    const headGeo = new THREE.SphereGeometry(1, 64, 64);
+    const pos = headGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const vy = pos.getY(i);
+      if (vy < 0) {                       // afina la mandíbula hacia el mentón
+        const k = 1 + vy * 0.28;
+        pos.setX(i, pos.getX(i) * k);
+        pos.setZ(i, pos.getZ(i) * (1 + vy * 0.12));
+      }
+    }
+    headGeo.computeVertexNormals();
+    const head = new THREE.Mesh(headGeo, skin);
     head.scale.set(_FA, _FB, _FC);
     head.position.y = _FCY;
-    scene.add(head); decor.push(head);
-    // Cuello.
+    _add(head);
+
+    // Nariz (pirámide: base = aletas, ápice hacia abajo).
+    const [nx, ny, nz] = _facePos(0, 0.04);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.62, 4), skin);
+    nose.rotation.x = Math.PI;
+    nose.rotation.y = Math.PI / 4;
+    nose.scale.set(1, 1, 0.82);
+    nose.position.set(0, ny - 0.02, nz + 0.14);
+    _add(nose);
+
+    // Ojos (esclerótica + iris) y cejas, bilaterales.
+    const scleraMat = new THREE.MeshStandardMaterial({ color: COLOR_EYE, roughness: 0.35 });
+    const irisMat = new THREE.MeshStandardMaterial({ color: COLOR_IRIS, roughness: 0.3 });
+    for (const sx of [-1, 1]) {
+      const [ex, ey, ez] = _facePos(sx * 0.34, 0.3);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), scleraMat);
+      eye.scale.set(1.35, 0.6, 0.55);
+      eye.position.set(ex, ey, ez - 0.03);
+      _add(eye);
+      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 12), irisMat);
+      iris.position.set(ex, ey, ez + 0.04);
+      _add(iris);
+      const [bx, by, bz] = _facePos(sx * 0.34, 0.44);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.07, 0.14), hairMat);
+      brow.position.set(bx, by, bz);
+      brow.rotation.z = -sx * 0.12;
+      _add(brow);
+    }
+
+    // Labios (elipsoide aplanado).
+    const [mx, my, mz] = _facePos(0, -0.44);
+    const lips = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 12),
+      new THREE.MeshStandardMaterial({ color: COLOR_LIP, roughness: 0.55 }));
+    lips.scale.set(1.35, 0.42, 0.5);
+    lips.position.set(mx, my, mz - 0.02);
+    _add(lips);
+
+    // Orejas.
+    for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 16), skin);
+      ear.scale.set(0.32, 0.72, 0.6);
+      ear.position.set(sx * _FA * 0.99, _FCY + 0.05, -0.05);
+      _add(ear);
+    }
+
+    // Cuello y hombros.
     const neck = new THREE.Mesh(
       new THREE.CylinderGeometry(0.58, 0.72, 1.2, 24),
       new THREE.MeshStandardMaterial({ color: 0xe4bda6, roughness: 0.9 }),
     );
     neck.position.set(0, _FCY - _FB * 0.86, 0.06);
-    scene.add(neck); decor.push(neck);
-    // Hombros (sugeridos).
+    _add(neck);
     const shoulders = new THREE.Mesh(
       new THREE.CylinderGeometry(1.9, 2.2, 0.7, 28),
       new THREE.MeshStandardMaterial({ color: 0xdfe3ea, roughness: 0.95 }),
     );
     shoulders.position.set(0, _FCY - _FB * 1.5, 0.0);
-    scene.add(shoulders); decor.push(shoulders);
+    _add(shoulders);
   }
 
   function _zoneMarker(id, u, v) {
     const [x, y, z] = _facePos(u, v);
     const mat = new THREE.MeshStandardMaterial({
-      color: defaultColor, roughness: 0.4, metalness: 0.1,
-      emissive: 0x000000,
+      color: defaultColor, roughness: 0.35, metalness: 0.15,
+      emissive: 0x111111,
     });
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 18), mat);
-    m.position.set(x, y, z);
+    // Disco aplanado que se apoya sobre la piel (lee como punto, no como bola).
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 14), mat);
+    m.scale.set(1, 1, 0.55);
+    m.position.set(x, y, z + 0.03);
     const g = new THREE.Group();
     g.add(m);
     g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m };
