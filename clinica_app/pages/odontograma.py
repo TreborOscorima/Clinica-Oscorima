@@ -2,9 +2,67 @@ from __future__ import annotations
 
 import reflex as rx
 
+from clinica_app.components.anatomy_viewer import anatomy_viewer
 from clinica_app.components.layout import shell
 from clinica_app.components.ui import page_header
 from clinica_app.state.odontograma import OdontogramaState
+
+_CAMARAS = [
+    ("frontal", "Frontal", "eye"),
+    ("superior", "Oclusal sup.", "arrow-down-to-line"),
+    ("inferior", "Oclusal inf.", "arrow-up-to-line"),
+    ("lateral", "Lateral", "scan"),
+]
+
+
+def _vista_toggle() -> rx.Component:
+    """Conmutador [2D] / [3D]."""
+    def _btn(activo, label, icon, on_click):
+        return rx.el.button(
+            rx.icon(icon, size=14, class_name="mr-1.5"),
+            label,
+            on_click=on_click,
+            class_name=rx.cond(
+                activo,
+                "inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-sky-600 text-white",
+                "inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer",
+            ),
+        )
+    return rx.el.div(
+        _btn(~OdontogramaState.vista_3d, "2D", "grid-3x3", OdontogramaState.mostrar_2d),
+        _btn(OdontogramaState.vista_3d, "3D", "box", OdontogramaState.mostrar_3d),
+        class_name="inline-flex items-center gap-1 p-1 bg-gray-100 rounded-xl",
+    )
+
+
+def _cam_btn(par) -> rx.Component:
+    return rx.el.button(
+        rx.icon(par[2], size=13, class_name="mr-1"),
+        par[1],
+        on_click=lambda: OdontogramaState.set_camara(par[0]),
+        class_name="inline-flex items-center px-2.5 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+    )
+
+
+def _panel_3d() -> rx.Component:
+    """Vista 3D del odontograma sobre los mismos datos (E3)."""
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span("Vista 3D", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+            rx.el.div(
+                rx.foreach(_CAMARAS, _cam_btn),
+                class_name="flex items-center gap-1.5 flex-wrap",
+            ),
+            class_name="flex items-center justify-between gap-3 mb-3 flex-wrap",
+        ),
+        anatomy_viewer(OdontogramaState.on_pick_3d, height="480px"),
+        rx.el.p(
+            "Arrastrá para rotar · rueda para zoom · click en una pieza para editar su estado. "
+            "Geometría procedural (reemplazable por modelos realistas sin perder los datos).",
+            class_name="text-xs text-gray-400 mt-3",
+        ),
+        class_name="p-4 bg-white border border-gray-100 rounded-xl shadow-sm",
+    )
 
 
 def _diente(p: dict) -> rx.Component:
@@ -645,19 +703,27 @@ def odontograma_page() -> rx.Component:
                     ),
                     rx.el.p("Sin hallazgos cargados — todas las piezas figuran como sanas.", class_name="text-sm text-gray-400 italic mb-5"),
                 ),
-                # Arcadas
-                rx.el.div(
+                # Conmutador de vista 2D / 3D
+                rx.el.div(_vista_toggle(), class_name="mb-3"),
+                # Arcadas — 2D (grilla) o 3D (motor anatómico), mismos datos
+                rx.cond(
+                    OdontogramaState.vista_3d,
+                    _panel_3d(),
                     rx.el.div(
-                        _arcada(OdontogramaState.superior, "Superior"),
-                        rx.el.div(class_name="h-px bg-gray-200 my-4 w-full"),
-                        _arcada(OdontogramaState.inferior, "Inferior"),
-                        class_name="inline-flex flex-col gap-1 min-w-max",
+                        rx.el.div(
+                            rx.el.div(
+                                _arcada(OdontogramaState.superior, "Superior"),
+                                rx.el.div(class_name="h-px bg-gray-200 my-4 w-full"),
+                                _arcada(OdontogramaState.inferior, "Inferior"),
+                                class_name="inline-flex flex-col gap-1 min-w-max",
+                            ),
+                            class_name="overflow-x-auto p-4 bg-white border border-gray-100 rounded-xl shadow-sm",
+                        ),
+                        rx.el.p(
+                            "Tocá una pieza para registrar su estado. El punto blanco indica que la pieza tiene una nota.",
+                            class_name="text-xs text-gray-400 mt-3",
+                        ),
                     ),
-                    class_name="overflow-x-auto p-4 bg-white border border-gray-100 rounded-xl shadow-sm",
-                ),
-                rx.el.p(
-                    "Tocá una pieza para registrar su estado. El punto blanco indica que la pieza tiene una nota.",
-                    class_name="text-xs text-gray-400 mt-3",
                 ),
                 # Leyenda
                 rx.el.div(

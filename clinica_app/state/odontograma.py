@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import json
+
 import reflex as rx
 
+from clinica_app.components.anatomy_viewer import (
+    anatomy_boot_script,
+    anatomy_setdata_script,
+)
 from clinica_app.database import get_async_session
 from clinica_app.services import odontograma as svc
 from clinica_app.services.exceptions import ServiceError
@@ -19,6 +25,9 @@ class OdontogramaState(BaseState):
     estados_cat: list[dict] = []
     con_datos:   int  = 0
     is_loading:  bool = False
+
+    # ── Vista 3D (E3 — motor anatómico sobre los mismos datos) ──────────────────
+    vista_3d: bool = False
 
     # ── Modal edición de pieza ──────────────────────────────────────────────────
     modal_abierto: bool = False
@@ -146,6 +155,50 @@ class OdontogramaState(BaseState):
     def set_sel_estado(self, v: str): self.sel_estado = v
     def set_sel_nota(self, v: str):   self.sel_nota = v
 
+    # ── Vista 3D ─────────────────────────────────────────────────────────────────
+
+    def _payload_3d(self, seleccionado: str = "") -> str:
+        """Colores por pieza FDI (estado real) para el visor 3D."""
+        colores = {p["numero"]: p["color"] for p in list(self.superior) + list(self.inferior)}
+        return json.dumps({"colores": colores, "seleccionado": seleccionado})
+
+    def mostrar_3d(self):
+        if self.vista_3d:
+            return
+        self.vista_3d = True
+        yield rx.call_script(anatomy_boot_script(self._payload_3d()))
+
+    def mostrar_2d(self):
+        if not self.vista_3d:
+            return
+        self.vista_3d = False
+        # Al volver a 2D, liberamos el renderer (evita un loop de render huérfano).
+        yield rx.call_script("window.AnatomyViewer&&window.AnatomyViewer.dispose();")
+
+    def set_camara(self, nombre: str):
+        yield rx.call_script(
+            "window.AnatomyViewer&&window.AnatomyViewer.setCamera('" + nombre + "');"
+        )
+
+    def on_pick_3d(self, value: str):
+        """Selección desde el visor 3D → abre el mismo modal que el 2D."""
+        try:
+            data = json.loads(value or "{}")
+        except (ValueError, TypeError):
+            return
+        numero = str(data.get("anatomy_id") or "")
+        if not numero:
+            return
+        pieza = next(
+            (p for p in list(self.superior) + list(self.inferior) if p["numero"] == numero),
+            None,
+        )
+        if pieza is None:
+            return
+        self.abrir_pieza(pieza)
+        # Resalta la pieza elegida en el visor mientras el modal está abierto.
+        yield rx.call_script(anatomy_setdata_script(self._payload_3d(seleccionado=numero)))
+
     async def guardar_pieza(self):
         if not self.tiene_permiso("historia", write=True):
             self.modal_abierto = False
@@ -169,6 +222,8 @@ class OdontogramaState(BaseState):
         self.is_saving = False
         self.modal_abierto = False
         await self._cargar()
+        if self.vista_3d:
+            yield rx.call_script(anatomy_setdata_script(self._payload_3d()))
 
     async def resetear_pieza(self):
         if not self.tiene_permiso("historia", write=True):
@@ -186,6 +241,8 @@ class OdontogramaState(BaseState):
                 return
         self.modal_abierto = False
         await self._cargar()
+        if self.vista_3d:
+            yield rx.call_script(anatomy_setdata_script(self._payload_3d()))
 
     # ── Versionado ───────────────────────────────────────────────────────────────
 
