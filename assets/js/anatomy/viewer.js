@@ -92,6 +92,7 @@ const AnatomyViewer = (() => {
   let rafId = null, colores = {}, seleccionado = "";
   let inited = false, sceneType = "dental";
   let cameras = CAMERAS_DENTAL, defaultColor = COLOR_DEFAULT;
+  let gltfLoader = null, modelRoot = null, modelUrl = "";
 
   function _webglOK() {
     try {
@@ -321,7 +322,7 @@ const AnatomyViewer = (() => {
     return g;
   }
 
-  function _buildFacial() {
+  function _buildFacialProcedural() {
     _faceDecor();
     for (const z of FACE_ZONES) {
       for (const [u, v] of z.pts) {
@@ -330,6 +331,82 @@ const AnatomyViewer = (() => {
         scene.add(g);
       }
     }
+    _repaint();
+  }
+
+  function _buildFacial() {
+    if (modelUrl) _loadFacialModel();   // GLB realista (E10) con marcadores sobre la superficie
+    else _buildFacialProcedural();      // fallback procedural
+  }
+
+  // ── Pipeline GLB (modelo realista + marcadores clicables sobre su superficie) ─
+  // El modelo es DECOR (no interactivo). Los marcadores de zona se colocan sobre
+  // la piel real por raycast, así se alinean a CUALQUIER modelo sin recompilar.
+  function _fitModel(obj, targetHeight, centerY) {
+    let box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    obj.scale.setScalar(targetHeight / (size.y || 1));
+    box = new THREE.Box3().setFromObject(obj);
+    const c = box.getCenter(new THREE.Vector3());
+    obj.position.sub(c);
+    obj.position.y += centerY;
+    return new THREE.Box3().setFromObject(obj);
+  }
+
+  function _zoneMarkerAt(id, pos, radius) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: defaultColor, roughness: 0.3, metalness: 0.15, emissive: 0x151515,
+    });
+    const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 14), mat);
+    m.scale.set(1, 1, 0.6);
+    m.position.copy(pos);
+    const g = new THREE.Group();
+    g.add(m);
+    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m };
+    return g;
+  }
+
+  function _placeFaceMarkersOnModel(box) {
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    const hx = size.x / 2, hy = size.y / 2;
+    const frontZ = box.max.z + Math.max(size.z, 1) * 1.5;
+    const radius = Math.max(size.x, size.y) * 0.035;
+    const rc = new THREE.Raycaster();
+    const dir = new THREE.Vector3(0, 0, -1);
+    for (const z of FACE_ZONES) {
+      for (const [u, v] of z.pts) {
+        const ox = c.x + u * hx * 0.82;
+        const oy = c.y + v * hy * 0.82;
+        rc.set(new THREE.Vector3(ox, oy, frontZ), dir);
+        const hit = rc.intersectObject(modelRoot, true)[0];
+        const pos = hit
+          ? hit.point.clone().add(new THREE.Vector3(0, 0, radius * 0.9))
+          : new THREE.Vector3(ox, oy, c.z + size.z * 0.45);
+        const g = _zoneMarkerAt(z.id, pos, radius);
+        nodes.push(g);
+        scene.add(g);
+      }
+    }
+    _repaint();
+  }
+
+  function _loadFacialModel() {
+    if (!gltfLoader) gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      modelUrl,
+      (gltf) => {
+        if (sceneType !== "facial" || !scene) return;   // escena cambió mientras cargaba
+        modelRoot = gltf.scene;
+        scene.add(modelRoot);
+        const box = _fitModel(modelRoot, 3.4, 0.15);
+        // Si el modelo mira hacia atrás, los marcadores caerían en la nuca: se
+        // detecta comparando qué cara golpea el ray central y se rota 180° si hace falta.
+        _placeFaceMarkersOnModel(box);
+      },
+      undefined,
+      () => { _buildFacialProcedural(); },   // fallback si el GLB no carga
+    );
   }
 
   // ── Pintado / selección (común) ─────────────────────────────────────────────
@@ -410,14 +487,17 @@ const AnatomyViewer = (() => {
     controls.update();
   }
 
-  function init(canvasId, bridgeId, type) {
+  function init(canvasId, bridgeId, type, modelUrlArg) {
     container = document.getElementById(canvasId);
     bridge = document.getElementById(bridgeId);
     if (!container) return false;
     const nextType = type || "dental";
-    if (inited && renderer && container.contains(renderer.domElement) && nextType === sceneType) return true;
+    const nextModel = modelUrlArg || "";
+    if (inited && renderer && container.contains(renderer.domElement)
+        && nextType === sceneType && nextModel === modelUrl) return true;
     dispose();
     sceneType = nextType;
+    modelUrl = nextModel;
     cameras = sceneType === "facial" ? CAMERAS_FACIAL : CAMERAS_DENTAL;
     defaultColor = sceneType === "facial" ? COLOR_ZONA : COLOR_DEFAULT;
 
@@ -511,6 +591,14 @@ const AnatomyViewer = (() => {
     }
     for (const d of decor) {
       d.geometry?.dispose(); d.material?.dispose();
+    }
+    if (modelRoot) {
+      modelRoot.traverse((o) => {
+        o.geometry?.dispose();
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material?.dispose();
+      });
+      modelRoot = null;
     }
     nodes = []; decor = []; hovered = null; inited = false;
     renderer = scene = camera = controls = null;

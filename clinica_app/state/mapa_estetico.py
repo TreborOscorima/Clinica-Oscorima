@@ -10,6 +10,7 @@ BD; los listados laterales son la fuente de verdad y el fallback.
 from __future__ import annotations
 
 import json
+import os
 
 import reflex as rx
 
@@ -22,6 +23,11 @@ from clinica_app.services import anatomia
 from clinica_app.services import estetica_mapa as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
+
+# URL (servida desde /assets) de un modelo GLB realista del rostro. Vacío =>
+# geometría procedural. Se configura por entorno para poder cambiar el modelo
+# sin tocar código (ANATOMY_FACE_MODEL_URL=/models/anatomy/rostro.glb).
+_FACE_MODEL_URL = os.getenv("ANATOMY_FACE_MODEL_URL", "")
 
 # Colores del mapa por actividad de la zona.
 _COLOR_PROC = "#0284c7"  # sky-600 — zona con procedimiento
@@ -113,7 +119,9 @@ class MapaEsteticoState(BaseState):
             await self._cargar_nombre_paciente()
             await self._cargar_productos()
             await self._cargar_resumen()
-        yield rx.call_script(anatomy_boot_script(self._payload_facial(), scene_type="facial"))
+        yield rx.call_script(anatomy_boot_script(
+            self._payload_facial(), scene_type="facial", model_url=_FACE_MODEL_URL,
+        ))
 
     async def _cargar_nombre_paciente(self):
         from sqlmodel import select

@@ -80,3 +80,6 @@ exports/
 
 # -------- Claude Code --------
 skills-lock.json
+
+# Modelos 3D de demo (no versionar binarios con licencia externa)
+assets/models/**/*.glb
