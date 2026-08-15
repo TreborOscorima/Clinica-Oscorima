@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import reflex as rx
 
@@ -12,6 +13,16 @@ from clinica_app.database import get_async_session
 from clinica_app.services import odontograma as svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
+
+# URLs (servidas desde /assets) de las arcadas GLB realistas. Si faltan, el motor
+# usa la dentadura procedural. Se configuran por entorno para cambiar de modelo
+# sin tocar código (ANATOMY_TEETH_LOWER_URL / ANATOMY_TEETH_UPPER_URL).
+_TEETH_LOWER = os.getenv("ANATOMY_TEETH_LOWER_URL", "")
+_TEETH_UPPER = os.getenv("ANATOMY_TEETH_UPPER_URL", "")
+_DENTAL_MODEL_JSON = (
+    json.dumps({"inferior": _TEETH_LOWER, "superior": _TEETH_UPPER})
+    if _TEETH_LOWER and _TEETH_UPPER else ""
+)
 
 
 class OdontogramaState(BaseState):
@@ -166,7 +177,9 @@ class OdontogramaState(BaseState):
         if self.vista_3d:
             return
         self.vista_3d = True
-        yield rx.call_script(anatomy_boot_script(self._payload_3d()))
+        yield rx.call_script(anatomy_boot_script(
+            self._payload_3d(), model_url=_DENTAL_MODEL_JSON,
+        ))
 
     def mostrar_2d(self):
         if not self.vista_3d:

@@ -201,13 +201,73 @@ const AnatomyViewer = (() => {
     return m;
   }
 
-  function _buildDental() {
+  function _buildDentalProcedural() {
     _colocarArcada(ARCADA_SUPERIOR, "superior");
     _colocarArcada(ARCADA_INFERIOR, "inferior");
     for (const arc of ["superior", "inferior"]) {
       const gum = _gumArc(arc);
       scene.add(gum); decor.push(gum);
     }
+    _repaint();
+  }
+
+  function _buildDental() {
+    let spec = null;
+    if (modelUrl) { try { spec = JSON.parse(modelUrl); } catch (e) { spec = null; } }
+    if (spec && spec.inferior && spec.superior) _loadDentalModels(spec);
+    else _buildDentalProcedural();
+  }
+
+  // ── Pipeline GLB dental: ensambla arcada inferior + superior como una boca ────
+  // Cada GLB ya viene canónico (dientes +Y, incisivos +Z, centrado). La inferior
+  // queda con coronas hacia arriba; la superior se rota 180° para morder hacia
+  // abajo. Material de esmalte uniforme (estilo modelo de estudio dental).
+  function _loadDentalModels(spec) {
+    if (!gltfLoader) gltfLoader = new GLTFLoader();
+    modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+    const arches = {};
+    let pending = 2;
+    const GAP = 0.5;  // separación de mordida (unidades del modelo, antes de escalar)
+
+    function assemble() {
+      const L = arches.inferior, U = arches.superior;
+      if (L) {
+        L.updateMatrixWorld(true);
+        const bL = new THREE.Box3().setFromObject(L);
+        L.position.y -= bL.max.y + GAP * 0.5;   // coronas justo bajo el plano oclusal
+        modelRoot.add(L);
+      }
+      if (U) {
+        U.rotation.z = Math.PI;                  // muerde hacia abajo
+        U.updateMatrixWorld(true);
+        const bU = new THREE.Box3().setFromObject(U);
+        U.position.y -= bU.min.y - GAP * 0.5;    // coronas justo sobre el plano oclusal
+        modelRoot.add(U);
+      }
+      _fitModel(modelRoot, 4.8, 0);              // encuadra la boca completa
+    }
+
+    function loadOne(url, key) {
+      gltfLoader.load(
+        url,
+        (gltf) => {
+          const root = gltf.scene;
+          const enamel = new THREE.MeshStandardMaterial({
+            color: 0xf1efe6, roughness: 0.42, metalness: 0.02,
+          });
+          root.traverse((o) => {
+            if (o.isMesh) { o.material = enamel; o.geometry.computeVertexNormals(); }
+          });
+          arches[key] = root;
+          if (--pending === 0) assemble();
+        },
+        undefined,
+        () => { if (--pending === 0) assemble(); },
+      );
+    }
+    loadOne(spec.inferior, "inferior");
+    loadOne(spec.superior, "superior");
   }
 
   // ── Construcción facial ─────────────────────────────────────────────────────
