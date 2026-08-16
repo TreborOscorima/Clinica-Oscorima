@@ -6,6 +6,16 @@ from clinica_app.components.anatomy_viewer import anatomy_viewer
 from clinica_app.components.layout import shell
 from clinica_app.components.ui import empty_state, page_header
 from clinica_app.state.mapa_estetico import MapaEsteticoState
+from clinica_app.state.mapa_estetico import _FOTO_UPLOAD_ID
+
+
+def _foto_src(f: dict):
+    return (
+        "/api/adjunto?id=" + f["id"].to_string()
+        + "&clinica_id=" + MapaEsteticoState.clinica_id.to_string()
+        + "&token=" + MapaEsteticoState.download_token
+    )
+
 
 def _cam_btn(par) -> rx.Component:
     return rx.el.button(
@@ -196,6 +206,124 @@ def _eval_row(e) -> rx.Component:
     )
 
 
+# ── Fotos antes/después de la zona (E8) ───────────────────────────────────────
+
+def _foto_card(f: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.img(
+            src=_foto_src(f),
+            alt=f["nombre"],
+            class_name="w-full h-32 object-cover rounded-lg border border-gray-200 bg-gray-50",
+        ),
+        rx.cond(
+            MapaEsteticoState.puede_editar,
+            rx.el.button(
+                rx.icon("x", size=13),
+                on_click=lambda: MapaEsteticoState.eliminar_foto(f["id"]),
+                title="Eliminar foto",
+                class_name="absolute top-1.5 right-1.5 p-1 bg-black/50 text-white rounded-full hover:bg-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition",
+            ),
+            rx.fragment(),
+        ),
+        class_name="relative group",
+    )
+
+
+def _columna_fotos(titulo: str, fotos, color: str, vacio: str) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(class_name="w-2 h-2 rounded-full " + color),
+            rx.el.span(titulo, class_name="text-xs font-semibold text-gray-700"),
+            rx.el.span(fotos.length().to_string(), class_name="text-[10px] font-bold text-gray-400 ml-auto"),
+            class_name="flex items-center gap-2 mb-2",
+        ),
+        rx.cond(
+            fotos.length() > 0,
+            rx.el.div(rx.foreach(fotos, _foto_card), class_name="grid grid-cols-2 gap-2"),
+            rx.el.p(vacio, class_name="text-xs text-gray-400 italic"),
+        ),
+        class_name="flex-1 min-w-0",
+    )
+
+
+def _momento_btn(m: dict) -> rx.Component:
+    return rx.el.button(
+        m["label"],
+        on_click=lambda: MapaEsteticoState.set_foto_momento(m["clave"]),
+        class_name=rx.cond(
+            MapaEsteticoState.foto_momento == m["clave"],
+            "px-2.5 py-1 text-xs font-medium text-white bg-sky-600 rounded-lg cursor-pointer",
+            "px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+        ),
+    )
+
+
+def _fotos_zona() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.icon("images", size=14, class_name="text-sky-600 mr-1.5"),
+            rx.el.span("Fotos antes / después", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+            class_name="flex items-center mb-2 mt-5 pt-4 border-t border-gray-100",
+        ),
+        # Subida (solo con permiso de escritura).
+        rx.cond(
+            MapaEsteticoState.puede_editar,
+            rx.el.div(
+                rx.el.div(
+                    rx.el.span("Subir como:", class_name="text-xs text-gray-500 mr-1"),
+                    rx.foreach(MapaEsteticoState.momentos_cat, _momento_btn),
+                    class_name="flex items-center gap-1.5 flex-wrap mb-2",
+                ),
+                rx.el.div(
+                    rx.upload(
+                        rx.el.div(
+                            rx.icon("image-plus", size=15, class_name="mr-1.5"),
+                            rx.el.span("Elegir fotos"),
+                            class_name="flex items-center text-xs text-sky-700",
+                        ),
+                        id=_FOTO_UPLOAD_ID,
+                        multiple=True,
+                        class_name="flex-1 px-3 py-2 border border-dashed border-sky-300 rounded-lg bg-sky-50/40 hover:bg-sky-50 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.cond(
+                            MapaEsteticoState.is_uploading,
+                            rx.el.div(rx.icon("loader-circle", size=14, class_name="animate-spin mr-1"), "Subiendo…", class_name="flex items-center"),
+                            rx.el.div(rx.icon("cloud-upload", size=14, class_name="mr-1"), "Subir", class_name="flex items-center"),
+                        ),
+                        on_click=MapaEsteticoState.handle_upload_foto(rx.upload_files(upload_id=_FOTO_UPLOAD_ID)),
+                        disabled=MapaEsteticoState.is_uploading,
+                        class_name="px-3 py-2 text-xs bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-sky-400 cursor-pointer shrink-0",
+                    ),
+                    class_name="flex items-center gap-2",
+                ),
+                rx.cond(
+                    MapaEsteticoState.foto_error != "",
+                    rx.el.p(MapaEsteticoState.foto_error, class_name="text-xs text-red-500 mt-2"),
+                    rx.fragment(),
+                ),
+                class_name="p-3 bg-gray-50 border border-gray-100 rounded-xl mb-3",
+            ),
+            rx.fragment(),
+        ),
+        # Comparativa antes / después.
+        rx.el.div(
+            _columna_fotos("Antes", MapaEsteticoState.fotos_antes, "bg-amber-400", "Sin fotos de «antes»."),
+            _columna_fotos("Después", MapaEsteticoState.fotos_despues, "bg-green-500", "Sin fotos de «después»."),
+            class_name="flex flex-col sm:flex-row gap-4",
+        ),
+        # Durante (opcional).
+        rx.cond(
+            MapaEsteticoState.fotos_durante.length() > 0,
+            rx.el.div(
+                _columna_fotos("Durante", MapaEsteticoState.fotos_durante, "bg-sky-400", ""),
+                class_name="mt-4",
+            ),
+            rx.fragment(),
+        ),
+    )
+
+
 def _panel_zona() -> rx.Component:
     return rx.el.div(
         rx.cond(
@@ -242,6 +370,8 @@ def _panel_zona() -> rx.Component:
                     rx.el.div(rx.foreach(MapaEsteticoState.procedimientos, _proc_card), class_name="space-y-2"),
                     rx.el.p("Sin procedimientos en esta zona.", class_name="text-xs text-gray-400 italic"),
                 ),
+                # Fotos antes/después de la zona.
+                _fotos_zona(),
             ),
             empty_state("mouse-pointer-click", "Elegí una zona", "Hacé click en una zona del rostro o en la lista."),
         ),
@@ -402,7 +532,8 @@ def mapa_estetico_page() -> rx.Component:
                         rx.el.div(
                             rx.el.span("Evaluaciones: " + MapaEsteticoState.n_evaluaciones.to_string(), class_name="text-xs text-gray-500 mr-3"),
                             rx.el.span("Procedimientos: " + MapaEsteticoState.n_procedimientos.to_string(), class_name="text-xs text-gray-500 mr-3"),
-                            rx.el.span("Puntos: " + MapaEsteticoState.n_puntos.to_string(), class_name="text-xs text-gray-500"),
+                            rx.el.span("Puntos: " + MapaEsteticoState.n_puntos.to_string(), class_name="text-xs text-gray-500 mr-3"),
+                            rx.el.span("Fotos: " + MapaEsteticoState.n_fotos.to_string(), class_name="text-xs text-gray-500"),
                             class_name="mt-3",
                         ),
                         # Lista de zonas.

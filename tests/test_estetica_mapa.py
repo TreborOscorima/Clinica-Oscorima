@@ -241,6 +241,89 @@ async def test_tenant_aislado(session, clinica, paciente, admin_user):
         await svc.eliminar_evaluacion(session, 999999, e["id"], usuario_id=admin_user.id)
 
 
+# ── Fotos antes/después por zona (E8) ─────────────────────────────────────────
+
+async def test_registrar_y_listar_foto_zona(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="frente1.jpg", stored_name="abc123.jpg",
+        mime="image/jpeg", tamano=1024, usuario_id=admin_user.id,
+    )
+    assert f["momento"] == "antes"
+    assert f["zona_codigo"] == "frente"
+    # Lista global y filtrada por zona.
+    todas = await svc.listar_fotos_zona(session, clinica.id, paciente.id)
+    assert len(todas) == 1
+    solo_frente = await svc.listar_fotos_zona(session, clinica.id, paciente.id, zona_codigo="frente")
+    assert len(solo_frente) == 1
+    otra = await svc.listar_fotos_zona(session, clinica.id, paciente.id, zona_codigo="labios")
+    assert otra == []
+
+
+async def test_foto_zona_valida_zona_y_momento(session, clinica, paciente, admin_user):
+    with pytest.raises(ValidationError):
+        await svc.registrar_foto_zona(
+            session, clinica.id, paciente.id,
+            zona_codigo="zona_falsa", momento="antes",
+            nombre="x.jpg", stored_name="x.jpg", usuario_id=admin_user.id,
+        )
+    with pytest.raises(ValidationError):
+        await svc.registrar_foto_zona(
+            session, clinica.id, paciente.id,
+            zona_codigo="frente", momento="inventado",
+            nombre="x.jpg", stored_name="x.jpg", usuario_id=admin_user.id,
+        )
+
+
+async def test_eliminar_foto_zona(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="pomulo", momento="despues",
+        nombre="m.jpg", stored_name="stored-xyz.jpg", usuario_id=admin_user.id,
+    )
+    stored = await svc.eliminar_foto_zona(session, clinica.id, f["id"], usuario_id=admin_user.id)
+    assert stored == "stored-xyz.jpg"
+    assert await svc.listar_fotos_zona(session, clinica.id, paciente.id) == []
+
+
+async def test_eliminar_foto_zona_no_alcanza_fotos_de_sesion(session, clinica, paciente, admin_user):
+    """La foto de galería C1 (sesion_id, sin zona_codigo) NO es una foto de zona:
+    eliminar_foto_zona no debe poder tocarla."""
+    from clinica_app.models.adjunto import Adjunto
+    a = Adjunto(
+        clinica_id=clinica.id, paciente_id=paciente.id,
+        sesion_id=1, momento="antes", categoria="foto",
+        nombre="sesion.jpg", stored_name="sesion.jpg",
+    )
+    session.add(a)
+    await session.flush()
+    with pytest.raises(NotFoundError):
+        await svc.eliminar_foto_zona(session, clinica.id, a.id, usuario_id=admin_user.id)
+
+
+async def test_resumen_incluye_fotos(session, clinica, paciente, admin_user):
+    await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="f.jpg", stored_name="f.jpg", usuario_id=admin_user.id,
+    )
+    resumen = await svc.resumen_mapa(session, clinica.id, paciente.id)
+    assert resumen["n_fotos"] == 1
+    assert resumen["zonas"]["frente"]["fotos"] == 1
+
+
+async def test_foto_zona_aislada_por_tenant(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="f.jpg", stored_name="f.jpg", usuario_id=admin_user.id,
+    )
+    assert await svc.listar_fotos_zona(session, 999999, paciente.id) == []
+    with pytest.raises(NotFoundError):
+        await svc.eliminar_foto_zona(session, 999999, f["id"], usuario_id=admin_user.id)
+
+
 # ── Auditoría ─────────────────────────────────────────────────────────────────
 
 async def test_auditoria_registrada(session, clinica, paciente, admin_user):
