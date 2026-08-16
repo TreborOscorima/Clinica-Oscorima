@@ -161,6 +161,73 @@ def _resumen_chip(r: dict) -> rx.Component:
     )
 
 
+def _cara_cell(idx: int) -> rx.Component:
+    """Una cara de la cruz (o celda vacía). Pinta con el pincel actual al tocar."""
+    c = OdontogramaState.caras_view[idx]
+    return rx.el.button(
+        rx.el.span(c["corto"], class_name="text-xs font-bold"),
+        on_click=lambda: OdontogramaState.pintar_cara(c["cara"]),
+        title=c["label"],
+        type="button",
+        style={"backgroundColor": c["color"], "color": c["text"]},
+        class_name=rx.cond(
+            c["tiene"],
+            "w-11 h-11 rounded-lg flex items-center justify-center cursor-pointer ring-2 ring-offset-1 ring-sky-500 transition",
+            "w-11 h-11 rounded-lg flex items-center justify-center cursor-pointer border border-gray-200 hover:border-sky-400 transition",
+        ),
+    )
+
+
+def _celda_vacia() -> rx.Component:
+    return rx.el.div(class_name="w-11 h-11")
+
+
+def _caras_editor() -> rx.Component:
+    """Cruz odontológica de 5 caras + pincel de estado (E4)."""
+    return rx.el.div(
+        rx.el.div(
+            rx.el.label("Detalle por cara", class_name="block text-sm font-medium text-gray-700"),
+            rx.el.button(
+                rx.icon("eraser", size=13, class_name="mr-1"),
+                "Limpiar caras",
+                on_click=OdontogramaState.limpiar_caras,
+                type="button",
+                class_name="inline-flex items-center text-xs text-gray-500 hover:text-gray-700 cursor-pointer",
+            ),
+            class_name="flex items-center justify-between mb-2",
+        ),
+        rx.el.div(
+            # Pincel: estado con el que se pintan las caras.
+            rx.el.div(
+                rx.el.span("Pincel", class_name="text-xs text-gray-500 mb-1 block"),
+                rx.el.select(
+                    rx.foreach(
+                        OdontogramaState.estados_cat.to(list[dict]),
+                        lambda e: rx.el.option(e["label"], value=e["clave"]),
+                    ),
+                    default_value=OdontogramaState.cara_pincel,
+                    on_change=OdontogramaState.set_cara_pincel,
+                    class_name="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                ),
+                class_name="shrink-0",
+            ),
+            # Cruz 3×3.
+            rx.el.div(
+                _celda_vacia(), _cara_cell(0), _celda_vacia(),
+                _cara_cell(1), _cara_cell(2), _cara_cell(3),
+                _celda_vacia(), _cara_cell(4), _celda_vacia(),
+                class_name="grid grid-cols-3 gap-1.5 justify-items-center",
+            ),
+            class_name="flex items-start gap-5",
+        ),
+        rx.el.p(
+            "Tocá una cara para pintarla con el pincel; tocala de nuevo para quitarla.",
+            class_name="text-xs text-gray-400 mt-2",
+        ),
+        class_name="mb-5 pb-5 border-b border-gray-100",
+    )
+
+
 def _modal_pieza() -> rx.Component:
     return rx.cond(
         OdontogramaState.modal_abierto,
@@ -197,6 +264,8 @@ def _modal_pieza() -> rx.Component:
                     ),
                     class_name="mb-4",
                 ),
+                # Detalle por cara (E4)
+                _caras_editor(),
                 # Nota
                 rx.el.div(
                     rx.el.label("Nota (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),

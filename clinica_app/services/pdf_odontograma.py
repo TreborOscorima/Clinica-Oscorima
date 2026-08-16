@@ -32,6 +32,24 @@ except ImportError:
     _REPORTLAB_OK = False
 
 
+_CARA_LABEL = {
+    "vestibular": "Vestibular", "palatina": "Palatina/Lingual",
+    "mesial": "Mesial", "distal": "Distal", "oclusal": "Oclusal/Incisal",
+}
+
+
+def _caras_texto(caras: dict, label_estado: dict) -> str:
+    """Detalle por cara legible: 'Oclusal/Incisal: Caries; Mesial: Obturado'.
+    Cadena vacía si no hay caras. `label_estado` mapea clave→label del estado."""
+    if not caras:
+        return ""
+    partes = [
+        f"{_CARA_LABEL.get(c, c)}: {label_estado.get(e, e)}"
+        for c, e in caras.items()
+    ]
+    return "; ".join(partes)
+
+
 def _hex(valor: str, defecto: str):
     """HexColor tolerante: cae a `defecto` si el string no es válido."""
     try:
@@ -176,17 +194,22 @@ def generar_odontograma_pdf(
     story.append(Paragraph("Arcada inferior (mandíbula)", arch_style))
     story.append(_arcada_table(inferior))
 
-    # Detalle de hallazgos (piezas != sano)
+    # Detalle de hallazgos (piezas != sano o con detalle por cara)
     hallazgos = [
         p for p in (superior + inferior)
-        if (p.get("estado") or "sano") != "sano"
+        if (p.get("estado") or "sano") != "sano" or (p.get("caras") or {})
     ]
+    # Labels legibles de estado (para las caras).
+    label_estado = {e.get("clave"): e.get("label", e.get("clave")) for e in leyenda}
     story.append(Paragraph("Detalle de hallazgos", section_style))
     if hallazgos:
         filas = []
         for p in hallazgos:
             nota = (p.get("nota") or "").strip()
             texto = f"<b>Pieza {p.get('numero','')}</b> — {p.get('estado_label','')}"
+            caras_txt = _caras_texto(p.get("caras") or {}, label_estado)
+            if caras_txt:
+                texto += "  ·  Caras — " + caras_txt
             if nota:
                 texto += f" · <i>{nota}</i>"
             filas.append([Paragraph(texto, item_style)])

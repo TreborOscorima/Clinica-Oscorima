@@ -24,6 +24,17 @@ _DENTAL_MODEL_JSON = (
     if _TEETH_LOWER and _TEETH_UPPER else ""
 )
 
+# Disposición de las 5 caras en la cruz del odontograma (E4). El orden de la
+# lista es el que consume `caras_view`; la página lo dibuja como cruz 3×3:
+#   [ vestibular ] / [ mesial · oclusal · distal ] / [ palatina ]
+_CARAS_LAYOUT: tuple[tuple[str, str, str], ...] = (
+    ("vestibular", "V", "Vestibular"),
+    ("mesial",     "M", "Mesial"),
+    ("oclusal",    "O", "Oclusal / Incisal"),
+    ("distal",     "D", "Distal"),
+    ("palatina",   "P", "Palatina / Lingual"),
+)
+
 
 class OdontogramaState(BaseState):
 
@@ -45,6 +56,8 @@ class OdontogramaState(BaseState):
     sel_numero:    str  = ""
     sel_estado:    str  = "sano"
     sel_nota:      str  = ""
+    sel_caras:     dict[str, str] = {}   # {cara: estado} — detalle por superficie (E4)
+    cara_pincel:   str  = "caries"       # estado con el que se pintan las caras
     is_saving:     bool = False
 
     # ── Versionado (evolución en el tiempo) ─────────────────────────────────────
@@ -158,6 +171,9 @@ class OdontogramaState(BaseState):
         self.sel_numero = pieza.get("numero") or ""
         self.sel_estado = pieza.get("estado") or "sano"
         self.sel_nota   = pieza.get("nota") or ""
+        # Detalle por cara (E4). Copiamos el dict para no mutar el de la lista.
+        caras = pieza.get("caras") or {}
+        self.sel_caras = {c: e for c, e in dict(caras).items() if c and e}
         self.modal_abierto = True
 
     def cerrar_modal(self):
@@ -165,6 +181,44 @@ class OdontogramaState(BaseState):
 
     def set_sel_estado(self, v: str): self.sel_estado = v
     def set_sel_nota(self, v: str):   self.sel_nota = v
+
+    # ── Detalle por cara (E4) ────────────────────────────────────────────────────
+
+    @rx.var
+    def caras_view(self) -> list[dict]:
+        """Las 5 caras en orden de layout, cada una con su estado/color actual
+        (color vacío = cara sin detalle). Lo consume la cruz del modal."""
+        colores = {e["clave"]: e for e in self.estados_cat}
+        salida: list[dict] = []
+        for cara, corto, label in _CARAS_LAYOUT:
+            est = self.sel_caras.get(cara, "")
+            info = colores.get(est)
+            salida.append({
+                "cara":   cara,
+                "corto":  corto,
+                "label":  label,
+                "estado": est,
+                "color":  info["color"] if info else "#f3f4f6",
+                "text":   info["text"] if info else "#9ca3af",
+                "tiene":  bool(est),
+            })
+        return salida
+
+    def set_cara_pincel(self, v: str):
+        self.cara_pincel = v
+
+    def pintar_cara(self, cara: str):
+        """Pinta la cara con el pincel actual; si ya la tenía con ese estado, la
+        limpia (toggle). Reasigna el dict para disparar la reactividad."""
+        nuevo = dict(self.sel_caras)
+        if nuevo.get(cara) == self.cara_pincel:
+            nuevo.pop(cara, None)
+        else:
+            nuevo[cara] = self.cara_pincel
+        self.sel_caras = nuevo
+
+    def limpiar_caras(self):
+        self.sel_caras = {}
 
     # ── Vista 3D ─────────────────────────────────────────────────────────────────
 
@@ -224,6 +278,7 @@ class OdontogramaState(BaseState):
                 await svc.guardar_pieza(
                     session, self.clinica_id, self.paciente_id, self.sel_numero,
                     estado=self.sel_estado,
+                    caras=dict(self.sel_caras),
                     nota=self.sel_nota,
                     usuario_id=self.user_id,
                     sede_id=self.sede_actual_id,

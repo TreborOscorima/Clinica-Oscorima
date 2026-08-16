@@ -5,7 +5,7 @@ import pytest
 
 from clinica_app.services import odontograma as svc
 from clinica_app.services.exceptions import NotFoundError
-from clinica_app.services.pdf_odontograma import generar_odontograma_pdf
+from clinica_app.services.pdf_odontograma import _caras_texto, generar_odontograma_pdf
 
 
 def _arcada_muestra():
@@ -62,6 +62,61 @@ def test_pdf_arcada_vacia_sin_hallazgos():
         superior=sanas(lay["superior"]), inferior=sanas(lay["inferior"]),
         leyenda=svc.estados_catalogo(),
     )
+    assert pdf[:5] == b"%PDF-"
+
+
+# ── Detalle por cara (E4) ─────────────────────────────────────────────────────
+
+def test_caras_texto_formatea_labels():
+    label_estado = {e["clave"]: e["label"] for e in svc.estados_catalogo()}
+    txt = _caras_texto({"oclusal": "caries", "mesial": "obturado"}, label_estado)
+    assert "Oclusal/Incisal: Caries" in txt
+    assert "Mesial: Obturado" in txt
+    assert "; " in txt
+
+
+def test_caras_texto_vacio():
+    assert _caras_texto({}, {}) == ""
+
+
+def test_pdf_incluye_pieza_sana_con_caras():
+    """Una pieza con estado 'sano' pero con detalle por cara igual debe figurar
+    en hallazgos (el filtro incluye caras, no solo estado != sano)."""
+    lay = svc.layout()
+
+    def piezas(nums):
+        out = []
+        for n in nums:
+            info = svc.ESTADOS["sano"]
+            p = {
+                "numero": n, "estado": "sano",
+                "color": info["color"], "text_color": info["text"],
+                "estado_label": info["label"], "nota": "", "caras": {},
+            }
+            if n == "21":  # sana a nivel diente, pero con una cara con caries
+                p["caras"] = {"oclusal": "caries"}
+            out.append(p)
+        return out
+
+    pdf = generar_odontograma_pdf(
+        paciente_nombre="Con Caras",
+        superior=piezas(lay["superior"]), inferior=piezas(lay["inferior"]),
+        leyenda=svc.estados_catalogo(),
+    )
+    assert pdf[:5] == b"%PDF-"
+
+
+async def test_datos_export_propaga_caras(session, clinica, paciente, admin_user):
+    await svc.guardar_pieza(
+        session, clinica.id, paciente.id, "16",
+        estado="caries", caras={"oclusal": "caries", "distal": "obturado"},
+        usuario_id=admin_user.id,
+    )
+    datos = await svc.datos_export(session, clinica.id, paciente.id)
+    pieza16 = next(p for p in datos["superior"] if p["numero"] == "16")
+    assert pieza16["caras"] == {"oclusal": "caries", "distal": "obturado"}
+    # Y el PDF con esos datos se genera sin romper.
+    pdf = generar_odontograma_pdf(clinica_nombre="TEST", **datos)
     assert pdf[:5] == b"%PDF-"
 
 
