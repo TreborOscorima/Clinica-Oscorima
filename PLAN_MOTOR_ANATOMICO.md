@@ -364,7 +364,7 @@ Rama `feat/anatomia-cuerpo-3d` → **PR #8**, CI en verde. Nada desplegado a pro
 **PENDIENTES del motor:** ninguno.
 
 **Pendientes fuera del motor (Sistema):**
-- Re-verificar el **export Excel de reportes** (bug `DetachedInstanceError`; la lista de turnos ya quedó verificada, el export no se re-disparó).
+- ~~Re-verificar el **export Excel de reportes** (bug `DetachedInstanceError`)~~ **✅ RESUELTO Y VERIFICADO (2026-08-16).** El fix (`expire_on_commit=False` en `database.get_session`) ya estaba aplicado desde el commit `637ffc7`; se confirmó E2E que **los 6 tipos** (pacientes/caja/turnos/inventario/compras/producción) generan + descargan XLSX válido por `/api/reportes/descargar/…?token=` con datos reales. Se cerró la brecha de cobertura: había 2 tests de regresión (pacientes/producción), se agregaron **4 más** (caja/turnos/inventario/compras) → los 6 tipos quedan blindados; se comprobó que los 6 **fallan** con `DetachedInstanceError` si se revierte el `expire_on_commit`. Suite **310 verde**.
 - **Deploy AWS**: en espera (constraint del usuario — no ejecutar hasta terminar local).
 - Modo oscuro: excluido por decisión.
 
