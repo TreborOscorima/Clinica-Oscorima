@@ -20,11 +20,13 @@ from clinica_app.config import REPORT_EXPORT_DIR
 from clinica_app.database import get_async_session as _get_async_session
 from clinica_app.database import _sync_engine as _engine
 from clinica_app.logging_config import setup_logging
+from clinica_app.sentry_config import init_sentry
 from clinica_app.services.download_token import validar_token
 import clinica_app.models  # noqa: F401 — registra todos los modelos antes del create_all
 
-# Observabilidad: configura el logging (JSON en prod) lo antes posible.
+# Observabilidad: configura el logging (JSON en prod) y Sentry (no-op sin DSN).
 setup_logging()
+init_sentry()
 
 # Crea las tablas que no existen (no toca las existentes)
 SQLModel.metadata.create_all(_engine)
@@ -41,6 +43,7 @@ from clinica_app.pages.inventario        import inventario_page
 from clinica_app.pages.reportes          import reportes_page
 from clinica_app.pages.configuracion     import configuracion_page
 from clinica_app.pages.auditoria         import auditoria_page
+from clinica_app.pages.salud             import salud_page
 from clinica_app.pages.cuentas           import cuentas_page
 from clinica_app.pages.compras           import compras_page
 from clinica_app.pages.promociones       import promociones_page
@@ -64,7 +67,20 @@ async def _api_ping(request: Request) -> JSONResponse:
 
 
 async def _api_health(request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok", "app": "tuwaykilife-clinica"})
+    """Salud del sistema para monitores externos: 200 si ok, 503 si degradado.
+
+    NO es el endpoint del healthcheck de Docker (ese es /api/ping, trivial): un
+    blip de BD acá no debe reiniciar el contenedor.
+    """
+    from clinica_app.services import salud
+    try:
+        async with _get_async_session() as session:
+            datos = await salud.estado_sistema(session)
+    except Exception:
+        datos = {"status": "degraded", "db": {"ok": False, "error": "sin sesión"}}
+    datos["app"] = "tuwaykilife-clinica"
+    code = 200 if datos.get("status") == "ok" else 503
+    return JSONResponse(datos, status_code=code)
 
 
 async def _descargar_reporte(request: Request) -> FileResponse | JSONResponse:
@@ -338,6 +354,7 @@ app.add_page(reportes_page,      route="/reportes",      title="TUWAYKILIFE | Re
 # ── Admin ─────────────────────────────────────────────────────────────────────
 app.add_page(configuracion_page, route="/configuracion", title="TUWAYKILIFE | Configuración")
 app.add_page(auditoria_page,     route="/auditoria",     title="TUWAYKILIFE | Auditoría")
+app.add_page(salud_page,         route="/salud",         title="TUWAYKILIFE | Salud del sistema")
 app.add_page(anatomy_lab_page,   route="/anatomy-lab",   title="TUWAYKILIFE | Motor Anatómico (Lab)")
 
 app.add_page(cuentas_page,        route="/cuentas",         title="TUWAYKILIFE | Cuentas corrientes")
