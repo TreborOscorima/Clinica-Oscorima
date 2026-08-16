@@ -32,5 +32,10 @@ tuwayki-core @ git+https://github.com/TreborOscorima/tuwayki-core.git@ef852f2
 python-dotenv>=1.0.1
 cryptography>=44.0.3
 
+# ─── Zonas horarias (scheduler de recordatorios) ──────────────────────────────
+# La imagen slim no trae la base del sistema; sin esto zoneinfo no resuelve
+# nombres como "America/Lima" y el scheduler caería a UTC (hora equivocada).
+tzdata>=2025.1
+
 # ─── Migraciones ──────────────────────────────────────────────────────────────
 alembic>=1.13.0

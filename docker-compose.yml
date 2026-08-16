@@ -107,6 +107,39 @@ services:
       - life_internal
       - life_npm_network
 
+  # Scheduler de tareas de fondo (recordatorios de turnos). Misma imagen que la
+  # app, pero corre el loop del scheduler en vez de la UI. Proceso aparte ⇒ no
+  # toca el event loop de Reflex y no hay disparos duplicados. No necesita web,
+  # puertos ni la red de NPM; sí la DB.
+  life_scheduler:
+    image: tuwayki_life:latest
+    container_name: life_scheduler
+    restart: unless-stopped
+    depends_on:
+      tuwayki_life:
+        condition: service_healthy   # que la app haya migrado la DB antes
+    # Bypass del entrypoint (que arranca Reflex + migra): acá solo el scheduler.
+    entrypoint: ["python", "-m", "clinica_app.tasks.scheduler"]
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      MYSQL_HOST: life_mysql
+      MYSQL_PORT: "3306"
+      RECORDATORIOS_HORA: ${RECORDATORIOS_HORA:-18:00}
+      RECORDATORIOS_TZ: ${RECORDATORIOS_TZ:-America/Lima}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - life_internal
+
 volumes:
   life_mysql_data:
   life_web:

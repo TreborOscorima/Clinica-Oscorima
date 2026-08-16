@@ -198,17 +198,28 @@ def notificar_turno_cancelado(turno: dict[str, Any], paciente_email: str = "", p
         send_whatsapp(paciente_tel, _turno_wa_text(turno, titulo, extra))
 
 
-def notificar_recordatorio(turno: dict[str, Any], paciente_email: str = "", paciente_tel: str = "") -> None:
-    """Recordatorio 24h antes del turno."""
+def notificar_recordatorio(
+    turno: dict[str, Any], paciente_email: str = "", paciente_tel: str = ""
+) -> dict[str, bool]:
+    """Recordatorio 24h antes del turno.
+
+    Devuelve el resultado por canal efectivamente intentado, p. ej.
+    ``{"email": True, "whatsapp": False}``. Solo incluye un canal si está
+    habilitado (env `NOTIF_*_ENABLED`) y hay destino: los canales deshabilitados
+    o sin destino no son un intento y no aparecen en el dict (el worker no los
+    registra como envío). El valor es True si el proveedor aceptó el mensaje.
+    """
     titulo = "Recordatorio: tenés un turno mañana 📅"
     extra  = "Te recordamos tu turno programado para mañana. ¡Te esperamos!"
 
-    if paciente_email:
-        send_email(
+    resultados: dict[str, bool] = {}
+    if paciente_email and NOTIF_EMAIL_ENABLED:
+        resultados["email"] = send_email(
             paciente_email,
             f"{CLINICA_NOMBRE} — Recordatorio de turno",
             _turno_email_html(turno, titulo, extra),
             body_text=_turno_wa_text(turno, titulo, extra),
         )
-    if paciente_tel:
-        send_whatsapp(paciente_tel, _turno_wa_text(turno, titulo, extra))
+    if paciente_tel and NOTIF_WA_ENABLED:
+        resultados["whatsapp"] = send_whatsapp(paciente_tel, _turno_wa_text(turno, titulo, extra))
+    return resultados

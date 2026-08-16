@@ -91,10 +91,14 @@
 
 ## P2 — Funcionalidad para "sistema completo" de clínica
 
-- [ ] **Historia clínica más rica**: adjuntos (estudios, imágenes), plantillas de nota por
-      especialidad, firma/bloqueo de nota (una nota firmada no se edita — trazabilidad legal).
-      *→ Detallado y priorizado en el bloque **P2-ESP** (Fase A: A2 adjuntos, A3 plantillas +
-      firma). Este ítem se cierra al completar esa fase.*
+- [x] **Historia clínica más rica — HECHO** (cierre 2026-08-16): los tres componentes
+      quedaron completos en la **Fase A** (P2-ESP): **A2** adjuntos (estudios/imágenes),
+      **A3** plantillas de nota por especialidad (`services/plantillas_nota.py` +
+      `especialidad.plantillas_para(rubro)` filtrando por rubro; selector "Insertar
+      plantilla…" en el modal de `/notas-clinicas` cableado a `aplicar_plantilla`) y
+      **A3** firma/bloqueo de nota (`NotaClinica.firmada/firmada_en/firmada_por_id`; una
+      nota firmada no se edita ni borra). Cubierto por `test_especialidad.py` (filtrado por
+      rubro) y `test_notas_clinicas.py` (opciones/contenido de plantilla).
 - [x] **Agenda profesional real — HECHO (2026-08-14, commits 7f172d5 backend + cf92f12 UI).**
       Modelos `DisponibilidadProfesional` (franjas semanales por profesional:
       día 0-6 + HH:MM inicio/fin) y `BloqueoAgenda` (rango vacaciones/ausencia).
@@ -112,8 +116,20 @@
       dentro de horario se crea; contra la DB real el servicio detecta
       solapamiento ("Se superpone con el turno de María…"), fuera de horario
       ("Fuera del horario… (Lunes)") y `turnos.crear` corta con ConflictError.
-- [ ] **Recordatorios de turnos activos**: `tasks/recordatorios.py` existe — conectarlo a
-      un scheduler real (cron/APScheduler) con envío WhatsApp/email y estado de envío.
+- [x] **Recordatorios de turnos activos — HECHO (2026-08-16).** Scheduler real como
+      **servicio Docker dedicado** `life_scheduler` (misma imagen, `python -m
+      clinica_app.tasks.scheduler`): loop stdlib con `zoneinfo` que dispara diario a
+      `RECORDATORIOS_HORA`/`RECORDATORIOS_TZ` (default 18:00 America/Lima) — proceso
+      aparte, no toca el event loop de Reflex, sin disparos duplicados, sin dep externa
+      (solo `tzdata` para resolver la zona en la imagen slim). **Estado de envío** en la
+      tabla nueva `recordatorios_turno` (migración `e5f6a7b8c9d0`, aditiva/idempotente):
+      una fila por turno×canal con enviado/fallido + destino + error. El worker
+      `enviar_recordatorios` es **idempotente** (no re-recuerda un turno con un canal ya
+      ENVIADO) y **reintenta** los que fallaron por completo; devuelve resumen
+      (turnos/recordados/omitidos/canales ok/fallidos). `notificar_recordatorio` ahora
+      devuelve resultado por canal. +9 tests (suite 319 verde); migración verificada con
+      roundtrip upgrade→downgrade en MySQL real. El envío efectivo sigue gateado por
+      `NOTIF_EMAIL_ENABLED`/`NOTIF_WA_ENABLED` (SMTP/Twilio).
 - [ ] **Facturación electrónica (Perú/SUNAT)**: hoy los comprobantes son internos. Integrar
       facturación electrónica (OSE/PSE) o al menos exportación contable formal.
 - [ ] **Portal de resultados / recordatorio al paciente** (opcional, diferenciador).

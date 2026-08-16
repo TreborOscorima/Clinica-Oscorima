@@ -72,6 +72,12 @@ NOTIF_WA_ENABLED:    bool = os.getenv("NOTIF_WA_ENABLED", "false").lower() == "t
 # ── Nombre de la clínica para mensajes ────────────────────────────────────────
 CLINICA_NOMBRE: str = os.getenv("CLINICA_NOMBRE", "la clínica")
 
+# ── Scheduler de recordatorios (servicio life_scheduler, APScheduler) ──────────
+# Hora local (HH:MM) del disparo diario del worker de recordatorios y zona
+# horaria en que se interpreta. Solo lo usa el proceso del scheduler.
+RECORDATORIOS_HORA: str = os.getenv("RECORDATORIOS_HORA", "18:00")
+RECORDATORIOS_TZ:   str = os.getenv("RECORDATORIOS_TZ", "America/Lima")
+
 # ── API admin para el panel Owner de TUWAYKI (integración HTTP) ────────────────
 # Secreto compartido; debe coincidir con LIFE_ADMIN_API_SECRET del Sistema de
 # Ventas. Si está vacío, los endpoints /api/admin/* responden 401 siempre.

@@ -32,6 +32,9 @@ from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamiento
 from clinica_app.models.sesion_estetica import SesionEstetica, SesionInsumo
 from clinica_app.models.evaluacion_estetica import EvaluacionEstetica
 from clinica_app.models.procedimiento_estetico import ProcedimientoEstetico, PuntoAplicacion
+from clinica_app.models.recordatorio_turno import (
+    RecordatorioTurno, CanalRecordatorio, EstadoRecordatorio,
+)
 
 __all__ = [
     "Clinica", "User", "RoleEnum", "PermisoRol", "UsuarioSede",
@@ -56,4 +59,5 @@ __all__ = [
     "SesionEstetica", "SesionInsumo",
     "EvaluacionEstetica",
     "ProcedimientoEstetico", "PuntoAplicacion",
+    "RecordatorioTurno", "CanalRecordatorio", "EstadoRecordatorio",
 ]
