@@ -86,6 +86,7 @@ SEVERIDADES: list[dict[str, Any]] = [
     {"valor": 4, "label": "Severo"},
 ]
 _SEVERIDAD_VALORES: frozenset[int] = frozenset(s["valor"] for s in SEVERIDADES)
+_SEVERIDAD_LABELS: dict[int, str] = {s["valor"]: s["label"] for s in SEVERIDADES}
 
 
 # ── Helpers de catálogo (para la UI y validación) ─────────────────────────────
@@ -135,6 +136,12 @@ def es_tipo_valido(tipo: str) -> bool:
 
 def es_categoria_valida(categoria: str) -> bool:
     return (categoria or "").strip() in CATEGORIAS_EVALUACION
+
+
+def severidad_label(valor: Any) -> str:
+    """Label legible de una severidad 0–4 (vacío si no aplica)."""
+    n = normalizar_severidad(valor)
+    return _SEVERIDAD_LABELS.get(n, "") if n is not None else ""
 
 
 def normalizar_severidad(valor: Any) -> int | None:

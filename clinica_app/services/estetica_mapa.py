@@ -596,3 +596,81 @@ async def resumen_mapa(
         "n_puntos":         sum(pr.get("n_puntos", 0) for pr in procs),
         "n_fotos":          len(fotos),
     }
+
+
+# ── Export para el reporte PDF (E9) ───────────────────────────────────────────
+
+async def _nombres_productos(
+    session: AsyncSession, clinica_id: int, ids: set[int]
+) -> dict[int, str]:
+    """Mapa producto_id → nombre (para etiquetar los puntos en el reporte)."""
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    filas = (await session.execute(
+        select(Producto.id, Producto.nombre).where(
+            Producto.clinica_id == clinica_id,
+            Producto.id.in_(ids),
+        )
+    )).all()
+    return {pid: nombre for pid, nombre in filas}
+
+
+async def datos_export(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+) -> dict[str, Any]:
+    """Reúne todo lo que el PDF del mapa estético necesita: datos del paciente,
+    evaluaciones y procedimientos (con puntos + nombre de producto) agrupados por
+    zona, y el conteo de fotos antes/durante/después por zona. Lanza
+    NotFoundError si el paciente no existe en la clínica.
+
+    Espeja `odontograma.datos_export`: el renderer no interviene, todo sale de BD.
+    """
+    pac = (await session.execute(
+        select(Paciente).where(
+            Paciente.id == paciente_id,
+            Paciente.clinica_id == clinica_id,
+        )
+    )).scalars().first()
+    if pac is None:
+        raise NotFoundError("El paciente no existe")
+
+    evals = await listar_evaluaciones(session, clinica_id, paciente_id)
+    procs = await listar_procedimientos(session, clinica_id, paciente_id)
+    fotos = await _fotos_zona_query(session, clinica_id, paciente_id)
+
+    # Nombre de producto en cada punto (trazabilidad legible)
+    prod_ids = {
+        p.get("producto_id", 0)
+        for pr in procs for p in pr.get("puntos", [])
+    }
+    nombres = await _nombres_productos(session, clinica_id, prod_ids)
+    for e in evals:
+        e["severidad_label"] = anatomia.severidad_label(e.get("severidad"))
+    for pr in procs:
+        for p in pr.get("puntos", []):
+            p["producto_nombre"] = nombres.get(p.get("producto_id", 0), "")
+
+    # Fotos por zona → {zona_label: {antes, durante, despues}}
+    fotos_por_zona: dict[str, dict[str, int]] = {}
+    for a in fotos:
+        z = a.zona_codigo or ""
+        cont = fotos_por_zona.setdefault(
+            anatomia.zona_label(z), {"antes": 0, "durante": 0, "despues": 0}
+        )
+        momento = a.momento if a.momento in cont else "antes"
+        cont[momento] += 1
+
+    return {
+        "paciente_nombre":    pac.nombre,
+        "paciente_documento": pac.documento or "",
+        "evaluaciones":       evals,
+        "procedimientos":     procs,
+        "fotos_por_zona":     fotos_por_zona,
+        "n_evaluaciones":     len(evals),
+        "n_procedimientos":   len(procs),
+        "n_puntos":           sum(pr.get("n_puntos", 0) for pr in procs),
+        "n_fotos":            len(fotos),
+    }

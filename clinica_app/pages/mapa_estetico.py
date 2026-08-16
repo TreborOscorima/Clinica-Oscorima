@@ -497,6 +497,25 @@ def _modal_punto() -> rx.Component:
 
 # ── Página ────────────────────────────────────────────────────────────────────
 
+def _export_pdf_btn() -> rx.Component:
+    """Link a la exportación PDF del mapa estético (protegido por token efímero)."""
+    return rx.cond(
+        MapaEsteticoState.paciente_id != 0,
+        rx.el.a(
+            rx.icon("file-down", size=15, class_name="mr-1.5"),
+            "Exportar PDF",
+            href=(
+                "/api/estetica/pdf?paciente_id=" + MapaEsteticoState.paciente_id.to_string()
+                + "&clinica_id=" + MapaEsteticoState.clinica_id.to_string()
+                + "&token=" + MapaEsteticoState.download_token
+            ),
+            target="_blank",
+            class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+        ),
+        rx.fragment(),
+    )
+
+
 def mapa_estetico_page() -> rx.Component:
     return shell(
         rx.el.div(
@@ -507,6 +526,7 @@ def mapa_estetico_page() -> rx.Component:
                     "Paciente: " + MapaEsteticoState.paciente_nombre,
                     "Evaluaciones y puntos de aplicación por zona",
                 ),
+                action=_export_pdf_btn(),
             ),
             rx.cond(
                 MapaEsteticoState.paciente_id != 0,
