@@ -134,7 +134,8 @@ def enviar_recordatorios() -> dict[str, int]:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from clinica_app.logging_config import setup_logging
+    setup_logging()
     r = enviar_recordatorios()
     print(
         f"Turnos en ventana: {r['turnos']} | recordados: {r['recordados']} | "

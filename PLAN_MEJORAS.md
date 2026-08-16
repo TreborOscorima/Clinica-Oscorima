@@ -395,9 +395,15 @@
       ingreso/egreso válido → toast de éxito; toaster de sonner montado por el overlay por
       defecto (sin setup extra).
 - [ ] **Modo oscuro** (Reflex + Tailwind lo hacen barato).
-- [ ] **Observabilidad**: logging estructurado en servicios (hoy casi no hay logs),
-      Sentry o similar para errores en prod, y un dashboard de salud (uptime + espacio
-      en disco + backups OK).
+- [~] **Observabilidad** — PARCIAL (2026-08-16): **logging estructurado HECHO**.
+      `clinica_app/logging_config.py` con `setup_logging()` idempotente (JSON por línea
+      en prod vía `ENV=prod`/`LOG_JSON`, texto en dev; nivel por `LOG_LEVEL`), inicializado
+      al boot de la app y en los entrypoints de tareas/scheduler. Punto de choque:
+      `services/auditoria.registrar` emite una línea estructurada (`clinica.audit`) por
+      cada acción de negocio auditada, con contexto (clinica_id/usuario_id/accion/entidad/
+      entidad_id) como campos de primer nivel. +5 tests (suite 324 verde). **Pendiente aún:**
+      Sentry o similar para errores en prod, y un dashboard de salud (uptime + disco +
+      backups OK).
 - [ ] **Staging**: la rama `docker-deploy-prod` ya corre CI — darle un entorno propio
       de staging antes de tocar prod.
 

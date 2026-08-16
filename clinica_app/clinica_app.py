@@ -19,8 +19,12 @@ from starlette.routing import Route, Router
 from clinica_app.config import REPORT_EXPORT_DIR
 from clinica_app.database import get_async_session as _get_async_session
 from clinica_app.database import _sync_engine as _engine
+from clinica_app.logging_config import setup_logging
 from clinica_app.services.download_token import validar_token
 import clinica_app.models  # noqa: F401 — registra todos los modelos antes del create_all
+
+# Observabilidad: configura el logging (JSON en prod) lo antes posible.
+setup_logging()
 
 # Crea las tablas que no existen (no toca las existentes)
 SQLModel.metadata.create_all(_engine)

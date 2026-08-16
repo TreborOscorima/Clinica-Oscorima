@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from clinica_app.config import RECORDATORIOS_HORA, RECORDATORIOS_TZ
+from clinica_app.logging_config import setup_logging
 from clinica_app.tasks.recordatorios import enviar_recordatorios
 
 log = logging.getLogger(__name__)
@@ -70,10 +71,7 @@ def _job_recordatorios() -> None:
 
 def main(*, _una_vuelta: bool = False) -> None:
     """Loop principal. `_una_vuelta` es solo para tests (no bloquea indefinido)."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    setup_logging()
     tz = _tz(RECORDATORIOS_TZ)
     hora, minuto = _hora_minuto(RECORDATORIOS_HORA)
     log.info(
