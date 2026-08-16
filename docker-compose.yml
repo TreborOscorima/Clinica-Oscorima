@@ -120,6 +120,10 @@ services:
         condition: service_healthy   # que la app haya migrado la DB antes
     # Bypass del entrypoint (que arranca Reflex + migra): acá solo el scheduler.
     entrypoint: ["python", "-m", "clinica_app.tasks.scheduler"]
+    # La imagen trae un HEALTHCHECK que hace curl a :3000; el scheduler no sirve
+    # HTTP, así que se deshabilita para no quedar marcado "unhealthy".
+    healthcheck:
+      test: ["NONE"]
     env_file:
       - .env
     environment:
