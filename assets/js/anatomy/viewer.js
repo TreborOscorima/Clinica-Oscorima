@@ -117,6 +117,7 @@ const AnatomyViewer = (() => {
   let inited = false, sceneType = "dental";
   let cameras = CAMERAS_DENTAL, defaultColor = COLOR_DEFAULT;
   let gltfLoader = null, modelRoot = null, modelUrl = "";
+  let needsRender = true, resizeObs = null;
 
   function _webglOK() {
     try {
@@ -776,6 +777,7 @@ const AnatomyViewer = (() => {
       const hex = g === hovered ? COLOR_HOVER : _nodeBaseHex(g);
       g.userData.paint.material.color.setHex(hex);
     }
+    needsRender = true;
   }
 
   function _nodeFromHit(obj) {
@@ -819,10 +821,18 @@ const AnatomyViewer = (() => {
     bridge.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  // Render bajo demanda: el RAF sigue vivo (controls.update() es barato) pero solo
+  // repintamos la GPU cuando algo cambió — la cámara se movió (update() reporta true
+  // durante el arrastre y todo el settle del damping) o marcamos needsRender (hover,
+  // datos, resize, cambio de cámara). Con el cuerpo de cientos de miles de triángulos
+  // esto lleva el consumo de GPU a ~0 mientras la escena está quieta.
   function _animate() {
     rafId = requestAnimationFrame(_animate);
-    controls.update();
-    renderer.render(scene, camera);
+    const moved = controls.update();
+    if (needsRender || moved) {
+      renderer.render(scene, camera);
+      needsRender = false;
+    }
   }
 
   function _resize() {
@@ -831,6 +841,18 @@ const AnatomyViewer = (() => {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    needsRender = true;
+  }
+
+  // Pausa total del loop cuando la pestaña no está visible (ahorra GPU/batería en
+  // tablets y laptops); al volver a foco, reanuda si la escena sigue montada.
+  function _onVisibility() {
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    } else if (inited && !rafId) {
+      needsRender = true;
+      _animate();
+    }
   }
 
   function setCamera(name) {
@@ -839,6 +861,7 @@ const AnatomyViewer = (() => {
     camera.position.set(c.pos[0], c.pos[1], c.pos[2]);
     controls.target.set(c.target[0], c.target[1], c.target[2]);
     controls.update();
+    needsRender = true;
   }
 
   function init(canvasId, bridgeId, type, modelUrlArg) {
@@ -870,8 +893,11 @@ const AnatomyViewer = (() => {
 
     camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    // En punteros gruesos (tablet) limitamos el DPR a 1.5: la nitidez extra no se
+    // percibe y el relleno de píxeles cae ~40% en pantallas retina.
+    const _coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, _coarse ? 1.5 : 2));
     renderer.setSize(w, h, false);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -889,7 +915,7 @@ const AnatomyViewer = (() => {
     const fill = new THREE.DirectionalLight(0xffffff, 0.3);
     fill.position.set(-4, -3, 4); scene.add(fill);
 
-    nodes = []; decor = [];
+    nodes = []; decor = []; needsRender = true;
     if (sceneType === "facial") _buildFacial();
     else if (sceneType === "corporal") _buildCorporal();
     else _buildDental();
@@ -907,6 +933,13 @@ const AnatomyViewer = (() => {
     renderer.domElement.addEventListener("pointermove", _onPointerMove);
     renderer.domElement.addEventListener("click", _onClick);
     window.addEventListener("resize", _resize);
+    document.addEventListener("visibilitychange", _onVisibility);
+    if (window.ResizeObserver) {
+      // El contenedor puede cambiar de tamaño sin que cambie la ventana (paneles que
+      // se abren/colapsan). ResizeObserver cubre laptop/tablet/pantalla grande.
+      resizeObs = new ResizeObserver(_resize);
+      resizeObs.observe(container);
+    }
 
     inited = true;
     _repaint();
@@ -941,6 +974,8 @@ const AnatomyViewer = (() => {
   function dispose() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
+    document.removeEventListener("visibilitychange", _onVisibility);
+    if (resizeObs) { resizeObs.disconnect(); resizeObs = null; }
     if (renderer) {
       renderer.domElement.removeEventListener("pointermove", _onPointerMove);
       renderer.domElement.removeEventListener("click", _onClick);
