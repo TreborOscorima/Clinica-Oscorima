@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from clinica_app.models.adjunto import Adjunto
 from clinica_app.models.evaluacion_estetica import EvaluacionEstetica
 from clinica_app.models.inventario import Producto
 from clinica_app.models.paciente import Paciente
@@ -25,6 +26,7 @@ from clinica_app.models.procedimiento_estetico import ProcedimientoEstetico, Pun
 from clinica_app.services import anatomia
 from clinica_app.services import auditoria
 from clinica_app.services.exceptions import NotFoundError, ValidationError
+from clinica_app.services.sesiones_esteticas import _validar_momento
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,6 +99,16 @@ def _dump_punto(p: PuntoAplicacion) -> dict[str, Any]:
         "cantidad":      f"{(p.cantidad or Decimal('0')).normalize():f}",
         "unidad":        p.unidad or "",
         "observacion":   p.observacion or "",
+    }
+
+
+def _dump_foto(a: Adjunto) -> dict[str, Any]:
+    return {
+        "id":          a.id or 0,
+        "nombre":      a.nombre or "",
+        "momento":     a.momento or "antes",
+        "zona_codigo": a.zona_codigo or "",
+        "mime":        a.mime or "",
     }
 
 
@@ -431,6 +443,122 @@ async def eliminar_punto(
     await session.flush()
 
 
+# ── Fotos antes/después por zona (E8) ─────────────────────────────────────────
+
+async def _fotos_zona_query(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    *,
+    zona_codigo: str | None = None,
+) -> list[Adjunto]:
+    """Adjuntos categoría "foto" colgados de una zona (zona_codigo no nulo)."""
+    stmt = select(Adjunto).where(
+        Adjunto.clinica_id == clinica_id,
+        Adjunto.paciente_id == paciente_id,
+        Adjunto.categoria == "foto",
+        Adjunto.zona_codigo.is_not(None),
+        Adjunto.is_active.is_(True),
+    )
+    if zona_codigo:
+        stmt = stmt.where(Adjunto.zona_codigo == zona_codigo)
+    stmt = stmt.order_by(Adjunto.created_at.asc(), Adjunto.id.asc())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def registrar_foto_zona(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    *,
+    zona_codigo: str,
+    momento: str,
+    nombre: str,
+    stored_name: str,
+    mime: str | None = None,
+    tamano: int = 0,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Cuelga una foto ya almacenada (stored_name) de una zona + momento
+    (antes/durante/después), para la comparativa antes/después del mapa estético.
+    No pasa por una `SesionEstetica`."""
+    await _validar_paciente(session, clinica_id, paciente_id)
+    zona = _validar_zona(zona_codigo)
+    momento = _validar_momento(momento)
+
+    a = Adjunto(
+        clinica_id=clinica_id,
+        paciente_id=paciente_id,
+        sede_id=sede_id or None,
+        zona_codigo=zona,
+        momento=momento,
+        nombre=(nombre or "foto")[:255],
+        stored_name=stored_name,
+        mime=(mime or None) and mime[:120],
+        tamano=int(tamano or 0),
+        categoria="foto",
+        created_by_id=usuario_id or None,
+    )
+    session.add(a)
+    await session.flush()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="agregar_foto", entidad="mapa_estetico", entidad_id=a.id,
+        detalle={"paciente_id": paciente_id, "zona": zona, "momento": momento, "nombre": a.nombre},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return _dump_foto(a)
+
+
+async def listar_fotos_zona(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    *,
+    zona_codigo: str | None = None,
+) -> list[dict[str, Any]]:
+    filas = await _fotos_zona_query(session, clinica_id, paciente_id, zona_codigo=zona_codigo)
+    return [_dump_foto(a) for a in filas]
+
+
+async def eliminar_foto_zona(
+    session: AsyncSession,
+    clinica_id: int,
+    foto_id: int,
+    *,
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> str:
+    """Soft-delete de una foto de zona. Devuelve el `stored_name` para que la
+    capa que llama borre el archivo físico. Solo alcanza a fotos de zona
+    (zona_codigo no nulo): no puede tocar las fotos de sesión de la galería C1."""
+    a = (await session.execute(
+        select(Adjunto).where(
+            Adjunto.id == foto_id,
+            Adjunto.clinica_id == clinica_id,
+            Adjunto.zona_codigo.is_not(None),
+            Adjunto.is_active.is_(True),
+        )
+    )).scalars().first()
+    if a is None:
+        raise NotFoundError("Foto no encontrada")
+    stored_name = a.stored_name
+    zona = a.zona_codigo
+    a.soft_delete()
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="eliminar_foto", entidad="mapa_estetico", entidad_id=foto_id,
+        detalle={"paciente_id": a.paciente_id, "zona": zona},
+        sede_id=sede_id or None,
+    )
+    await session.flush()
+    return stored_name
+
+
 # ── Resumen del mapa (para pintar zonas con actividad) ────────────────────────
 
 async def resumen_mapa(
@@ -442,15 +570,21 @@ async def resumen_mapa(
     el mapa 3D/2D. Devuelve también los totales del paciente."""
     evals = await listar_evaluaciones(session, clinica_id, paciente_id)
     procs = await listar_procedimientos(session, clinica_id, paciente_id)
+    fotos = await _fotos_zona_query(session, clinica_id, paciente_id)
+
+    def _nueva() -> dict[str, int]:
+        return {"evaluaciones": 0, "procedimientos": 0, "puntos": 0, "fotos": 0}
 
     zonas: dict[str, dict[str, int]] = {}
     for e in evals:
-        z = zonas.setdefault(e["zona_codigo"], {"evaluaciones": 0, "procedimientos": 0, "puntos": 0})
-        z["evaluaciones"] += 1
+        zonas.setdefault(e["zona_codigo"], _nueva())["evaluaciones"] += 1
     for pr in procs:
-        z = zonas.setdefault(pr["zona_codigo"], {"evaluaciones": 0, "procedimientos": 0, "puntos": 0})
+        z = zonas.setdefault(pr["zona_codigo"], _nueva())
         z["procedimientos"] += 1
         z["puntos"] += pr.get("n_puntos", 0)
+    for a in fotos:
+        if a.zona_codigo:
+            zonas.setdefault(a.zona_codigo, _nueva())["fotos"] += 1
 
     return {
         "zonas": {
@@ -460,4 +594,83 @@ async def resumen_mapa(
         "n_evaluaciones":   len(evals),
         "n_procedimientos": len(procs),
         "n_puntos":         sum(pr.get("n_puntos", 0) for pr in procs),
+        "n_fotos":          len(fotos),
+    }
+
+
+# ── Export para el reporte PDF (E9) ───────────────────────────────────────────
+
+async def _nombres_productos(
+    session: AsyncSession, clinica_id: int, ids: set[int]
+) -> dict[int, str]:
+    """Mapa producto_id → nombre (para etiquetar los puntos en el reporte)."""
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    filas = (await session.execute(
+        select(Producto.id, Producto.nombre).where(
+            Producto.clinica_id == clinica_id,
+            Producto.id.in_(ids),
+        )
+    )).all()
+    return {pid: nombre for pid, nombre in filas}
+
+
+async def datos_export(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+) -> dict[str, Any]:
+    """Reúne todo lo que el PDF del mapa estético necesita: datos del paciente,
+    evaluaciones y procedimientos (con puntos + nombre de producto) agrupados por
+    zona, y el conteo de fotos antes/durante/después por zona. Lanza
+    NotFoundError si el paciente no existe en la clínica.
+
+    Espeja `odontograma.datos_export`: el renderer no interviene, todo sale de BD.
+    """
+    pac = (await session.execute(
+        select(Paciente).where(
+            Paciente.id == paciente_id,
+            Paciente.clinica_id == clinica_id,
+        )
+    )).scalars().first()
+    if pac is None:
+        raise NotFoundError("El paciente no existe")
+
+    evals = await listar_evaluaciones(session, clinica_id, paciente_id)
+    procs = await listar_procedimientos(session, clinica_id, paciente_id)
+    fotos = await _fotos_zona_query(session, clinica_id, paciente_id)
+
+    # Nombre de producto en cada punto (trazabilidad legible)
+    prod_ids = {
+        p.get("producto_id", 0)
+        for pr in procs for p in pr.get("puntos", [])
+    }
+    nombres = await _nombres_productos(session, clinica_id, prod_ids)
+    for e in evals:
+        e["severidad_label"] = anatomia.severidad_label(e.get("severidad"))
+    for pr in procs:
+        for p in pr.get("puntos", []):
+            p["producto_nombre"] = nombres.get(p.get("producto_id", 0), "")
+
+    # Fotos por zona → {zona_label: {antes, durante, despues}}
+    fotos_por_zona: dict[str, dict[str, int]] = {}
+    for a in fotos:
+        z = a.zona_codigo or ""
+        cont = fotos_por_zona.setdefault(
+            anatomia.zona_label(z), {"antes": 0, "durante": 0, "despues": 0}
+        )
+        momento = a.momento if a.momento in cont else "antes"
+        cont[momento] += 1
+
+    return {
+        "paciente_nombre":    pac.nombre,
+        "paciente_documento": pac.documento or "",
+        "evaluaciones":       evals,
+        "procedimientos":     procs,
+        "fotos_por_zona":     fotos_por_zona,
+        "n_evaluaciones":     len(evals),
+        "n_procedimientos":   len(procs),
+        "n_puntos":           sum(pr.get("n_puntos", 0) for pr in procs),
+        "n_fotos":            len(fotos),
     }

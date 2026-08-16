@@ -188,6 +188,123 @@ def test_export_excel_no_detached_instance(tmp_path, monkeypatch):
     assert os.path.exists(path)
 
 
+def test_export_excel_caja(tmp_path, monkeypatch):
+    """Regresión detached: caja accede a los enums (tipo/metodo_pago `.value`)
+    de cada movimiento DESPUÉS de cerrar `get_session()`."""
+    import openpyxl
+
+    import clinica_app.database as db
+    import clinica_app.tasks.reportes as rep
+    from clinica_app.models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'rep.db'}")
+    SQLModel.metadata.create_all(eng)
+    monkeypatch.setattr(db, "_sync_engine", eng)
+    monkeypatch.setattr(rep, "REPORT_EXPORT_DIR", str(tmp_path))
+
+    with db.get_session() as s:
+        s.add(CajaMovimiento(
+            clinica_id=1, tipo=TipoMovimiento.INGRESO, monto=Decimal("150.00"),
+            metodo_pago=MetodoPago.EFECTIVO, fecha=datetime(2026, 3, 15, 10, 0),
+            observacion="ok", is_active=True,
+        ))
+
+    path = rep._reporte_caja(1, {})  # sin fix -> DetachedInstanceError en el enum
+    ws = openpyxl.load_workbook(path)["Caja"]
+    fila = [c.value for c in ws[2]]
+    assert "ingreso" in fila and "efectivo" in fila and 150.0 in fila
+
+
+def test_export_excel_turnos(tmp_path, monkeypatch):
+    """Regresión detached: turnos accede a `estado.value` fuera de sesión."""
+    import openpyxl
+
+    import clinica_app.database as db
+    import clinica_app.tasks.reportes as rep
+    from clinica_app.models.turno import EstadoTurno, Turno
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'rep.db'}")
+    SQLModel.metadata.create_all(eng)
+    monkeypatch.setattr(db, "_sync_engine", eng)
+    monkeypatch.setattr(rep, "REPORT_EXPORT_DIR", str(tmp_path))
+
+    with db.get_session() as s:
+        s.add(Turno(
+            clinica_id=1, paciente_id=5, servicio_id=3, profesional_id=2,
+            fecha_hora=datetime(2026, 3, 15, 10, 0), estado=EstadoTurno.ATENDIDO, is_active=True,
+        ))
+
+    path = rep._reporte_turnos(1, {})
+    ws = openpyxl.load_workbook(path)["Turnos"]
+    fila = [c.value for c in ws[2]]
+    assert 5 in fila                      # paciente_id
+    assert EstadoTurno.ATENDIDO.value in fila  # estado.value tras cerrar sesión
+
+
+def test_export_excel_inventario(tmp_path, monkeypatch):
+    """Regresión detached: inventario accede a nombre/stocks/precios fuera de sesión."""
+    import openpyxl
+
+    import clinica_app.database as db
+    import clinica_app.tasks.reportes as rep
+    from clinica_app.models.inventario import Producto
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'rep.db'}")
+    SQLModel.metadata.create_all(eng)
+    monkeypatch.setattr(db, "_sync_engine", eng)
+    monkeypatch.setattr(rep, "REPORT_EXPORT_DIR", str(tmp_path))
+
+    with db.get_session() as s:
+        s.add(Producto(
+            clinica_id=1, sku="SKU1", nombre="Guantes",
+            stock_actual=Decimal("10"), stock_minimo=Decimal("2"),
+            precio_costo=Decimal("5"), precio_venta=Decimal("9"), is_active=True,
+        ))
+
+    path = rep._reporte_inventario(1, {})
+    ws = openpyxl.load_workbook(path)["Inventario"]
+    fila = [c.value for c in ws[2]]
+    assert "Guantes" in fila and "SKU1" in fila
+
+
+def test_export_excel_compras(tmp_path, monkeypatch):
+    """Regresión detached (el caso más riesgoso): compras arma el workbook fuera
+    de la sesión accediendo a `Proveedor.nombre` (join) y `Producto.nombre`
+    (subquery de ítems). Sin el fix, ambos disparaban DetachedInstanceError."""
+    import openpyxl
+
+    import clinica_app.database as db
+    import clinica_app.tasks.reportes as rep
+    from clinica_app.models.inventario import Compra, CompraItem, Producto, Proveedor
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'rep.db'}")
+    SQLModel.metadata.create_all(eng)
+    monkeypatch.setattr(db, "_sync_engine", eng)
+    monkeypatch.setattr(rep, "REPORT_EXPORT_DIR", str(tmp_path))
+
+    with db.get_session() as s:
+        s.add(Proveedor(id=1, clinica_id=1, nombre="Dental SA"))
+        s.add(Producto(id=1, clinica_id=1, nombre="Anestesia", is_active=True))
+        s.flush()
+        s.add(Compra(
+            id=1, clinica_id=1, proveedor_id=1, fecha=datetime(2026, 3, 10, 9, 0),
+            tipo_doc="factura", numero="0001", total=Decimal("100"), is_active=True,
+        ))
+        s.flush()
+        s.add(CompraItem(
+            compra_id=1, producto_id=1, cantidad=Decimal("2"),
+            costo_unitario=Decimal("50"), subtotal=Decimal("100"),
+        ))
+
+    path = rep._reporte_compras(1, {})
+    wb = openpyxl.load_workbook(path)
+    assert wb.sheetnames == ["Compras", "Detalle Items"]
+    # Proveedor.nombre (join) accedido tras cerrar la sesión
+    assert "Dental SA" in [c.value for c in wb["Compras"][2]]
+    # Producto.nombre (subquery de ítems) accedido tras cerrar la sesión
+    assert "Anestesia" in [c.value for c in wb["Detalle Items"][2]]
+
+
 def test_export_excel_produccion(tmp_path, monkeypatch):
     """El Excel de producción genera las 3 hojas usando la sesión sync."""
     import openpyxl

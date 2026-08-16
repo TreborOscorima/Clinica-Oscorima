@@ -241,6 +241,89 @@ async def test_tenant_aislado(session, clinica, paciente, admin_user):
         await svc.eliminar_evaluacion(session, 999999, e["id"], usuario_id=admin_user.id)
 
 
+# ── Fotos antes/después por zona (E8) ─────────────────────────────────────────
+
+async def test_registrar_y_listar_foto_zona(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="frente1.jpg", stored_name="abc123.jpg",
+        mime="image/jpeg", tamano=1024, usuario_id=admin_user.id,
+    )
+    assert f["momento"] == "antes"
+    assert f["zona_codigo"] == "frente"
+    # Lista global y filtrada por zona.
+    todas = await svc.listar_fotos_zona(session, clinica.id, paciente.id)
+    assert len(todas) == 1
+    solo_frente = await svc.listar_fotos_zona(session, clinica.id, paciente.id, zona_codigo="frente")
+    assert len(solo_frente) == 1
+    otra = await svc.listar_fotos_zona(session, clinica.id, paciente.id, zona_codigo="labios")
+    assert otra == []
+
+
+async def test_foto_zona_valida_zona_y_momento(session, clinica, paciente, admin_user):
+    with pytest.raises(ValidationError):
+        await svc.registrar_foto_zona(
+            session, clinica.id, paciente.id,
+            zona_codigo="zona_falsa", momento="antes",
+            nombre="x.jpg", stored_name="x.jpg", usuario_id=admin_user.id,
+        )
+    with pytest.raises(ValidationError):
+        await svc.registrar_foto_zona(
+            session, clinica.id, paciente.id,
+            zona_codigo="frente", momento="inventado",
+            nombre="x.jpg", stored_name="x.jpg", usuario_id=admin_user.id,
+        )
+
+
+async def test_eliminar_foto_zona(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="pomulo", momento="despues",
+        nombre="m.jpg", stored_name="stored-xyz.jpg", usuario_id=admin_user.id,
+    )
+    stored = await svc.eliminar_foto_zona(session, clinica.id, f["id"], usuario_id=admin_user.id)
+    assert stored == "stored-xyz.jpg"
+    assert await svc.listar_fotos_zona(session, clinica.id, paciente.id) == []
+
+
+async def test_eliminar_foto_zona_no_alcanza_fotos_de_sesion(session, clinica, paciente, admin_user):
+    """La foto de galería C1 (sesion_id, sin zona_codigo) NO es una foto de zona:
+    eliminar_foto_zona no debe poder tocarla."""
+    from clinica_app.models.adjunto import Adjunto
+    a = Adjunto(
+        clinica_id=clinica.id, paciente_id=paciente.id,
+        sesion_id=1, momento="antes", categoria="foto",
+        nombre="sesion.jpg", stored_name="sesion.jpg",
+    )
+    session.add(a)
+    await session.flush()
+    with pytest.raises(NotFoundError):
+        await svc.eliminar_foto_zona(session, clinica.id, a.id, usuario_id=admin_user.id)
+
+
+async def test_resumen_incluye_fotos(session, clinica, paciente, admin_user):
+    await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="f.jpg", stored_name="f.jpg", usuario_id=admin_user.id,
+    )
+    resumen = await svc.resumen_mapa(session, clinica.id, paciente.id)
+    assert resumen["n_fotos"] == 1
+    assert resumen["zonas"]["frente"]["fotos"] == 1
+
+
+async def test_foto_zona_aislada_por_tenant(session, clinica, paciente, admin_user):
+    f = await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="f.jpg", stored_name="f.jpg", usuario_id=admin_user.id,
+    )
+    assert await svc.listar_fotos_zona(session, 999999, paciente.id) == []
+    with pytest.raises(NotFoundError):
+        await svc.eliminar_foto_zona(session, 999999, f["id"], usuario_id=admin_user.id)
+
+
 # ── Auditoría ─────────────────────────────────────────────────────────────────
 
 async def test_auditoria_registrada(session, clinica, paciente, admin_user):
@@ -254,3 +337,71 @@ async def test_auditoria_registrada(session, clinica, paciente, admin_user):
     assert "crear" in acciones
     assert "agregar_punto" in acciones
     assert "eliminar_punto" in acciones
+
+
+# ── Export + PDF (E9) ─────────────────────────────────────────────────────────
+
+async def test_datos_export_estructura(session, clinica, paciente, admin_user):
+    prod = await _producto(session, clinica, nombre="Botox 100U")
+    await svc.registrar_evaluacion(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", categoria="arrugas", severidad=2, usuario_id=admin_user.id,
+    )
+    pr = await svc.crear_procedimiento(
+        session, clinica.id, paciente.id,
+        zona_codigo="entrecejo", tipo="toxina_botulinica", usuario_id=admin_user.id,
+    )
+    await svc.agregar_punto(
+        session, clinica.id, pr["id"],
+        coord_x="0.5", coord_y="0.3",
+        producto_id=prod.id, lote="LOT-2026-A", cantidad="4", unidad="UI",
+        usuario_id=admin_user.id,
+    )
+    await svc.registrar_foto_zona(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", momento="antes",
+        nombre="f.jpg", stored_name="f.jpg", usuario_id=admin_user.id,
+    )
+
+    datos = await svc.datos_export(session, clinica.id, paciente.id)
+    assert datos["paciente_nombre"] == paciente.nombre
+    assert datos["n_evaluaciones"] == 1
+    assert datos["n_procedimientos"] == 1
+    assert datos["n_puntos"] == 1
+    assert datos["n_fotos"] == 1
+    # La evaluación trae el label de severidad legible.
+    assert datos["evaluaciones"][0]["severidad_label"] == "Moderado"
+    # El punto resuelve el nombre del producto (trazabilidad legible).
+    punto = datos["procedimientos"][0]["puntos"][0]
+    assert punto["producto_nombre"] == "Botox 100U"
+    # Fotos agrupadas por zona_label + momento.
+    assert datos["fotos_por_zona"]["Frente"]["antes"] == 1
+
+
+async def test_datos_export_paciente_inexistente(session, clinica):
+    with pytest.raises(NotFoundError):
+        await svc.datos_export(session, clinica.id, 999999)
+
+
+async def test_generar_estetica_pdf_bytes(session, clinica, paciente, admin_user):
+    pytest.importorskip("reportlab")
+    from clinica_app.services.pdf_estetica import generar_estetica_pdf
+
+    await svc.registrar_evaluacion(
+        session, clinica.id, paciente.id,
+        zona_codigo="frente", categoria="arrugas", severidad=3, usuario_id=admin_user.id,
+    )
+    datos = await svc.datos_export(session, clinica.id, paciente.id)
+    pdf = generar_estetica_pdf(clinica_nombre="TUWAYKILIFE", **datos)
+    assert isinstance(pdf, bytes)
+    assert pdf[:5] == b"%PDF-"
+    assert len(pdf) > 800
+
+
+def test_generar_estetica_pdf_vacio():
+    """Sin datos también produce un PDF válido (todas las secciones vacías)."""
+    pytest.importorskip("reportlab")
+    from clinica_app.services.pdf_estetica import generar_estetica_pdf
+
+    pdf = generar_estetica_pdf(paciente_nombre="Sin Datos")
+    assert pdf[:5] == b"%PDF-"

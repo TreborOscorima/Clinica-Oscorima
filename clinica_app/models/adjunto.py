@@ -26,6 +26,10 @@ class Adjunto(TenantSQLModel, table=True):
     # (antes/durante/después). Nullable: los adjuntos genéricos de A2 no los usan.
     sesion_id:    int | None = Field(default=None, foreign_key="sesiones_esteticas.id", nullable=True, index=True)
     momento:      str | None = Field(default=None, max_length=12, nullable=True)
+    # E8 — mapa estético: una foto puede colgarse directamente de una zona
+    # anatómica (código del catálogo de services/anatomia) para la comparativa
+    # antes/después por zona, sin pasar por una sesión. Nullable: A2/C1 no lo usan.
+    zona_codigo:  str | None = Field(default=None, max_length=40, nullable=True, index=True)
     nombre:       str        = Field(max_length=255, nullable=False)   # nombre original visible
     stored_name:  str        = Field(max_length=255, nullable=False)   # uuid.ext en disco
     mime:         str | None = Field(default=None, max_length=120, nullable=True)

@@ -9,6 +9,7 @@ BD; los listados laterales son la fuente de verdad y el fallback.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 
@@ -21,13 +22,19 @@ from clinica_app.components.anatomy_viewer import (
 from clinica_app.database import get_async_session
 from clinica_app.services import anatomia
 from clinica_app.services import estetica_mapa as svc
+from clinica_app.services import sesiones_esteticas as galeria_svc
+from clinica_app.services import storage
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
+
+_FOTO_UPLOAD_ID = "mapa_estetico_upload"
 
 # URL (servida desde /assets) de un modelo GLB realista del rostro. Vacío =>
 # geometría procedural. Se configura por entorno para poder cambiar el modelo
 # sin tocar código (ANATOMY_FACE_MODEL_URL=/models/anatomy/rostro.glb).
 _FACE_MODEL_URL = os.getenv("ANATOMY_FACE_MODEL_URL", "")
+# Modelo GLB del cuerpo (vista corporal). Vacío => vista corporal deshabilitada.
+_BODY_MODEL_URL = os.getenv("ANATOMY_BODY_MODEL_URL", "")
 
 # Colores del mapa por actividad de la zona.
 _COLOR_PROC = "#0284c7"  # sky-600 — zona con procedimiento
@@ -38,6 +45,9 @@ class MapaEsteticoState(BaseState):
 
     paciente_id:     int = 0
     paciente_nombre: str = ""
+
+    # Vista activa del visor 3D: "facial" (rostro) | "corporal" (cuerpo).
+    vista: str = "facial"
 
     # Catálogos (código, no BD).
     zonas_cat:       list[dict] = []   # {codigo, label, region, grupo}
@@ -51,6 +61,7 @@ class MapaEsteticoState(BaseState):
     n_evaluaciones:   int = 0
     n_procedimientos: int = 0
     n_puntos:         int = 0
+    n_fotos:          int = 0
     is_loading:       bool = False
 
     # Zona seleccionada + coordenada del último click en el rostro.
@@ -60,6 +71,15 @@ class MapaEsteticoState(BaseState):
     last_y:         float = 0.5
     evaluaciones:   list[dict] = []
     procedimientos: list[dict] = []
+
+    # Fotos antes/después de la zona (E8).
+    momentos_cat:  list[dict] = []   # {clave, label}
+    fotos_antes:   list[dict] = []
+    fotos_durante: list[dict] = []
+    fotos_despues: list[dict] = []
+    foto_momento:  str  = "antes"
+    is_uploading:  bool = False
+    foto_error:    str  = ""
 
     # Modal evaluación.
     modal_eval:   bool = False
@@ -88,6 +108,36 @@ class MapaEsteticoState(BaseState):
         return self.tiene_permiso("historia", write=True)
 
     @rx.var
+    def es_corporal(self) -> bool:
+        return self.vista == "corporal"
+
+    @rx.var
+    def tiene_corporal(self) -> bool:
+        """La vista corporal solo se ofrece si hay un modelo GLB configurado."""
+        return bool(_BODY_MODEL_URL)
+
+    @rx.var
+    def titulo_vista(self) -> str:
+        return "Cuerpo 3D" if self.vista == "corporal" else "Rostro 3D"
+
+    @rx.var
+    def camaras_cat(self) -> list[dict]:
+        """Cámaras del visor según la vista (mismas claves que viewer.js)."""
+        if self.vista == "corporal":
+            return [
+                {"clave": "frontal",    "label": "Frontal"},
+                {"clave": "posterior",  "label": "Posterior"},
+                {"clave": "perfil_izq", "label": "Perfil izq."},
+                {"clave": "perfil_der", "label": "Perfil der."},
+            ]
+        return [
+            {"clave": "frontal",    "label": "Frontal"},
+            {"clave": "perfil_izq", "label": "Perfil izq."},
+            {"clave": "perfil_der", "label": "Perfil der."},
+            {"clave": "superior",   "label": "Superior"},
+        ]
+
+    @rx.var
     def tiene_zona(self) -> bool:
         return self.zona_sel != ""
 
@@ -109,6 +159,7 @@ class MapaEsteticoState(BaseState):
         self.tipos_cat = [{"value": t["clave"], "label": t["label"]} for t in anatomia.tipos_catalogo()]
         self.categorias_cat = [{"value": c["clave"], "label": c["label"]} for c in anatomia.categorias_catalogo()]
         self.severidades_cat = [{"value": str(s["valor"]), "label": f'{s["valor"]} · {s["label"]}'} for s in anatomia.SEVERIDADES]
+        self.momentos_cat = galeria_svc.momentos_catalogo()
         pid_str = self.router.url.query_parameters.get("paciente_id", "")
         if pid_str:
             try:
@@ -161,11 +212,15 @@ class MapaEsteticoState(BaseState):
         self.n_evaluaciones = data["n_evaluaciones"]
         self.n_procedimientos = data["n_procedimientos"]
         self.n_puntos = data["n_puntos"]
+        self.n_fotos = data.get("n_fotos", 0)
 
     async def _cargar_zona(self):
         if not self.paciente_id or not self.zona_sel:
             self.evaluaciones = []
             self.procedimientos = []
+            self.fotos_antes = []
+            self.fotos_durante = []
+            self.fotos_despues = []
             return
         async with get_async_session() as session:
             self.evaluaciones = await svc.listar_evaluaciones(
@@ -174,6 +229,12 @@ class MapaEsteticoState(BaseState):
             self.procedimientos = await svc.listar_procedimientos(
                 session, self.clinica_id, self.paciente_id, zona_codigo=self.zona_sel
             )
+            fotos = await svc.listar_fotos_zona(
+                session, self.clinica_id, self.paciente_id, zona_codigo=self.zona_sel
+            )
+        self.fotos_antes   = [f for f in fotos if f["momento"] == "antes"]
+        self.fotos_durante = [f for f in fotos if f["momento"] == "durante"]
+        self.fotos_despues = [f for f in fotos if f["momento"] == "despues"]
 
     def _payload_facial(self, seleccionado: str = "") -> str:
         colores: dict[str, str] = {}
@@ -218,6 +279,29 @@ class MapaEsteticoState(BaseState):
         yield rx.call_script(
             "window.AnatomyViewer&&window.AnatomyViewer.setCamera('" + nombre + "');"
         )
+
+    async def cambiar_vista(self, v: str):
+        """Alterna rostro↔cuerpo: recarga el catálogo de zonas del grupo y
+        re-arranca el visor con la escena/modelo correspondiente."""
+        v = v if v in ("facial", "corporal") else "facial"
+        if v == "corporal" and not _BODY_MODEL_URL:
+            return
+        if v == self.vista:
+            return
+        self.vista = v
+        self.zonas_cat = anatomia.zonas_catalogo(v)
+        self.zona_sel = ""
+        self.zona_sel_label = ""
+        self.evaluaciones = []
+        self.procedimientos = []
+        self.fotos_antes = []
+        self.fotos_durante = []
+        self.fotos_despues = []
+        self.foto_error = ""
+        model = _BODY_MODEL_URL if v == "corporal" else _FACE_MODEL_URL
+        yield rx.call_script(anatomy_boot_script(
+            self._payload_facial(), scene_type=v, model_url=model,
+        ))
 
     # ── Evaluación ───────────────────────────────────────────────────────────────
 
@@ -393,6 +477,77 @@ class MapaEsteticoState(BaseState):
         except ServiceError as exc:
             yield rx.toast.error(str(exc))
             return
+        await self._cargar_zona()
+        await self._cargar_resumen()
+        yield self._repintar()
+
+    # ── Fotos antes/después por zona (E8) ─────────────────────────────────────────
+
+    def set_foto_momento(self, v: str):
+        self.foto_momento = v
+
+    async def handle_upload_foto(self, files: list[rx.UploadFile]):
+        self.foto_error = ""
+        if not self.tiene_permiso("historia", write=True):
+            self.foto_error = "Sin permiso de escritura"
+            return
+        if not self.zona_sel:
+            self.foto_error = "Elegí una zona primero"
+            return
+        if not files:
+            return
+        self.is_uploading = True
+        yield
+        try:
+            for file in files:
+                data = await file.read()
+                nombre = file.filename or file.name or "foto"
+                try:
+                    stored = await asyncio.to_thread(
+                        storage.guardar, self.clinica_id, nombre, data
+                    )
+                except ServiceError as exc:
+                    self.foto_error = str(exc)
+                    continue
+                async with get_async_session() as session:
+                    try:
+                        await svc.registrar_foto_zona(
+                            session, self.clinica_id, self.paciente_id,
+                            zona_codigo=self.zona_sel,
+                            momento=self.foto_momento,
+                            nombre=nombre,
+                            stored_name=stored,
+                            mime=file.content_type,
+                            tamano=len(data),
+                            usuario_id=self.user_id,
+                            sede_id=self.sede_actual_id,
+                        )
+                    except ServiceError as exc:
+                        self.foto_error = str(exc)
+        except Exception:
+            self.foto_error = "Ocurrió un error al subir la foto."
+        self.is_uploading = False
+        await self._cargar_zona()
+        await self._cargar_resumen()
+        yield rx.clear_selected_files(_FOTO_UPLOAD_ID)
+        yield self._repintar()
+
+    async def eliminar_foto(self, foto_id: int):
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para eliminar fotos")
+            return
+        stored_name = ""
+        try:
+            async with get_async_session() as session:
+                stored_name = await svc.eliminar_foto_zona(
+                    session, self.clinica_id, foto_id,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+        except ServiceError as exc:
+            yield rx.toast.error(str(exc))
+            return
+        if stored_name:
+            await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
         await self._cargar_zona()
         await self._cargar_resumen()
         yield self._repintar()
