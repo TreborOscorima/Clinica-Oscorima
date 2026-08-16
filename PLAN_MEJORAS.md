@@ -395,15 +395,26 @@
       ingreso/egreso válido → toast de éxito; toaster de sonner montado por el overlay por
       defecto (sin setup extra).
 - [ ] **Modo oscuro** (Reflex + Tailwind lo hacen barato).
-- [~] **Observabilidad** — PARCIAL (2026-08-16): **logging estructurado HECHO**.
-      `clinica_app/logging_config.py` con `setup_logging()` idempotente (JSON por línea
-      en prod vía `ENV=prod`/`LOG_JSON`, texto en dev; nivel por `LOG_LEVEL`), inicializado
-      al boot de la app y en los entrypoints de tareas/scheduler. Punto de choque:
-      `services/auditoria.registrar` emite una línea estructurada (`clinica.audit`) por
-      cada acción de negocio auditada, con contexto (clinica_id/usuario_id/accion/entidad/
-      entidad_id) como campos de primer nivel. +5 tests (suite 324 verde). **Pendiente aún:**
-      Sentry o similar para errores en prod, y un dashboard de salud (uptime + disco +
-      backups OK).
+- [x] **Observabilidad — HECHO (2026-08-16).** Tres frentes:
+      1. **Logging estructurado.** `clinica_app/logging_config.py` con `setup_logging()`
+         idempotente (JSON por línea en prod vía `ENV=prod`/`LOG_JSON`, texto en dev; nivel
+         por `LOG_LEVEL`), inicializado al boot de la app y en los entrypoints de
+         tareas/scheduler. Punto de choque: `services/auditoria.registrar` emite una línea
+         `clinica.audit` por cada acción auditada, con contexto (clinica_id/usuario_id/
+         accion/entidad/entidad_id) como campos de primer nivel.
+      2. **Sentry.** `clinica_app/sentry_config.py` con `init_sentry()` **no-op sin
+         `SENTRY_DSN`** (la app arranca igual); con DSN inicializa el SDK (env por
+         `SENTRY_ENVIRONMENT`, `send_default_pii=False`). Inicializado en app + tareas +
+         scheduler. Dep `sentry-sdk`.
+      3. **Dashboard de salud.** `services/salud.py` (`estado_sistema`: DB + disco + uptime +
+         frescura de backups, cada chequeo tolerante a fallos). Endpoint **`/api/health`**
+         (JSON, 200 ok / 503 degradado — para monitores externos; NO es el healthcheck de
+         Docker, que sigue en `/api/ping`). Página **`/salud`** (admin, permiso `auditoria`)
+         con tarjetas en vivo + botón Actualizar. Env: `BACKUP_DIR`, `BACKUP_MAX_AGE_HOURS`,
+         `DISK_WARN_PCT`.
+      +18 tests (9 recordatorios previos no cuentan acá; 9 de salud/sentry). Suite 333 verde,
+      ruff limpio. Verificado in-app: `/api/health` 200 con JSON real y `/salud` renderiza
+      las 4 tarjetas (DB conectada, disco 2.6%, uptime, backups "sin configurar").
 - [ ] **Staging**: la rama `docker-deploy-prod` ya corre CI — darle un entorno propio
       de staging antes de tocar prod.
 

@@ -82,3 +82,19 @@ RECORDATORIOS_TZ:   str = os.getenv("RECORDATORIOS_TZ", "America/Lima")
 # Secreto compartido; debe coincidir con LIFE_ADMIN_API_SECRET del Sistema de
 # Ventas. Si está vacío, los endpoints /api/admin/* responden 401 siempre.
 LIFE_ADMIN_API_SECRET: str = os.getenv("LIFE_ADMIN_API_SECRET", "")
+
+# ── Sentry (observabilidad de errores en prod) ─────────────────────────────────
+# Sin DSN, la integración es no-op (la app arranca igual). El DSN lo crea el
+# usuario en su proyecto de Sentry.
+SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT") or os.getenv("ENV", "dev")
+SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
+
+# ── Salud del sistema (dashboard /salud + /api/health) ─────────────────────────
+# Directorio donde el runbook de backups deja los dumps de MySQL; vacío = aún no
+# configurado (el dashboard lo reporta como "sin configurar", no como fallo).
+BACKUP_DIR: str = os.getenv("BACKUP_DIR", "")
+# Antigüedad máxima (horas) del backup más reciente para considerarlo "al día".
+BACKUP_MAX_AGE_HOURS: int = int(os.getenv("BACKUP_MAX_AGE_HOURS", "26"))
+# Umbral de uso de disco (%) a partir del cual la salud pasa a "degradado".
+DISK_WARN_PCT: int = int(os.getenv("DISK_WARN_PCT", "90"))

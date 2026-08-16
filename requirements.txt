@@ -25,6 +25,9 @@ reportlab>=4.0.0
 # ─── Notificaciones (email nativo smtplib; WhatsApp vía Twilio) ───────────────
 twilio>=7.0.0
 
+# ─── Observabilidad de errores (no-op sin SENTRY_DSN) ─────────────────────────
+sentry-sdk>=2.0.0
+
 # ─── Núcleo compartido TUWAYKI (mismo patrón que TUWAYKIFOOD) ─────────────────
 tuwayki-core @ git+https://github.com/TreborOscorima/tuwayki-core.git@ef852f2
 
