@@ -7,20 +7,35 @@ from clinica_app.components.layout import shell
 from clinica_app.components.ui import empty_state, page_header
 from clinica_app.state.mapa_estetico import MapaEsteticoState
 
-_CAMARAS = [
-    ("frontal", "Frontal", "eye"),
-    ("perfil_izq", "Perfil izq.", "chevron-left"),
-    ("perfil_der", "Perfil der.", "chevron-right"),
-    ("superior", "Superior", "arrow-down-to-line"),
-]
-
-
 def _cam_btn(par) -> rx.Component:
     return rx.el.button(
-        rx.icon(par[2], size=13, class_name="mr-1"),
-        par[1],
-        on_click=lambda: MapaEsteticoState.set_camara(par[0]),
+        par["label"],
+        on_click=lambda: MapaEsteticoState.set_camara(par["clave"]),
         class_name="inline-flex items-center px-2.5 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+    )
+
+
+def _vista_toggle() -> rx.Component:
+    """Alterna la vista del visor entre rostro y cuerpo (si hay modelo corporal)."""
+    def btn(v, label, icon):
+        return rx.el.button(
+            rx.icon(icon, size=13, class_name="mr-1"),
+            label,
+            on_click=lambda: MapaEsteticoState.cambiar_vista(v),
+            class_name=rx.cond(
+                MapaEsteticoState.vista == v,
+                "inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded-lg cursor-pointer",
+                "inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+            ),
+        )
+    return rx.el.div(
+        btn("facial", "Rostro", "smile"),
+        rx.cond(
+            MapaEsteticoState.tiene_corporal,
+            btn("corporal", "Cuerpo", "person-standing"),
+            rx.fragment(),
+        ),
+        class_name="inline-flex items-center gap-1.5",
     )
 
 
@@ -369,8 +384,12 @@ def mapa_estetico_page() -> rx.Component:
                     # Columna izquierda: rostro 3D.
                     rx.el.div(
                         rx.el.div(
-                            rx.el.span("Rostro 3D", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
-                            rx.el.div(rx.foreach(_CAMARAS, _cam_btn), class_name="flex items-center gap-1.5 flex-wrap"),
+                            rx.el.div(
+                                rx.el.span(MapaEsteticoState.titulo_vista, class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+                                _vista_toggle(),
+                                class_name="flex items-center gap-3 flex-wrap",
+                            ),
+                            rx.el.div(rx.foreach(MapaEsteticoState.camaras_cat, _cam_btn), class_name="flex items-center gap-1.5 flex-wrap"),
                             class_name="flex items-center justify-between gap-3 mb-3 flex-wrap",
                         ),
                         anatomy_viewer(MapaEsteticoState.on_pick, height="480px"),

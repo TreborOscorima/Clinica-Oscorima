@@ -28,6 +28,8 @@ from clinica_app.state.base import BaseState
 # geometría procedural. Se configura por entorno para poder cambiar el modelo
 # sin tocar código (ANATOMY_FACE_MODEL_URL=/models/anatomy/rostro.glb).
 _FACE_MODEL_URL = os.getenv("ANATOMY_FACE_MODEL_URL", "")
+# Modelo GLB del cuerpo (vista corporal). Vacío => vista corporal deshabilitada.
+_BODY_MODEL_URL = os.getenv("ANATOMY_BODY_MODEL_URL", "")
 
 # Colores del mapa por actividad de la zona.
 _COLOR_PROC = "#0284c7"  # sky-600 — zona con procedimiento
@@ -38,6 +40,9 @@ class MapaEsteticoState(BaseState):
 
     paciente_id:     int = 0
     paciente_nombre: str = ""
+
+    # Vista activa del visor 3D: "facial" (rostro) | "corporal" (cuerpo).
+    vista: str = "facial"
 
     # Catálogos (código, no BD).
     zonas_cat:       list[dict] = []   # {codigo, label, region, grupo}
@@ -86,6 +91,36 @@ class MapaEsteticoState(BaseState):
     @rx.var
     def puede_editar(self) -> bool:
         return self.tiene_permiso("historia", write=True)
+
+    @rx.var
+    def es_corporal(self) -> bool:
+        return self.vista == "corporal"
+
+    @rx.var
+    def tiene_corporal(self) -> bool:
+        """La vista corporal solo se ofrece si hay un modelo GLB configurado."""
+        return bool(_BODY_MODEL_URL)
+
+    @rx.var
+    def titulo_vista(self) -> str:
+        return "Cuerpo 3D" if self.vista == "corporal" else "Rostro 3D"
+
+    @rx.var
+    def camaras_cat(self) -> list[dict]:
+        """Cámaras del visor según la vista (mismas claves que viewer.js)."""
+        if self.vista == "corporal":
+            return [
+                {"clave": "frontal",    "label": "Frontal"},
+                {"clave": "posterior",  "label": "Posterior"},
+                {"clave": "perfil_izq", "label": "Perfil izq."},
+                {"clave": "perfil_der", "label": "Perfil der."},
+            ]
+        return [
+            {"clave": "frontal",    "label": "Frontal"},
+            {"clave": "perfil_izq", "label": "Perfil izq."},
+            {"clave": "perfil_der", "label": "Perfil der."},
+            {"clave": "superior",   "label": "Superior"},
+        ]
 
     @rx.var
     def tiene_zona(self) -> bool:
@@ -218,6 +253,25 @@ class MapaEsteticoState(BaseState):
         yield rx.call_script(
             "window.AnatomyViewer&&window.AnatomyViewer.setCamera('" + nombre + "');"
         )
+
+    async def cambiar_vista(self, v: str):
+        """Alterna rostro↔cuerpo: recarga el catálogo de zonas del grupo y
+        re-arranca el visor con la escena/modelo correspondiente."""
+        v = v if v in ("facial", "corporal") else "facial"
+        if v == "corporal" and not _BODY_MODEL_URL:
+            return
+        if v == self.vista:
+            return
+        self.vista = v
+        self.zonas_cat = anatomia.zonas_catalogo(v)
+        self.zona_sel = ""
+        self.zona_sel_label = ""
+        self.evaluaciones = []
+        self.procedimientos = []
+        model = _BODY_MODEL_URL if v == "corporal" else _FACE_MODEL_URL
+        yield rx.call_script(anatomy_boot_script(
+            self._payload_facial(), scene_type=v, model_url=model,
+        ))
 
     # ── Evaluación ───────────────────────────────────────────────────────────────
 
