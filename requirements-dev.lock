@@ -270,6 +270,8 @@ typing-extensions==4.16.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
+tzdata==2025.2
+    # via -r requirements.txt
 urllib3==2.7.0
     # via requests
 watchfiles==1.2.0

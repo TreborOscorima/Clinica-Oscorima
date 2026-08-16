@@ -14,6 +14,7 @@ Uso típico desde un servicio (o desde un state, en su bloque de sesión):
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from sqlalchemy import func
@@ -22,6 +23,10 @@ from sqlmodel import select
 
 from clinica_app.models.audit_log import AuditLog
 from clinica_app.models.user import User
+
+# Logger de observabilidad: toda mutación auditada pasa por `registrar`, así que
+# es el punto natural para emitir una línea estructurada por acción de negocio.
+log = logging.getLogger("clinica.audit")
 
 
 def _serializar_detalle(detalle: Any) -> str | None:
@@ -54,6 +59,19 @@ async def registrar(
         detalle=_serializar_detalle(detalle),
     ))
     await session.flush()
+
+    # Línea estructurada de observabilidad (una por acción de negocio auditada).
+    log.info(
+        "%s %s", accion, entidad,
+        extra={
+            "clinica_id": clinica_id,
+            "usuario_id": usuario_id or None,
+            "sede_id":    sede_id or None,
+            "accion":     accion,
+            "entidad":    entidad,
+            "entidad_id": entidad_id or None,
+        },
+    )
 
 
 def _dump(a: AuditLog, usuario_nombre: str | None) -> dict[str, Any]:
