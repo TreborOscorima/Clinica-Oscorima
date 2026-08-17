@@ -140,10 +140,62 @@ replica el de TUWAYKIFOOD.
 **Qué hace:** SSH al server → `scripts/deploy-prod.sh` (git reset a
 `docker-deploy-prod`, backup MySQL, build, `alembic upgrade head` en el
 entrypoint, espera healthy) → verifica `https://life.tuwayki.app/api/health`
-(espera `{"status":"ok","app":"waykisac-clinica"}`).
+(espera `{"status":"ok","app":"tuwaykilife-clinica"}`).
 
 **Flujo de release habitual:** trabajar y mergear en `main` (corre CI). Cuando
 una versión está lista para prod, mergear/pushear `main → docker-deploy-prod`.
+
+---
+
+## 5.1 Staging (antes de prod)
+
+Hay dos formas de staging, según lo que necesites:
+
+### A) Staging local (sin servidor, verificable ya)
+
+Levanta un **2º stack prod-like aislado** en tu máquina (project name, contenedores,
+volúmenes y puertos propios) sin pisar el demo local ni prod. Sirve para probar un
+build antes de deployar.
+
+```bash
+docker compose -p sistema-life-staging \
+  -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+# App   → http://localhost:3005   (MySQL propio en :33309, datos NO compartidos)
+```
+
+Purga del frontend al rebuildeaar y bajar todo (con el project de staging):
+
+```bash
+docker compose -p sistema-life-staging -f docker-compose.yml -f docker-compose.staging.yml rm -sf tuwayki_life
+docker volume rm sistema-life-staging_life_web
+docker compose -p sistema-life-staging -f docker-compose.yml -f docker-compose.staging.yml down     # -v para borrar también los datos
+```
+
+### B) Staging en servidor (CI + SSH)
+
+El workflow [`.github/workflows/deploy-staging.yml`](.github/workflows/deploy-staging.yml)
+espeja el de prod pero apunta al entorno de **staging**. Dispara al pushear a la rama
+**`docker-deploy-staging`** (o `workflow_dispatch`). Reusa el mismo `scripts/deploy-prod.sh`
+parametrizado (`BRANCH=docker-deploy-staging`, `PUBLIC_URL=$STAGING_PUBLIC_URL`).
+
+**Secrets/variables** (Settings → Secrets and variables → Actions):
+
+| Nombre | Tipo | Valor |
+|--------|------|-------|
+| `DEPLOY_SSH_HOST_STAGING` | secret | IP/hostname del server de staging |
+| `DEPLOY_SSH_USER_STAGING` | secret | usuario SSH |
+| `DEPLOY_SSH_PRIVATE_KEY_STAGING` | secret | contenido del `.pem` |
+| `DEPLOY_APP_DIR_STAGING` | secret | ruta del repo en el server de staging |
+| `DEPLOY_SSH_PORT_STAGING` | secret | (opcional) puerto SSH, default 22 |
+| `STAGING_PUBLIC_URL` | variable | (opcional) URL pública, default `https://staging.life.tuwayki.app` |
+
+**Importante:** pensado para un **host/proyecto de staging propio** (separado de prod).
+Si staging comparte host con prod, usar un `DEPLOY_APP_DIR_STAGING` distinto **y** un
+`COMPOSE_PROJECT_NAME` propio, porque los `container_name` fijos del compose base
+colisionan entre dos stacks en el mismo host.
+
+**Flujo de release con staging:** `main` (CI) → `docker-deploy-staging` (deploy a
+staging, humo/QA) → `docker-deploy-prod` (deploy a prod).
 
 ---
 
@@ -166,7 +218,7 @@ Luego configurar el Proxy Host en NPM (sección 4) y verificar:
 
 ```bash
 curl -s https://life.tuwayki.app/api/health
-# → {"status":"ok","app":"waykisac-clinica"}
+# → {"status":"ok","app":"tuwaykilife-clinica"}
 ```
 
 A partir de acá, los deploys siguientes salen solos por GitHub Actions
@@ -189,7 +241,7 @@ Una vez que la clínica responde en `life.tuwayki.app`:
 
 ## 8. Checklist de verificación post-deploy
 
-- [ ] `curl https://life.tuwayki.app/api/health` → `app=waykisac-clinica`, `status=ok`.
+- [ ] `curl https://life.tuwayki.app/api/health` → `app=tuwaykilife-clinica`, `status=ok`.
 - [ ] `https://life.tuwayki.app/login` carga.
 - [ ] Registro público: alta desde `tuwayki.app/life` → `/registro?producto=life`
       crea la clínica (con sede principal + admin + trial).

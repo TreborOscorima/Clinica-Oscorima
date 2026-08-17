@@ -1,0 +1,45 @@
+# =============================================================================
+# docker-compose.staging.yml — Override para un STAGING LOCAL aislado
+#
+# Levanta un 2º stack prod-like (ENV=prod, código horneado, sin volumen de
+# código) COMPLETAMENTE separado del demo local y de prod: project name propio,
+# contenedores/volúmenes/puertos propios. Sirve para probar un build antes de
+# tocar prod sin pisar el stack que ya esté corriendo.
+#
+# Uso (¡el -p es obligatorio para aislar volúmenes/red del demo!):
+#   docker compose -p sistema-life-staging \
+#     -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+#
+# Acceso:
+#   App   : http://localhost:3005
+#   MySQL : localhost:33309  (datos propios, NO comparte con el demo :33308)
+#
+# Purga del frontend al rebuildeaar (igual que siempre, con el project de staging):
+#   docker compose -p sistema-life-staging -f docker-compose.yml -f docker-compose.staging.yml rm -sf tuwayki_life
+#   docker volume rm sistema-life-staging_life_web
+#
+# Bajar todo el staging sin tocar el demo:
+#   docker compose -p sistema-life-staging -f docker-compose.yml -f docker-compose.staging.yml down
+# =============================================================================
+
+services:
+  life_mysql:
+    container_name: life_mysql_staging
+    ports:
+      - "33309:3306"
+
+  tuwayki_life:
+    container_name: tuwayki_life_staging
+    ports:
+      - "3005:3000"
+    environment:
+      ENV: prod
+      PUBLIC_API_URL: "http://localhost:3005"
+      # Mismos modelos 3D que el demo (horneados en la imagen).
+      ANATOMY_FACE_MODEL_URL: "/models/anatomy/rostro.glb"
+      ANATOMY_BODY_MODEL_URL: "/models/anatomy/cuerpo.glb"
+      ANATOMY_TEETH_LOWER_URL: "/models/anatomy/arcada_inferior.glb"
+      ANATOMY_TEETH_UPPER_URL: "/models/anatomy/arcada_superior.glb"
+
+  life_scheduler:
+    container_name: life_scheduler_staging
