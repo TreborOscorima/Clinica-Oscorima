@@ -79,6 +79,10 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://life.tuwayki.app}
       REPORT_EXPORT_DIR: /app/exports
       UPLOAD_DIR: /app/uploads
+      # Dashboard de salud: dónde ver la frescura de los backups (los escribe el
+      # cron/deploy en ./backups del host, montado read-only acá).
+      BACKUP_DIR: /app/backups
+      BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-26}
       # Registro público (/api/registro): trial y rate-limit del core.
       # Un solo contenedor de app → el fallback en memoria es seguro.
       LIFE_TRIAL_DAYS: ${LIFE_TRIAL_DAYS:-15}
@@ -87,6 +91,9 @@ services:
       - life_web:/app/.web
       - life_exports:/app/exports
       - life_uploads:/app/uploads
+      # Solo lectura: la app solo consulta la frescura para /salud; los dumps
+      # los crea el host (scripts/backup-db.sh).
+      - ./backups:/app/backups:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/ping"]
       interval: 30s

@@ -113,23 +113,14 @@ fi
 ok "Red NPM disponible: $NPM_NETWORK"
 
 # ─── 1. Backup BD ─────────────────────────────────────────────────────────────
+# Reusa scripts/backup-db.sh (misma lógica que el backup diario por cron).
 if $SKIP_BACKUP; then
     warn "Backup omitido (--skip-backup)"
+elif docker inspect life_mysql >/dev/null 2>&1; then
+    APP_DIR="$APP_DIR" BACKUP_DIR="$APP_DIR/backups" BACKUP_KEEP="$BACKUP_KEEP" \
+        bash "$SCRIPT_DIR/backup-db.sh" || fail "Backup pre-deploy falló"
 else
-    if docker inspect life_mysql >/dev/null 2>&1; then
-        BACKUP_DIR="$APP_DIR/backups"
-        mkdir -p "$BACKUP_DIR"
-        BACKUP="$BACKUP_DIR/life_db_$(date +%Y%m%d_%H%M%S).sql.gz"
-        info "Backup life_mysql → $BACKUP"
-        docker exec life_mysql sh -c \
-            'mysqldump -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" --single-transaction --routines --triggers --no-tablespaces' \
-            | gzip > "$BACKUP"
-        [[ -s "$BACKUP" ]] || { rm -f "$BACKUP"; fail "Backup vacío — abortado"; }
-        ok "Backup OK ($(du -h "$BACKUP" | cut -f1))"
-        ls -t "$BACKUP_DIR"/life_db_*.sql.gz 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) | xargs -r rm -f
-    else
-        warn "life_mysql no corre — backup omitido (primer deploy?)"
-    fi
+    warn "life_mysql no corre — backup omitido (primer deploy?)"
 fi
 
 # ─── 2. Código ────────────────────────────────────────────────────────────────
