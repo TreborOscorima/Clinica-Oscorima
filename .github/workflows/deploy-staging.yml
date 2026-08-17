@@ -1,0 +1,98 @@
+# =============================================================================
+# Deploy STAGING TUWAYKILIFE — GitHub Actions (SSH → server de staging)
+#
+# Espeja deploy-prod.yml pero apunta al entorno de STAGING. Dispara SOLO al
+# pushear a la rama docker-deploy-staging o manualmente (workflow_dispatch).
+# Reusa el mismo scripts/deploy-prod.sh, parametrizado por env (BRANCH,
+# PUBLIC_URL, APP_DIR).
+#
+# Pensado para un HOST/PROYECTO de staging propio (separado de prod), con su
+# dominio (ej. staging.life.tuwayki.app). Si staging comparte host con prod,
+# usar un APP_DIR distinto y un COMPOSE_PROJECT_NAME propio (los container_name
+# fijos del compose base colisionan entre dos stacks en el mismo host).
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   DEPLOY_SSH_HOST_STAGING         IP/hostname del server de staging
+#   DEPLOY_SSH_USER_STAGING         Usuario SSH
+#   DEPLOY_SSH_PRIVATE_KEY_STAGING  Clave privada OpenSSH
+#   DEPLOY_APP_DIR_STAGING          Ruta del proyecto en el server de staging
+# Opcional:
+#   DEPLOY_SSH_PORT_STAGING         Puerto SSH (default 22)
+#   STAGING_PUBLIC_URL (variable)   URL pública de staging (default abajo)
+# =============================================================================
+name: deploy-staging
+
+on:
+  push:
+    branches:
+      - docker-deploy-staging
+  workflow_dispatch:
+    inputs:
+      skip_backup:
+        description: Omitir backup de MySQL
+        type: boolean
+        default: true
+      skip_npm:
+        description: No reiniciar nginx-proxy-manager
+        type: boolean
+        default: true
+      skip_public_check:
+        description: No verificar el health público de staging
+        type: boolean
+        default: false
+
+concurrency:
+  group: life-deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy en staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR_STAGING }}
+          STAGING_PUBLIC_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging.life.tuwayki.app' }}
+          SKIP_BACKUP: ${{ github.event_name != 'workflow_dispatch' && '1' || (inputs.skip_backup && '1' || '') }}
+          SKIP_NPM: ${{ github.event_name != 'workflow_dispatch' && '1' || (inputs.skip_npm && '1' || '') }}
+          SKIP_PUBLIC: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_public_check && '1' || '' }}
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST_STAGING }}
+          username: ${{ secrets.DEPLOY_SSH_USER_STAGING }}
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY_STAGING }}
+          port: ${{ secrets.DEPLOY_SSH_PORT_STAGING }}
+          command_timeout: 40m
+          envs: DEPLOY_APP_DIR,STAGING_PUBLIC_URL,SKIP_BACKUP,SKIP_NPM,SKIP_PUBLIC
+          script: |
+            set -euo pipefail
+            APP_DIR="${DEPLOY_APP_DIR:-/home/ubuntu/sist-life-staging}"
+            cd "$APP_DIR"
+
+            FLAGS=()
+            [[ -n "${SKIP_BACKUP:-}" ]] && FLAGS+=(--skip-backup)
+            [[ -n "${SKIP_NPM:-}" ]] && FLAGS+=(--skip-npm)
+            [[ -n "${SKIP_PUBLIC:-}" ]] && FLAGS+=(--skip-public-check)
+
+            echo "=== Deploy TUWAYKILIFE (STAGING) ==="
+            echo "Directorio: $APP_DIR"
+            echo "Commit remoto: $(git rev-parse --short origin/docker-deploy-staging 2>/dev/null || echo '?')"
+            echo "Flags: ${FLAGS[*]:-(ninguno)}"
+
+            export APP_DIR BRANCH=docker-deploy-staging
+            export PUBLIC_URL="${STAGING_PUBLIC_URL}"
+            bash scripts/deploy-prod.sh "${FLAGS[@]}"
+
+      - name: Verificar health público de staging
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_public_check }}
+        run: |
+          set -euo pipefail
+          URL="${{ vars.STAGING_PUBLIC_URL || 'https://staging.life.tuwayki.app' }}/api/health"
+          echo "GET $URL"
+          body="$(curl -sf --max-time 30 "$URL")"
+          echo "$body"
+          echo "$body" | grep -q '"app":"tuwaykilife-clinica"'
+          echo "$body" | grep -q '"status":"ok"'

@@ -222,7 +222,7 @@ else
     health_body="$(curl -sf --max-time 15 "$HEALTH_URL" 2>/dev/null || true)"
     app_id="$(echo "$health_body" | grep -o '"app":"[^"]*"' || true)"
     health_status="$(echo "$health_body" | grep -o '"status":"[^"]*"' || true)"
-    if [[ "$app_id" == *waykisac-clinica* && "$health_status" == *ok* ]]; then
+    if [[ "$app_id" == *tuwaykilife-clinica* && "$health_status" == *ok* ]]; then
         ok "clinica → ${health_status} ${app_id}"
     else
         warn "Health externo falló: $HEALTH_URL"
@@ -238,7 +238,7 @@ else
         echo "  Verificá red del contenedor:"
         echo "    docker inspect tuwayki_life --format '{{range \$k,\$v := .NetworkSettings.Networks}}{{printf \"%s \" \$k}}{{end}}'"
         echo ""
-        fail "Health externo no devolvió app=waykisac-clinica status=ok — revisá NPM/DNS/SSL o usá --skip-public-check"
+        fail "Health externo no devolvió app=tuwaykilife-clinica status=ok — revisá NPM/DNS/SSL o usá --skip-public-check"
     fi
 fi
 

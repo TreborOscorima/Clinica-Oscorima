@@ -86,5 +86,5 @@ jobs:
           echo "GET $URL"
           body="$(curl -sf --max-time 30 "$URL")"
           echo "$body"
-          echo "$body" | grep -q '"app":"waykisac-clinica"'
+          echo "$body" | grep -q '"app":"tuwaykilife-clinica"'
           echo "$body" | grep -q '"status":"ok"'

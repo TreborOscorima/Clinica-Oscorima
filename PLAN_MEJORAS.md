@@ -415,8 +415,21 @@
       +18 tests (9 recordatorios previos no cuentan acá; 9 de salud/sentry). Suite 333 verde,
       ruff limpio. Verificado in-app: `/api/health` 200 con JSON real y `/salud` renderiza
       las 4 tarjetas (DB conectada, disco 2.6%, uptime, backups "sin configurar").
-- [ ] **Staging**: la rama `docker-deploy-prod` ya corre CI — darle un entorno propio
-      de staging antes de tocar prod.
+- [x] **Staging — HECHO (2026-08-16).** Dos planos:
+      1. **Staging local** `docker-compose.staging.yml`: 2º stack prod-like AISLADO
+         (project `sistema-life-staging`, contenedores/volúmenes propios, puertos
+         3005/33309) que no pisa el demo local ni prod. Verificado: `up` levanta el stack,
+         `/api/health` en :3005 → 200 `app=tuwaykilife-clinica`, y el demo en :3004 sigue OK
+         (aislamiento real).
+      2. **Staging en servidor** `.github/workflows/deploy-staging.yml`: espeja
+         `deploy-prod.yml`, dispara al pushear a `docker-deploy-staging`, reusa
+         `scripts/deploy-prod.sh` parametrizado (`BRANCH`/`PUBLIC_URL`) con secrets
+         `*_STAGING` y dominio `staging.life.tuwayki.app`. Andamiaje listo para cuando
+         exista el host (AWS en pausa).
+      **Bonus prod-crítico:** se corrigió el health-gate de prod (`deploy-prod.sh`,
+      `deploy-prod.yml`, docs): esperaba `app=waykisac-clinica` (nombre viejo del rebrand)
+      pero la app devuelve `tuwaykilife-clinica` → habría **bloqueado el deploy de prod**.
+      Flujo de release: `main` (CI) → `docker-deploy-staging` → `docker-deploy-prod`.
 
 ## Deuda técnica conocida (no urgente)
 
