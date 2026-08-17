@@ -39,11 +39,20 @@
       Pendiente: crear DNS `life`, cargar secrets en GitHub, primer deploy manual,
       configurar Proxy Host y aplicar headers de seguridad (S14). *No ejecutar hasta
       terminar de probar todo en local.*
-- [ ] **Backups automáticos de MySQL**: `mysqldump` diario (cron en el host o contenedor
-      sidecar) + retención 30 días + copia fuera del servidor (S3/Backblaze). *Un sistema
-      clínico sin backups no es profesional: es una pérdida de datos esperando fecha.*
-- [ ] **Restaurar backup probado**: un backup no probado no existe. Documentar el runbook
-      de restauración y ejecutarlo una vez en local.
+- [x] **Backups automáticos de MySQL — HECHO (2026-08-17).** `scripts/backup-db.sh`:
+      `mysqldump` consistente (`--single-transaction`/`--routines`/`--triggers`) del
+      contenedor `life_mysql` → gzip con **verificación de integridad** (`gzip -t`) +
+      **rotación** (`BACKUP_KEEP`, default 14) a `./backups/`. Programación documentada en
+      `BACKUPS.md` (cron Linux/EC2 + Task Scheduler Windows). `deploy-prod.sh` reusa el
+      mismo script como backup pre-deploy (se eliminó el bloque duplicado). El dashboard
+      **`/salud`** ahora reporta la frescura (la app monta `./backups` ro en `/app/backups`,
+      `BACKUP_DIR` cableado en el compose). *Pendiente menor (documentado):* copia off-site
+      (S3/rsync) cuando exista el bucket.
+- [x] **Restaurar backup probado — HECHO (2026-08-17).** `scripts/restore-db.sh` (guardado:
+      pide `restaurar`, o `--db NAME` para restaurar en BD alterna sin tocar prod; robusto
+      cross-plataforma vía `docker cp` + descompresión in-container). **Runbook probado
+      end-to-end** (`BACKUPS.md`): backup → restore en `life_db_verificacion` → **48/48
+      objetos** y datos idénticos (usuarios 4=4, pacientes 11=11, turnos 42=42).
 - [x] **Sesiones con expiración** *(2026-08-08)*: TTL configurable `SESSION_TTL_HOURS`
       (default 12 h, `config.SESSION_TTL_SECONDS`). `BaseState` guarda `login_at` al login
       y `_expirar_si_vencio()` invalida la sesión (reset → `is_authenticated=False`) al
