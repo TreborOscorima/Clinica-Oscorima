@@ -454,7 +454,7 @@ const AnatomyViewer = (() => {
     m.position.set(x, y, z + 0.03);
     const g = new THREE.Group();
     g.add(m);
-    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m };
+    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m, isMarker: true };
     return g;
   }
 
@@ -498,7 +498,7 @@ const AnatomyViewer = (() => {
     m.position.copy(pos);
     const g = new THREE.Group();
     g.add(m);
-    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m };
+    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m, isMarker: true };
     return g;
   }
 
@@ -569,7 +569,7 @@ const AnatomyViewer = (() => {
     m.position.copy(pos);
     const g = new THREE.Group();
     g.add(m);
-    g.userData = { anatomy_type: "tooth", anatomy_id: id, paint: m, baseHex: COLOR_ZONA };
+    g.userData = { anatomy_type: "tooth", anatomy_id: id, paint: m, baseHex: COLOR_ZONA, isMarker: true };
     return g;
   }
 
@@ -774,8 +774,20 @@ const AnatomyViewer = (() => {
 
   function _repaint() {
     for (const g of nodes) {
-      const hex = g === hovered ? COLOR_HOVER : _nodeBaseHex(g);
-      g.userData.paint.material.color.setHex(hex);
+      if (g.userData.isMarker) {
+        // Marcador de zona: oculto para dejar el modelo LIMPIO; se muestra solo
+        // si la zona tiene estado (histórico), está seleccionada, o el cursor
+        // está encima (feedback de "vas a tocar acá").
+        const id = g.userData.anatomy_id;
+        g.visible = colores[id] != null || id === seleccionado || g === hovered;
+        if (g.visible) {
+          const hex = g === hovered ? COLOR_HOVER : _nodeBaseHex(g);
+          g.userData.paint.material.color.setHex(hex);
+        }
+      } else {
+        // Superficie (diente procedural): siempre visible, coloreada por estado.
+        g.userData.paint.material.color.setHex(g === hovered ? COLOR_HOVER : _nodeBaseHex(g));
+      }
     }
     needsRender = true;
   }
@@ -786,13 +798,41 @@ const AnatomyViewer = (() => {
     return o;
   }
 
+  // Objetos "superficie" contra los que se hace click: el modelo GLB real
+  // (rostro/cuerpo/dientes) y los nodos que SON superficie (dientes
+  // procedurales). Los marcadores (isMarker) no se clickean directo: son anclas.
+  function _surfaceTargets() {
+    const t = [];
+    if (modelRoot) t.push(modelRoot);
+    for (const d of decor) t.push(d);
+    for (const g of nodes) if (!g.userData.isMarker) t.push(g);
+    return t;
+  }
+
+  const _wp = new THREE.Vector3();
+  function _anchorWorld(g) { return g.userData.paint.getWorldPosition(_wp); }
+
+  // Click sobre la SUPERFICIE (no sobre bolitas): raycast al modelo y se resuelve
+  // a la zona/diente cuyo ancla queda más cerca del punto tocado. Así el modelo
+  // se ve limpio (sin marcadores flotantes) y al tocar una parte se selecciona su
+  // zona igual que antes.
   function _pick(ev) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(nodes, true)[0];
-    return hit ? _nodeFromHit(hit.object) : null;
+    const hit = raycaster.intersectObjects(_surfaceTargets(), true)[0];
+    if (!hit) return null;
+    // Diente procedural: el hit YA es el nodo-superficie.
+    const direct = _nodeFromHit(hit.object);
+    if (direct && !direct.userData.isMarker) return direct;
+    // GLB: el marcador de zona cuyo ancla está más cerca del punto tocado.
+    let best = null, bestD = Infinity;
+    for (const g of nodes) {
+      const d = _anchorWorld(g).distanceToSquared(hit.point);
+      if (d < bestD) { bestD = d; best = g; }
+    }
+    return best;
   }
 
   function _onPointerMove(ev) {
@@ -905,6 +945,10 @@ const AnatomyViewer = (() => {
     container.appendChild(renderer.domElement);
     renderer.domElement.style.cursor = "grab";
     renderer.domElement.style.display = "block";
+    // El canvas llena su contenedor por CSS (el buffer se ajusta con setSize en
+    // _resize): así escala bien al agrandar/pantalla completa sin recortarse.
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
 
     // Entorno de reflejos (studio suave, sin archivo externo) para brillo húmedo del esmalte.
     scene.environment = _studioEnv();

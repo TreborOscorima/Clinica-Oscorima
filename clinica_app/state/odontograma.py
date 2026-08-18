@@ -50,6 +50,8 @@ class OdontogramaState(BaseState):
 
     # ── Vista 3D (E3 — motor anatómico sobre los mismos datos) ──────────────────
     vista_3d: bool = False
+    # Visor 3D a pantalla completa (llena el viewport).
+    pantalla_completa: bool = False
 
     # ── Modal edición de pieza ──────────────────────────────────────────────────
     modal_abierto: bool = False
@@ -245,6 +247,15 @@ class OdontogramaState(BaseState):
     def set_camara(self, nombre: str):
         yield rx.call_script(
             "window.AnatomyViewer&&window.AnatomyViewer.setCamera('" + nombre + "');"
+        )
+
+    def toggle_pantalla_completa(self):
+        self.pantalla_completa = not self.pantalla_completa
+        # El canvas WebGL no siempre detecta el cambio de tamaño del contenedor
+        # (ResizeObserver no dispara confiable con el toggle de clase) → forzamos
+        # un resize tras aplicar el nuevo layout.
+        yield rx.call_script(
+            "setTimeout(function(){window.dispatchEvent(new Event('resize'));},80);"
         )
 
     def on_pick_3d(self, value: str):
