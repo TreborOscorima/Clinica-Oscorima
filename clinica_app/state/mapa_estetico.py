@@ -49,6 +49,9 @@ class MapaEsteticoState(BaseState):
     # Vista activa del visor 3D: "facial" (rostro) | "corporal" (cuerpo).
     vista: str = "facial"
 
+    # Visor a pantalla completa (llena el viewport).
+    pantalla_completa: bool = False
+
     # Catálogos (código, no BD).
     zonas_cat:       list[dict] = []   # {codigo, label, region, grupo}
     tipos_cat:       list[dict] = []   # {value, label}
@@ -136,6 +139,15 @@ class MapaEsteticoState(BaseState):
             {"clave": "perfil_der", "label": "Perfil der."},
             {"clave": "superior",   "label": "Superior"},
         ]
+
+    def toggle_pantalla_completa(self):
+        self.pantalla_completa = not self.pantalla_completa
+        # El canvas WebGL no siempre detecta el cambio de tamaño del contenedor
+        # (ResizeObserver no dispara confiable con el toggle de clase) → forzamos
+        # un resize tras aplicar el nuevo layout.
+        yield rx.call_script(
+            "setTimeout(function(){window.dispatchEvent(new Event('resize'));},80);"
+        )
 
     @rx.var
     def tiene_zona(self) -> bool:

@@ -16,20 +16,66 @@ CANVAS_ID = "anatomy-canvas"
 BRIDGE_ID = "anatomy-bridge"
 
 
-def anatomy_viewer(on_pick, *, height: str = "440px") -> rx.Component:
+def anatomy_viewer(
+    on_pick,
+    *,
+    height: str = "440px",
+    fullscreen=None,
+    on_toggle_fullscreen=None,
+) -> rx.Component:
     """Visor 3D + puente. `on_pick` recibe el value del input (JSON string).
 
     El módulo `viewer.js` NO se incluye con `rx.el.script`: React no ejecuta los
     <script> insertados vía JSX. Se inyecta dinámicamente en `anatomy_boot_script`
     (document.createElement → sí ejecuta), de forma lazy y solo en páginas 3D.
+
+    `fullscreen` (Var[bool]) + `on_toggle_fullscreen` habilitan un botón de
+    pantalla completa: el lienzo pasa a `fixed inset-0` y llena el viewport (el
+    ResizeObserver del viewer reajusta el canvas solo). Sin ellos, tamaño fijo.
     """
-    return rx.el.div(
-        # Lienzo donde monta el <canvas> WebGL.
-        rx.el.div(
-            id=CANVAS_ID,
-            class_name="w-full rounded-xl border border-gray-200 overflow-hidden",
-            style={"height": height, "background_color": "#f9fafb"},
+    has_fs = fullscreen is not None
+
+    canvas = rx.el.div(
+        id=CANVAS_ID,
+        class_name=(
+            rx.cond(
+                fullscreen,
+                "w-full flex-1 min-h-0 rounded-xl border border-gray-200 overflow-hidden",
+                "w-full rounded-xl border border-gray-200 overflow-hidden",
+            )
+            if has_fs
+            else "w-full rounded-xl border border-gray-200 overflow-hidden"
         ),
+        style=(
+            rx.cond(
+                fullscreen,
+                {"background_color": "#f9fafb"},
+                {"height": height, "background_color": "#f9fafb"},
+            )
+            if has_fs
+            else {"height": height, "background_color": "#f9fafb"}
+        ),
+    )
+
+    toggle_btn = (
+        rx.el.button(
+            rx.cond(fullscreen, rx.icon("minimize", size=16), rx.icon("maximize", size=16)),
+            on_click=on_toggle_fullscreen,
+            title="Pantalla completa",
+            type="button",
+            class_name=(
+                "absolute top-2 right-2 z-10 p-2 bg-white/90 backdrop-blur border "
+                "border-gray-200 rounded-lg text-gray-600 hover:bg-white shadow-sm "
+                "cursor-pointer transition"
+            ),
+        )
+        if on_toggle_fullscreen is not None
+        else rx.fragment()
+    )
+
+    return rx.el.div(
+        canvas,
+        toggle_btn,
         # Puente oculto JS→Reflex: el viewer escribe aquí y dispara `input`.
         rx.el.input(
             id=BRIDGE_ID,
@@ -39,7 +85,15 @@ def anatomy_viewer(on_pick, *, height: str = "440px") -> rx.Component:
             aria_hidden="true",
             tab_index=-1,
         ),
-        class_name="w-full",
+        class_name=(
+            rx.cond(
+                fullscreen,
+                "fixed inset-0 z-50 bg-gray-100 p-4 flex flex-col",
+                "relative w-full",
+            )
+            if has_fs
+            else "relative w-full"
+        ),
     )
 
 

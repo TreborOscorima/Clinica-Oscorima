@@ -55,10 +55,14 @@ def _panel_3d() -> rx.Component:
             ),
             class_name="flex items-center justify-between gap-3 mb-3 flex-wrap",
         ),
-        anatomy_viewer(OdontogramaState.on_pick_3d, height="480px"),
+        anatomy_viewer(
+            OdontogramaState.on_pick_3d,
+            height="70vh",
+            fullscreen=OdontogramaState.pantalla_completa,
+            on_toggle_fullscreen=OdontogramaState.toggle_pantalla_completa,
+        ),
         rx.el.p(
-            "Arrastrá para rotar · rueda para zoom · click en una pieza para editar su estado. "
-            "Geometría procedural (reemplazable por modelos realistas sin perder los datos).",
+            "Arrastrá para rotar · rueda para zoom · click directo sobre la pieza para editar su estado.",
             class_name="text-xs text-gray-400 mt-3",
         ),
         class_name="p-4 bg-white border border-gray-100 rounded-xl shadow-sm",
