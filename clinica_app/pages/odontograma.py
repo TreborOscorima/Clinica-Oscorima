@@ -94,14 +94,26 @@ def _diente(p: dict) -> rx.Component:
     """Pieza en la grilla 2D: número + glifo de 5 caras (V arriba, M·O·D, P abajo).
     El borde toma el color del estado a nivel diente; cada cara se colorea aparte."""
     return rx.el.div(
-        # Número (abre siempre el modal de la pieza) + indicador de nota.
+        # Número (abre el modal de la pieza) + indicador de nota + badge de tratamiento.
         rx.el.button(
             p["numero"],
             rx.cond(
                 p["nota"] != "",
                 rx.el.span(class_name="absolute -top-0.5 -right-1.5 w-1.5 h-1.5 rounded-full bg-sky-500"),
             ),
-            on_click=lambda: OdontogramaState.abrir_pieza(p),
+            # Doble notación: tratamiento planificado (pendiente = azul con nº; solo hecho = verde).
+            rx.cond(
+                p["tx_pend"].to(int) > 0,
+                rx.el.span(
+                    p["tx_pend"],
+                    class_name="absolute -top-1.5 -left-2.5 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-blue-600 text-white text-[9px] font-bold leading-none ring-1 ring-white",
+                ),
+                rx.cond(
+                    p["tx_done"].to(int) > 0,
+                    rx.el.span(class_name="absolute -top-1 -left-2 w-2 h-2 rounded-full bg-green-600 ring-1 ring-white"),
+                ),
+            ),
+            on_click=lambda: OdontogramaState.abrir_modal_pieza(p),
             title=p["estado_label"],
             class_name="relative text-[11px] font-bold text-gray-500 leading-none mb-1 hover:text-sky-600 cursor-pointer",
         ),
@@ -334,6 +346,69 @@ def _caras_editor() -> rx.Component:
     )
 
 
+def _tx_item_row(it: dict) -> rx.Component:
+    """Un tratamiento planificado (ítem de plan) que referencia esta pieza."""
+    return rx.el.div(
+        rx.el.span(it["descripcion"], class_name="text-sm text-gray-700 flex-1 truncate"),
+        rx.cond(
+            it["cobrado"],
+            rx.el.span(rx.icon("badge-dollar-sign", size=13, class_name="text-green-600 shrink-0"), title="Cobrado"),
+        ),
+        rx.el.span(
+            it["estado_label"],
+            style={"backgroundColor": it["color"], "color": it["text_color"]},
+            class_name="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0",
+        ),
+        class_name="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0",
+    )
+
+
+def _tx_section() -> rx.Component:
+    """Doble notación: capa de tratamiento (planificado) de la pieza en el modal.
+    Los tratamientos son ítems del plan de tratamiento que referencian la pieza."""
+    return rx.el.div(
+        rx.el.div(
+            rx.icon("clipboard-list", size=15, class_name="text-blue-600 mr-1.5"),
+            rx.el.span("Tratamiento planificado", class_name="text-sm font-medium text-gray-700"),
+            rx.el.a(
+                rx.icon("external-link", size=12, class_name="mr-1"),
+                "Ver plan",
+                href="/plan-tratamiento?paciente_id=" + OdontogramaState.paciente_id.to_string(),
+                class_name="ml-auto inline-flex items-center text-xs text-blue-600 hover:underline",
+            ),
+            class_name="flex items-center mb-2",
+        ),
+        rx.cond(
+            OdontogramaState.tx_items.length() > 0,
+            rx.el.div(rx.foreach(OdontogramaState.tx_items.to(list[dict]), _tx_item_row), class_name="mb-3"),
+            rx.el.p("Sin tratamientos planificados para esta pieza.", class_name="text-xs text-gray-400 italic mb-3"),
+        ),
+        rx.cond(
+            OdontogramaState.puede_versionar,
+            rx.el.div(
+                rx.el.input(
+                    value=OdontogramaState.tx_desc,
+                    on_change=OdontogramaState.set_tx_desc,
+                    placeholder="Tratamiento a planificar…",
+                    class_name="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                ),
+                rx.el.button(
+                    rx.cond(
+                        OdontogramaState.is_agregando_tx,
+                        rx.el.div(rx.icon("loader-circle", size=14, class_name="animate-spin"), class_name="flex items-center"),
+                        rx.el.div(rx.icon("plus", size=14, class_name="mr-1"), "Agregar al plan", class_name="flex items-center"),
+                    ),
+                    on_click=OdontogramaState.agregar_tratamiento,
+                    disabled=OdontogramaState.is_agregando_tx,
+                    class_name="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 cursor-pointer shrink-0",
+                ),
+                class_name="flex items-center gap-2",
+            ),
+        ),
+        class_name="mb-5 pb-5 border-b border-gray-100",
+    )
+
+
 def _modal_pieza() -> rx.Component:
     return rx.cond(
         OdontogramaState.modal_abierto,
@@ -382,8 +457,10 @@ def _modal_pieza() -> rx.Component:
                         on_change=OdontogramaState.set_sel_nota,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
                     ),
-                    class_name="mb-5",
+                    class_name="mb-5 pb-5 border-b border-gray-100",
                 ),
+                # Tratamiento planificado (doble notación dx/tx)
+                _tx_section(),
                 # Botones
                 rx.el.div(
                     rx.el.button(
@@ -908,12 +985,34 @@ def odontograma_page() -> rx.Component:
                         ),
                     ),
                 ),
-                # Leyenda
+                # Leyenda — doble notación (hallazgos vs tratamientos)
                 rx.el.div(
-                    rx.el.span("Referencias", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide w-full mb-1"),
                     rx.el.div(
-                        rx.foreach(OdontogramaState.estados_cat.to(list[dict]), _leyenda_item),
-                        class_name="flex flex-wrap gap-x-4 gap-y-2",
+                        rx.el.span("Hallazgos (diagnóstico)", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide w-full mb-1.5 block"),
+                        rx.el.div(
+                            rx.foreach(OdontogramaState.estados_hallazgo, _leyenda_item),
+                            class_name="flex flex-wrap gap-x-4 gap-y-2",
+                        ),
+                        class_name="mb-3",
+                    ),
+                    rx.el.div(
+                        rx.el.span("Tratamientos (presentes en la pieza)", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide w-full mb-1.5 block"),
+                        rx.el.div(
+                            rx.foreach(OdontogramaState.estados_tratamiento, _leyenda_item),
+                            class_name="flex flex-wrap gap-x-4 gap-y-2",
+                        ),
+                        class_name="mb-3",
+                    ),
+                    rx.el.div(
+                        rx.el.span(
+                            "N",
+                            class_name="min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-blue-600 text-white text-[9px] font-bold leading-none ring-1 ring-white mr-1.5 shrink-0",
+                        ),
+                        rx.el.span(
+                            "Tratamiento planificado en el plan (nº de tratamientos pendientes en la pieza)",
+                            class_name="text-xs text-gray-600",
+                        ),
+                        class_name="flex items-center pt-3 border-t border-gray-200",
                     ),
                     class_name="mt-5 p-4 bg-gray-50 border border-gray-100 rounded-xl",
                 ),

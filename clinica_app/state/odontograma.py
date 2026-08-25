@@ -11,6 +11,7 @@ from clinica_app.components.anatomy_viewer import (
 )
 from clinica_app.database import get_async_session
 from clinica_app.services import odontograma as svc
+from clinica_app.services import planes_tratamiento as pt
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
 
@@ -62,6 +63,12 @@ class OdontogramaState(BaseState):
     cara_pincel:   str  = "caries"       # estado con el que se pintan las caras
     is_saving:     bool = False
 
+    # ── Tratamiento planificado de la pieza (doble notación dx/tx) ──────────────
+    # Los tratamientos son ítems del plan de tratamiento que referencian la pieza.
+    tx_items:      list[dict] = []       # ítems de plan de la pieza abierta (modal)
+    tx_desc:       str  = ""             # descripción sugerida al agregar al plan
+    is_agregando_tx: bool = False
+
     # ── Pincel de superficies sobre la grilla 2D (E5) ───────────────────────────
     # Con el pincel activo, tocar una cara del diente en la grilla la pinta al
     # instante (sin abrir el modal). Reutiliza `cara_pincel` como estado a aplicar.
@@ -109,6 +116,16 @@ class OdontogramaState(BaseState):
     def puede_comparar(self) -> bool:
         return len(self.versiones) >= 1
 
+    @rx.var
+    def estados_hallazgo(self) -> list[dict]:
+        """Estados que son hallazgos/diagnóstico (para la leyenda dx)."""
+        return [e for e in self.estados_cat if e.get("naturaleza") == "hallazgo"]
+
+    @rx.var
+    def estados_tratamiento(self) -> list[dict]:
+        """Estados que son tratamientos presentes en la pieza (para la leyenda tx)."""
+        return [e for e in self.estados_cat if e.get("naturaleza") == "tratamiento"]
+
     async def on_mount(self):
         self._expirar_si_vencio()
         if not self.is_authenticated:
@@ -149,8 +166,11 @@ class OdontogramaState(BaseState):
             data = await svc.listar(
                 session, self.clinica_id, self.paciente_id, sede_id=self.sede_actual_id
             )
-        self.superior = data["superior"]
-        self.inferior = data["inferior"]
+            tx_map = await svc.resumen_tratamientos(
+                session, self.clinica_id, self.paciente_id, sede_id=self.sede_actual_id
+            )
+        self.superior = self._anotar_tx(data["superior"], tx_map)
+        self.inferior = self._anotar_tx(data["inferior"], tx_map)
         self.con_datos = data["con_datos"]
         self.resumen = [
             {
@@ -177,12 +197,33 @@ class OdontogramaState(BaseState):
     def toggle_pincel(self):
         self.pincel_activo = not self.pincel_activo
 
+    @staticmethod
+    def _anotar_tx(piezas: list[dict], tx_map: dict) -> list[dict]:
+        """Agrega a cada pieza la capa de tratamiento planificado (badge dx/tx):
+        `tx_pend` (ítems no terminados) y `tx_done` (ítems terminados)."""
+        salida = []
+        for p in piezas:
+            cont = tx_map.get(p["numero"], {})
+            salida.append({
+                **p,
+                "tx_pend": cont.get("pendientes", 0),
+                "tx_done": cont.get("terminados", 0),
+            })
+        return salida
+
     def _reemplazar_pieza(self, nueva: dict):
         """Reemplaza una pieza en las arcadas vivas por su nuevo dump, sin recargar
-        todo (evita el flicker de re-render de la arcada completa al pintar)."""
+        todo (evita el flicker de re-render de la arcada completa al pintar).
+        Conserva la capa de tratamiento (tx_*) que no viene en el dump del servicio."""
         num = nueva["numero"]
-        self.superior = [nueva if p["numero"] == num else p for p in self.superior]
-        self.inferior = [nueva if p["numero"] == num else p for p in self.inferior]
+
+        def _merge(p):
+            if p["numero"] != num:
+                return p
+            return {**nueva, "tx_pend": p.get("tx_pend", 0), "tx_done": p.get("tx_done", 0)}
+
+        self.superior = [_merge(p) for p in self.superior]
+        self.inferior = [_merge(p) for p in self.inferior]
 
     def _pieza_actual(self, numero: str) -> dict | None:
         """La pieza tal como está *ahora* en el estado del servidor (no en el
@@ -202,6 +243,7 @@ class OdontogramaState(BaseState):
             return
         if not self.pincel_activo:
             self.abrir_pieza(dict(pieza))
+            await self._cargar_tx_pieza(numero)
             return
         if not self.tiene_permiso("historia", write=True):
             yield rx.toast.error("No tenés permiso para editar el odontograma")
@@ -237,7 +279,69 @@ class OdontogramaState(BaseState):
         # Detalle por cara (E4). Copiamos el dict para no mutar el de la lista.
         caras = pieza.get("caras") or {}
         self.sel_caras = {c: e for c, e in dict(caras).items() if c and e}
+        # Doble notación: limpiamos la capa de tratamiento y sugerimos uno.
+        self.tx_items = []
+        self.tx_desc = svc.sugerencia_tratamiento(self.sel_estado, self.sel_numero)
         self.modal_abierto = True
+
+    async def abrir_modal_pieza(self, pieza: dict):
+        """Abre el modal de la pieza (desde la grilla) y carga su tratamiento planificado."""
+        self.abrir_pieza(pieza)
+        await self._cargar_tx_pieza(self.sel_numero)
+
+    async def _cargar_tx_pieza(self, numero: str):
+        if not numero:
+            self.tx_items = []
+            return
+        async with get_async_session() as session:
+            self.tx_items = await svc.listar_tratamientos_pieza(
+                session, self.clinica_id, self.paciente_id, numero, sede_id=self.sede_actual_id,
+            )
+
+    def set_tx_desc(self, v: str):
+        self.tx_desc = v
+
+    async def _plan_destino(self, session) -> int:
+        """Plan de tratamiento donde agregar: el más reciente no cancelado, o uno nuevo."""
+        planes = await pt.listar_planes(session, self.clinica_id, self.paciente_id)
+        activos = [p for p in planes if p["estado"] != "cancelado"]
+        if activos:
+            return activos[0]["id"]
+        nuevo = await pt.crear_plan(
+            session, self.clinica_id, self.paciente_id,
+            titulo="Plan de tratamiento", usuario_id=self.user_id, sede_id=self.sede_actual_id,
+        )
+        return nuevo["id"]
+
+    async def agregar_tratamiento(self):
+        """Crea un ítem de plan de tratamiento para la pieza abierta (doble notación)."""
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para editar el plan de tratamiento")
+            return
+        desc = (self.tx_desc or "").strip()
+        if not desc:
+            yield rx.toast.error("Escribí una descripción para el tratamiento")
+            return
+        self.is_agregando_tx = True
+        yield
+        try:
+            async with get_async_session() as session:
+                plan_id = await self._plan_destino(session)
+                await pt.agregar_item(
+                    session, self.clinica_id, plan_id,
+                    descripcion=desc, pieza_numero=self.sel_numero,
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+                self.tx_items = await svc.listar_tratamientos_pieza(
+                    session, self.clinica_id, self.paciente_id, self.sel_numero, sede_id=self.sede_actual_id,
+                )
+        except ServiceError as exc:
+            self.is_agregando_tx = False
+            yield rx.toast.error(str(exc))
+            return
+        self.is_agregando_tx = False
+        yield rx.toast.success("Tratamiento agregado al plan")
+        await self._cargar()          # refresca los badges de tratamiento en la arcada
 
     def cerrar_modal(self):
         self.modal_abierto = False
@@ -319,7 +423,7 @@ class OdontogramaState(BaseState):
             "setTimeout(function(){window.dispatchEvent(new Event('resize'));},80);"
         )
 
-    def on_pick_3d(self, value: str):
+    async def on_pick_3d(self, value: str):
         """Selección desde el visor 3D → abre el mismo modal que el 2D."""
         try:
             data = json.loads(value or "{}")
@@ -335,6 +439,7 @@ class OdontogramaState(BaseState):
         if pieza is None:
             return
         self.abrir_pieza(pieza)
+        await self._cargar_tx_pieza(numero)
         # Resalta la pieza elegida en el visor mientras el modal está abierto.
         yield rx.call_script(anatomy_setdata_script(self._payload_3d(seleccionado=numero)))
 

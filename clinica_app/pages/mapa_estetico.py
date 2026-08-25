@@ -494,6 +494,20 @@ def _modal_punto() -> rx.Component:
 
 # ── Página ────────────────────────────────────────────────────────────────────
 
+def _volver_btn() -> rx.Component:
+    """Link de regreso a la Historia Clínica del paciente (coherente con odontograma)."""
+    return rx.cond(
+        MapaEsteticoState.paciente_id != 0,
+        rx.el.a(
+            rx.icon("arrow-left", size=15, class_name="mr-1.5"),
+            rx.el.span("Volver a Historia Clínica"),
+            href="/historia-clinica?paciente_id=" + MapaEsteticoState.paciente_id.to_string(),
+            class_name="inline-flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+        ),
+        rx.fragment(),
+    )
+
+
 def _export_pdf_btn() -> rx.Component:
     """Link a la exportación PDF del mapa estético (protegido por token efímero)."""
     return rx.cond(
@@ -513,6 +527,14 @@ def _export_pdf_btn() -> rx.Component:
     )
 
 
+def _header_acciones() -> rx.Component:
+    return rx.el.div(
+        _volver_btn(),
+        _export_pdf_btn(),
+        class_name="flex items-center gap-2",
+    )
+
+
 def mapa_estetico_page() -> rx.Component:
     return shell(
         rx.el.div(
@@ -523,7 +545,7 @@ def mapa_estetico_page() -> rx.Component:
                     "Paciente: " + MapaEsteticoState.paciente_nombre,
                     "Evaluaciones y puntos de aplicación por zona",
                 ),
-                action=_export_pdf_btn(),
+                action=_header_acciones(),
             ),
             rx.cond(
                 MapaEsteticoState.paciente_id != 0,

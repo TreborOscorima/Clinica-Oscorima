@@ -36,19 +36,48 @@ ARCADA_INFERIOR: list[str] = [
 PIEZAS_VALIDAS: frozenset[str] = frozenset(ARCADA_SUPERIOR + ARCADA_INFERIOR)
 
 # ── Estados por pieza (clave → etiqueta + color para la UI) ───────────────────
+# `naturaleza` separa la doble notación odontológica:
+#   - "hallazgo"    = diagnóstico / condición existente (patología, ausencia).
+#   - "tratamiento" = trabajo realizado o restauración presente en la pieza.
+#   - ""            = sano (ni hallazgo ni tratamiento).
+# El tratamiento *planificado* NO vive acá: son los ítems del plan de tratamiento
+# (PlanTratamientoItem) que referencian la pieza — ver `resumen_tratamientos`.
 ESTADOS: dict[str, dict[str, str]] = {
-    "sano":       {"label": "Sano",                "color": "#e5e7eb", "text": "#374151"},
-    "caries":     {"label": "Caries",              "color": "#ef4444", "text": "#ffffff"},
-    "obturado":   {"label": "Obturado",            "color": "#3b82f6", "text": "#ffffff"},
-    "corona":     {"label": "Corona",              "color": "#f59e0b", "text": "#ffffff"},
-    "endodoncia": {"label": "Endodoncia",          "color": "#fb923c", "text": "#ffffff"},
-    "extraccion": {"label": "Extracción indicada", "color": "#b91c1c", "text": "#ffffff"},
-    "ausente":    {"label": "Ausente",             "color": "#9ca3af", "text": "#ffffff"},
-    "implante":   {"label": "Implante",            "color": "#14b8a6", "text": "#ffffff"},
-    "protesis":   {"label": "Prótesis",            "color": "#a855f7", "text": "#ffffff"},
-    "fractura":   {"label": "Fractura",            "color": "#ec4899", "text": "#ffffff"},
-    "sellante":   {"label": "Sellante",            "color": "#22c55e", "text": "#ffffff"},
+    "sano":       {"label": "Sano",                "color": "#e5e7eb", "text": "#374151", "naturaleza": ""},
+    "caries":     {"label": "Caries",              "color": "#ef4444", "text": "#ffffff", "naturaleza": "hallazgo"},
+    "obturado":   {"label": "Obturado",            "color": "#3b82f6", "text": "#ffffff", "naturaleza": "tratamiento"},
+    "corona":     {"label": "Corona",              "color": "#f59e0b", "text": "#ffffff", "naturaleza": "tratamiento"},
+    "endodoncia": {"label": "Endodoncia",          "color": "#fb923c", "text": "#ffffff", "naturaleza": "tratamiento"},
+    "extraccion": {"label": "Extracción indicada", "color": "#b91c1c", "text": "#ffffff", "naturaleza": "hallazgo"},
+    "ausente":    {"label": "Ausente",             "color": "#9ca3af", "text": "#ffffff", "naturaleza": "hallazgo"},
+    "implante":   {"label": "Implante",            "color": "#14b8a6", "text": "#ffffff", "naturaleza": "tratamiento"},
+    "protesis":   {"label": "Prótesis",            "color": "#a855f7", "text": "#ffffff", "naturaleza": "tratamiento"},
+    "fractura":   {"label": "Fractura",            "color": "#ec4899", "text": "#ffffff", "naturaleza": "hallazgo"},
+    "sellante":   {"label": "Sellante",            "color": "#22c55e", "text": "#ffffff", "naturaleza": "tratamiento"},
 }
+
+# Sugerencia de tratamiento a proponer en el plan a partir de un hallazgo/estado.
+# Es sólo un texto por defecto (el profesional lo edita al agregarlo al plan).
+SUGERENCIA_TX: dict[str, str] = {
+    "caries":     "Obturación",
+    "fractura":   "Restauración / corona",
+    "extraccion": "Extracción",
+    "ausente":    "Implante / prótesis",
+    "endodoncia": "Tratamiento de conducto",
+    "corona":     "Corona",
+    "obturado":   "Control de obturación",
+    "implante":   "Control de implante",
+    "protesis":   "Control de prótesis",
+    "sellante":   "Sellante preventivo",
+}
+
+
+def sugerencia_tratamiento(estado: str, numero: str = "") -> str:
+    """Descripción de tratamiento sugerida para agregar al plan desde una pieza."""
+    base = SUGERENCIA_TX.get(estado or "", "")
+    if not base:
+        return f"Tratamiento pieza {numero}".strip() if numero else ""
+    return f"{base} pieza {numero}".strip() if numero else base
 
 # Caras de la pieza (para el detalle por superficie)
 CARAS: tuple[str, ...] = ("vestibular", "palatina", "mesial", "distal", "oclusal")
@@ -313,6 +342,93 @@ async def resetear_pieza(
     )
     await session.flush()
     return _pieza_default(numero)
+
+
+# ── Tratamiento planificado por pieza (doble notación dx/tx) ──────────────────
+# El "tratamiento" de la doble notación odontológica NO se guarda en PiezaDental:
+# son los ítems del plan de tratamiento (PlanTratamientoItem) que referencian la
+# pieza FDI. Estas consultas leen ese cruce para pintar la capa de tratamiento
+# sobre el odontograma (badge por pieza) y listar el detalle en el modal. El plan
+# CANCELADO no cuenta. Import perezoso para no acoplar los módulos en import-time.
+
+async def resumen_tratamientos(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    sede_id: int = 0,
+) -> dict[str, dict[str, int]]:
+    """Por pieza FDI con tratamiento planificado: {numero: {pendientes, terminados}}.
+    'pendientes' = ítems no terminados (propuesto/aprobado/en_curso); 'terminados'
+    = ítems terminados. Sólo planes activos y no cancelados."""
+    from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamientoItem
+
+    stmt = (
+        select(PlanTratamientoItem.pieza_numero, PlanTratamientoItem.estado)
+        .join(PlanTratamiento, PlanTratamiento.id == PlanTratamientoItem.plan_id)
+        .where(
+            PlanTratamientoItem.clinica_id == clinica_id,
+            PlanTratamientoItem.is_active.is_(True),
+            PlanTratamientoItem.pieza_numero.is_not(None),
+            PlanTratamiento.paciente_id == paciente_id,
+            PlanTratamiento.is_active.is_(True),
+            PlanTratamiento.estado != "cancelado",
+        )
+    )
+    salida: dict[str, dict[str, int]] = {}
+    for numero, estado in (await session.execute(stmt)).all():
+        numero = (numero or "").strip()
+        if numero not in PIEZAS_VALIDAS:
+            continue
+        cont = salida.setdefault(numero, {"pendientes": 0, "terminados": 0})
+        if estado == "terminado":
+            cont["terminados"] += 1
+        else:
+            cont["pendientes"] += 1
+    return salida
+
+
+async def listar_tratamientos_pieza(
+    session: AsyncSession,
+    clinica_id: int,
+    paciente_id: int,
+    numero: str,
+    sede_id: int = 0,
+) -> list[dict[str, Any]]:
+    """Ítems de plan de tratamiento que referencian una pieza (para el modal)."""
+    from clinica_app.models.plan_tratamiento import PlanTratamiento, PlanTratamientoItem
+    from clinica_app.services.planes_tratamiento import ESTADOS_ITEM
+
+    numero = (numero or "").strip()
+    if numero not in PIEZAS_VALIDAS:
+        return []
+    stmt = (
+        select(PlanTratamientoItem, PlanTratamiento.titulo, PlanTratamiento.id)
+        .join(PlanTratamiento, PlanTratamiento.id == PlanTratamientoItem.plan_id)
+        .where(
+            PlanTratamientoItem.clinica_id == clinica_id,
+            PlanTratamientoItem.is_active.is_(True),
+            PlanTratamientoItem.pieza_numero == numero,
+            PlanTratamiento.paciente_id == paciente_id,
+            PlanTratamiento.is_active.is_(True),
+            PlanTratamiento.estado != "cancelado",
+        )
+        .order_by(PlanTratamientoItem.id.desc())
+    )
+    salida: list[dict[str, Any]] = []
+    for it, plan_titulo, plan_id in (await session.execute(stmt)).all():
+        info = ESTADOS_ITEM.get(it.estado or "propuesto", ESTADOS_ITEM["propuesto"])
+        salida.append({
+            "id":           it.id or 0,
+            "plan_id":      plan_id,
+            "plan_titulo":  plan_titulo or "",
+            "descripcion":  it.descripcion or "",
+            "estado":       it.estado or "propuesto",
+            "estado_label": info["label"],
+            "color":        info["color"],
+            "text_color":   info["text"],
+            "cobrado":      bool(it.comprobante_id),
+        })
+    return salida
 
 
 # ── Versionado — snapshots del odontograma en el tiempo ───────────────────────
