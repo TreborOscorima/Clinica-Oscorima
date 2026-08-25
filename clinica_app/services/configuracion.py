@@ -17,7 +17,7 @@ _CAMPOS_CLINICA = (
     "nombre", "razon_social", "documento_fiscal", "email", "telefono",
     "direccion_fiscal", "zona_horaria", "rubro",
     "mensaje_recibo", "papel_impresion", "ancho_recibo",
-    "margen_global", "mostrar_impuesto_recibo",
+    "margen_global", "mostrar_impuesto_recibo", "impuesto_modo",
 )
 
 
@@ -38,6 +38,7 @@ def _dump_clinica(c: Clinica) -> dict[str, Any]:
         "ancho_recibo":            c.ancho_recibo,
         "margen_global":           float(c.margen_global)    if c.margen_global is not None else 50.0,
         "mostrar_impuesto_recibo": bool(c.mostrar_impuesto_recibo),
+        "impuesto_modo":           c.impuesto_modo or "incluido",
     }
 
 
@@ -82,6 +83,20 @@ async def toggle_mostrar_impuesto(session: AsyncSession, clinica_id: int) -> boo
     c.mostrar_impuesto_recibo = not c.mostrar_impuesto_recibo
     await session.flush()
     return bool(c.mostrar_impuesto_recibo)
+
+
+async def set_impuesto_modo(session: AsyncSession, clinica_id: int, modo: str) -> str:
+    """Fija cómo se aplica el impuesto: 'incluido' (el precio ya lo incluye) o
+    'agregado' (se suma al precio). Cualquier otro valor cae en 'incluido'."""
+    modo = (modo or "").strip().lower()
+    if modo not in ("incluido", "agregado"):
+        raise ServiceError("Modo de impuesto inválido")
+    c = await session.get(Clinica, clinica_id)
+    if c is None or not c.is_active:
+        raise NotFoundError("Clínica no encontrada")
+    c.impuesto_modo = modo
+    await session.flush()
+    return modo
 
 
 # ── Usuarios ───────────────────────────────────────────────────────────────────

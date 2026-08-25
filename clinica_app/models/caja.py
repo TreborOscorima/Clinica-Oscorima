@@ -45,6 +45,14 @@ class Comprobante(SQLModel, table=True):
     descuento_global: Decimal | None = Field(
         default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
     )
+    # Impuesto (IGV/IVA) aplicado a esta venta, congelado en el comprobante.
+    # tasa = porcentaje aplicado; monto = importe del impuesto. base = total - monto.
+    impuesto_tasa: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(5, 2), default=0, nullable=True)
+    )
+    impuesto_monto: Decimal | None = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 2), default=0, nullable=True)
+    )
     forma_pago: MetodoPago | None = Field(
         sa_column=Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO, nullable=True)
     )

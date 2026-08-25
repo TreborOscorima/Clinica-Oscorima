@@ -26,6 +26,10 @@ class Clinica(BaseSQLModel, SoftDeleteMixin, table=True):
     ancho_recibo:            int | None = Field(default=None)
     margen_global:           float      = Field(default=50.0,  sa_column_kwargs={"server_default": "50.00"})
     mostrar_impuesto_recibo: bool       = Field(default=False, sa_column_kwargs={"server_default": "0"})
+    # Cómo se aplica el impuesto en el cobro: 'incluido' (el precio ya lo incluye,
+    # se desglosa sin cambiar el total) o 'agregado' (se suma sobre el precio).
+    impuesto_modo:           str        = Field(default="incluido", max_length=12,
+                                                sa_column_kwargs={"server_default": "incluido"})
 
     # ── Licencia SaaS (gestionada por el panel Owner de TUWAYKI vía /api/admin/*) ──
     # NOTA: `is_active` (heredado de SoftDeleteMixin) = "no borrada". El estado de

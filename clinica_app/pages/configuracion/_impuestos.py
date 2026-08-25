@@ -111,6 +111,20 @@ def _fila_impuesto(t: dict) -> rx.Component:
     )
 
 
+def _btn_modo(valor: str, label: str) -> rx.Component:
+    return rx.el.button(
+        label,
+        on_click=lambda: ConfiguracionState.set_impuesto_modo(valor),
+        class_name=rx.cond(
+            ConfiguracionState.impuesto_modo == valor,
+            "px-3 py-1.5 text-xs font-medium rounded-lg border border-sky-500 "
+            "bg-sky-50 text-sky-700 cursor-pointer transition",
+            "px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 "
+            "bg-white text-gray-600 hover:bg-gray-50 cursor-pointer transition",
+        ),
+    )
+
+
 def _btn_pais(codigo: str, label: str) -> rx.Component:
     return rx.el.button(
         label,
@@ -203,12 +217,32 @@ def _seccion_impuestos() -> rx.Component:
             class_name="flex items-center p-4 bg-gray-50 rounded-xl border border-gray-100",
         ),
 
+        # Modo del impuesto: incluido en el precio vs agregado.
+        rx.el.div(
+            rx.el.p("Cómo se aplica el impuesto",
+                    class_name="text-sm font-medium text-gray-700 mb-1"),
+            rx.el.p(ConfiguracionState.impuesto_modo_desc,
+                    class_name="text-xs text-gray-500 mb-3"),
+            rx.el.div(
+                _btn_modo("incluido", "Incluido en el precio"),
+                _btn_modo("agregado", "Agregado al precio"),
+                class_name="flex flex-wrap gap-2",
+            ),
+            class_name="p-4 bg-gray-50 rounded-xl border border-gray-100",
+        ),
+
         rx.el.div(
             rx.el.p("Vista previa", class_name="text-sm font-medium text-gray-700 mb-3"),
             rx.el.div(
                 rx.el.div(
-                    rx.el.span("Subtotal:", class_name="text-sm text-gray-600"),
-                    rx.el.span("100.00",    class_name="text-sm text-gray-800"),
+                    rx.el.span("Precio:", class_name="text-sm text-gray-600"),
+                    rx.el.span("100.00", class_name="text-sm text-gray-800"),
+                    class_name="flex justify-between py-1",
+                ),
+                rx.el.div(
+                    rx.el.span("Op. gravada:", class_name="text-sm text-gray-600"),
+                    rx.el.span(ConfiguracionState.impuesto_preview_base,
+                               class_name="text-sm text-gray-800"),
                     class_name="flex justify-between py-1",
                 ),
                 rx.el.div(

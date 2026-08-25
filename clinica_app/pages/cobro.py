@@ -242,6 +242,23 @@ def _totales() -> rx.Component:
             class_name="flex justify-between items-center",
         ),
         rx.el.hr(class_name="border-gray-200 my-1"),
+        # Desglose de impuesto (IGV/IVA) — solo si la clínica lo activó.
+        rx.cond(
+            CobroState.impuesto_activo,
+            rx.el.div(
+                rx.el.div(
+                    rx.el.span("Op. gravada", class_name="text-sm text-gray-600"),
+                    rx.el.span("$", CobroState.base_str, class_name="text-sm text-gray-700"),
+                    class_name="flex justify-between",
+                ),
+                rx.el.div(
+                    rx.el.span(CobroState.impuesto_label, class_name="text-sm text-indigo-600"),
+                    rx.el.span("$", CobroState.impuesto_str, class_name="text-sm font-medium text-indigo-600"),
+                    class_name="flex justify-between",
+                ),
+                class_name="space-y-1",
+            ),
+        ),
         rx.el.div(
             rx.el.span("TOTAL", class_name="text-base font-bold text-gray-900"),
             rx.el.span("$", CobroState.total_neto_str, class_name="text-xl font-bold text-sky-700"),
@@ -489,6 +506,22 @@ def _modal_recibo() -> rx.Component:
                             rx.el.span("Descuento:", class_name="text-xs text-gray-500"),
                             rx.el.span("- $", CobroState.ultimo_comp["descuento_global"], class_name="text-xs text-gray-700"),
                             class_name="flex justify-between mb-1",
+                        ),
+                        # Desglose de impuesto (IGV/IVA) en el recibo.
+                        rx.cond(
+                            CobroState.impuesto_activo,
+                            rx.el.div(
+                                rx.el.div(
+                                    rx.el.span("Op. gravada:", class_name="text-xs text-gray-500"),
+                                    rx.el.span("$ ", CobroState.ultimo_comp["base_imponible"], class_name="text-xs text-gray-700"),
+                                    class_name="flex justify-between mb-1",
+                                ),
+                                rx.el.div(
+                                    rx.el.span(CobroState.impuesto_label + ":", class_name="text-xs text-indigo-600"),
+                                    rx.el.span("$ ", CobroState.ultimo_comp["impuesto_monto"], class_name="text-xs text-indigo-600"),
+                                    class_name="flex justify-between mb-1",
+                                ),
+                            ),
                         ),
                         rx.el.div(
                             rx.el.span("TOTAL:", class_name="text-sm font-bold text-gray-900"),

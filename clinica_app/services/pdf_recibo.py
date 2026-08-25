@@ -58,6 +58,9 @@ def generar_recibo_pdf(
     total    = comprobante.get("total", "0.00")
     descuento = comprobante.get("descuento_global", "0.00")
     total_bruto = comprobante.get("total_bruto", "0.00")
+    impuesto_monto = comprobante.get("impuesto_monto", "0.00")
+    impuesto_tasa  = comprobante.get("impuesto_tasa", "0")
+    base_imponible = comprobante.get("base_imponible", total)
     forma_pago  = comprobante.get("forma_pago", "efectivo").capitalize()
     observacion = comprobante.get("observacion", "")
     items    = comprobante.get("items", [])
@@ -150,6 +153,10 @@ def generar_recibo_pdf(
     if Decimal(str(descuento)) > 0:
         totales_data.append(["Subtotal:", f"$ {total_bruto}"])
         totales_data.append(["Descuento:", f"- $ {descuento}"])
+    if Decimal(str(impuesto_monto)) > 0:
+        tasa_txt = f"{float(impuesto_tasa):g}"
+        totales_data.append(["Op. gravada:", f"$ {base_imponible}"])
+        totales_data.append([f"Impuesto ({tasa_txt}%):", f"$ {impuesto_monto}"])
     totales_data.append(["TOTAL:", f"$ {total}"])
 
     tot_table = Table(totales_data, colWidths=[80 * mm, 48 * mm], hAlign="RIGHT")
@@ -216,6 +223,9 @@ async def obtener_datos_comprobante(session, clinica_id: int, comprobante_id: in
         "paciente_id":      comp.paciente_id,
         "total_bruto":      str(comp.total_bruto or 0),
         "descuento_global": str(comp.descuento_global or 0),
+        "impuesto_tasa":    str(comp.impuesto_tasa or 0),
+        "impuesto_monto":   str(comp.impuesto_monto or 0),
+        "base_imponible":   str((comp.total or Decimal("0")) - (comp.impuesto_monto or Decimal("0"))),
         "total":            str(comp.total or 0),
         "forma_pago":       comp.forma_pago.value if comp.forma_pago else "efectivo",
         "observacion":      comp.observacion or "",

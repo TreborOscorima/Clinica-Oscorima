@@ -110,6 +110,7 @@ class ConfiguracionState(BaseState):
     # ══════════════════════════════════════════════════════════════════
     impuesto_tasas:           list[dict] = []
     mostrar_impuesto_recibo:  bool = False
+    impuesto_modo:            str  = "incluido"
     modal_impuesto:           bool = False
     impuesto_editar_id:       int  = 0
     form_it_tipo:             str  = "IVA"
@@ -152,12 +153,33 @@ class ConfiguracionState(BaseState):
         return 0.0
 
     @rx.var
+    def impuesto_preview_base(self) -> str:
+        """Op. gravada sobre un precio de 100 según el modo."""
+        pct = self.impuesto_default_pct
+        if self.impuesto_modo == "agregado" or pct <= 0:
+            return "100.00"
+        return f"{100.0 / (1 + pct / 100.0):.2f}"
+
+    @rx.var
     def impuesto_preview_monto(self) -> str:
-        return f"{100.0 * self.impuesto_default_pct / 100.0:.2f}"
+        pct = self.impuesto_default_pct
+        if self.impuesto_modo == "agregado":
+            return f"{100.0 * pct / 100.0:.2f}"
+        # incluido: el precio 100 ya contiene el impuesto
+        base = 100.0 / (1 + pct / 100.0) if pct else 100.0
+        return f"{100.0 - base:.2f}"
 
     @rx.var
     def impuesto_preview_total(self) -> str:
-        return f"{100.0 + 100.0 * self.impuesto_default_pct / 100.0:.2f}"
+        if self.impuesto_modo == "agregado":
+            return f"{100.0 + 100.0 * self.impuesto_default_pct / 100.0:.2f}"
+        return "100.00"  # incluido: el total es el precio
+
+    @rx.var
+    def impuesto_modo_desc(self) -> str:
+        if self.impuesto_modo == "agregado":
+            return "El impuesto se suma al precio (100 → 118)."
+        return "El precio ya incluye el impuesto (se desglosa, el total no cambia)."
 
     @rx.var
     def moneda_activa_nombre(self) -> str:
@@ -201,6 +223,7 @@ class ConfiguracionState(BaseState):
         self.form_ancho_recibo     = str(c["ancho_recibo"]) if c["ancho_recibo"] else ""
         self.form_margen_global    = f"{c['margen_global']:.2f}"
         self.mostrar_impuesto_recibo = c["mostrar_impuesto_recibo"]
+        self.impuesto_modo           = c.get("impuesto_modo", "incluido")
 
     async def set_tab(self, tab: str):
         self.tab_activo = tab
@@ -816,6 +839,17 @@ class ConfiguracionState(BaseState):
             try:
                 nuevo_val = await svc.toggle_mostrar_impuesto(session, self.clinica_id)
                 self.mostrar_impuesto_recibo = nuevo_val
+            except ServiceError as exc:
+                yield rx.toast.error(str(exc))
+                return
+
+    async def set_impuesto_modo(self, modo: str):
+        if not self.tiene_permiso("configuracion", write=True):
+            yield rx.toast.error("No tenés permiso para modificar esta opción")
+            return
+        async with get_async_session() as session:
+            try:
+                self.impuesto_modo = await svc.set_impuesto_modo(session, self.clinica_id, modo)
             except ServiceError as exc:
                 yield rx.toast.error(str(exc))
                 return

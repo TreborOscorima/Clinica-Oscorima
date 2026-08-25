@@ -30,6 +30,53 @@ def _dec(v) -> Decimal:
     return Decimal(str(v)).quantize(D2, rounding=ROUND_HALF_UP)
 
 
+def calcular_impuesto(neto, tasa, modo: str = "incluido") -> tuple[Decimal, Decimal, Decimal]:
+    """A partir del neto (bruto − descuento) devuelve (base, impuesto, total).
+
+    - 'incluido': el neto ya incluye el impuesto → se desglosa; total = neto.
+    - 'agregado': el neto es la base → el impuesto se suma; total = neto + impuesto.
+
+    Con tasa 0 (o impuesto desactivado) ambos modos dan base = total = neto e
+    impuesto = 0, preservando el comportamiento previo. El impuesto se deriva por
+    resta para que base + impuesto == total exactamente (sin drift de redondeo).
+    """
+    neto = _dec(neto)
+    tasa_d = Decimal(str(tasa or 0))
+    if tasa_d <= 0:
+        return neto, Decimal("0"), neto
+    if modo == "agregado":
+        base = neto
+        impuesto = (neto * tasa_d / Decimal("100")).quantize(D2, rounding=ROUND_HALF_UP)
+        total = base + impuesto
+    else:  # incluido (default)
+        total = neto
+        base = (neto / (Decimal("1") + tasa_d / Decimal("100"))).quantize(D2, rounding=ROUND_HALF_UP)
+        impuesto = total - base
+    return _dec(base), _dec(impuesto), _dec(total)
+
+
+async def _impuesto_config(session: AsyncSession, clinica_id: int) -> tuple[Decimal, str]:
+    """(tasa%, modo) del impuesto de la clínica. Devuelve tasa 0 si el impuesto
+    no está activo (`mostrar_impuesto_recibo` off) o no hay tasa por defecto."""
+    from clinica_app.models.clinica import Clinica
+    from clinica_app.models.impuesto_tasa import ImpuestoTasa
+
+    c = await session.get(Clinica, clinica_id)
+    if c is None or not getattr(c, "mostrar_impuesto_recibo", False):
+        return Decimal("0"), "incluido"
+    modo = getattr(c, "impuesto_modo", None) or "incluido"
+    tasa_row = (await session.execute(
+        select(ImpuestoTasa).where(
+            ImpuestoTasa.clinica_id == clinica_id,
+            ImpuestoTasa.is_active.is_(True),
+            ImpuestoTasa.is_default.is_(True),
+        )
+    )).scalars().first()
+    if tasa_row is None:
+        return Decimal("0"), modo
+    return Decimal(str(tasa_row.porcentaje or 0)), modo
+
+
 def _dump_item(i: ComprobanteItem) -> dict[str, Any]:
     return {
         "id":          i.id,
@@ -51,6 +98,9 @@ def _dump(c: Comprobante, items: list[ComprobanteItem] | None = None) -> dict[st
         "paciente_id":      c.paciente_id,
         "total_bruto":      str(c.total_bruto or 0),
         "descuento_global": str(c.descuento_global or 0),
+        "impuesto_tasa":    str(c.impuesto_tasa or 0),
+        "impuesto_monto":   str(c.impuesto_monto or 0),
+        "base_imponible":   str((c.total or Decimal("0")) - (c.impuesto_monto or Decimal("0"))),
         "total":            str(c.total or 0),
         "forma_pago":       c.forma_pago.value if c.forma_pago else "efectivo",
         "observacion":      c.observacion or "",
@@ -135,7 +185,13 @@ async def crear(
     descuento_global = _dec(payload.get("descuento_global", "0"))
     if descuento_global < 0:
         raise ServiceError("El descuento no puede ser negativo")
-    total_neto = max(Decimal("0"), total_bruto - descuento_global)
+    neto = max(Decimal("0"), total_bruto - descuento_global)
+
+    # Impuesto (IGV/IVA) según la config de la clínica. En modo 'incluido' el
+    # total no cambia (se desglosa); en 'agregado' el total sube. total_neto es
+    # siempre lo que efectivamente paga el paciente.
+    tasa, modo = await _impuesto_config(session, clinica_id)
+    _base_imp, impuesto_monto, total_neto = calcular_impuesto(neto, tasa, modo)
 
     numero = await _numero(session, clinica_id)
 
@@ -147,6 +203,8 @@ async def crear(
         paciente_id=paciente_id,
         total_bruto=total_bruto,
         descuento_global=descuento_global,
+        impuesto_tasa=tasa,
+        impuesto_monto=impuesto_monto,
         total=total_neto,
         forma_pago=forma_pago,
         observacion=payload.get("observacion"),

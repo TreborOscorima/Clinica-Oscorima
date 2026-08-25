@@ -47,6 +47,14 @@ class CobroState(BaseState):
     descuento_str:   str = "0.00"
     total_neto_str:  str = "0.00"
 
+    # ── Impuesto (IGV/IVA) — config de la clínica ───────────────────────────────
+    impuesto_activo:   bool  = False
+    impuesto_tasa_pct: float = 0.0
+    impuesto_modo:     str   = "incluido"
+    impuesto_tipo:     str   = "Impuesto"
+    base_str:          str   = "0.00"
+    impuesto_str:      str   = "0.00"
+
     # ── Formulario de pago ─────────────────────────────────────────────────────
     forma_pago:       str  = "efectivo"
     es_cuotas:        bool = False
@@ -81,7 +89,38 @@ class CobroState(BaseState):
             return
         await self._cargar_catalogos()
         await self._cargar_promociones()
+        await self._cargar_impuesto()
         await self._precargar_turno()
+
+    @rx.var
+    def impuesto_label(self) -> str:
+        return f"{self.impuesto_tipo} ({self.impuesto_tasa_pct:g}%)"
+
+    async def _cargar_impuesto(self):
+        from clinica_app.models.clinica import Clinica
+        from clinica_app.models.impuesto_tasa import ImpuestoTasa
+
+        async with get_async_session() as session:
+            c = await session.get(Clinica, self.clinica_id)
+            activo = bool(c and c.mostrar_impuesto_recibo)
+            self.impuesto_modo = (getattr(c, "impuesto_modo", None) or "incluido") if c else "incluido"
+            tasa = 0.0
+            tipo = "Impuesto"
+            if activo:
+                row = (await session.execute(
+                    select(ImpuestoTasa).where(
+                        ImpuestoTasa.clinica_id == self.clinica_id,
+                        ImpuestoTasa.is_active.is_(True),
+                        ImpuestoTasa.is_default.is_(True),
+                    )
+                )).scalars().first()
+                if row:
+                    tasa = float(row.porcentaje or 0)
+                    tipo = row.tipo_impuesto or "Impuesto"
+        self.impuesto_tasa_pct = tasa
+        self.impuesto_tipo     = tipo
+        self.impuesto_activo   = activo and tasa > 0
+        self._recalcular()
 
     # ── Fase 3: N+1 eliminado — turno.servicio pre-cargado con selectinload ────
 
@@ -332,9 +371,17 @@ class CobroState(BaseState):
             descuento = Decimal("0")
         neto = max(Decimal("0"), bruto - descuento)
         q = Decimal("0.01")
+        if self.impuesto_activo and self.impuesto_tasa_pct > 0:
+            base, imp, total = svc.calcular_impuesto(
+                neto, Decimal(str(self.impuesto_tasa_pct)), self.impuesto_modo
+            )
+        else:
+            base, imp, total = neto, Decimal("0"), neto
         self.total_bruto_str = str(bruto.quantize(q))
         self.descuento_str   = str(descuento.quantize(q))
-        self.total_neto_str  = str(neto.quantize(q))
+        self.base_str        = str(base.quantize(q))
+        self.impuesto_str    = str(imp.quantize(q))
+        self.total_neto_str  = str(total.quantize(q))
 
     # ── Setters formulario ────────────────────────────────────────────────────
 
@@ -459,6 +506,8 @@ class CobroState(BaseState):
         self.observacion      = ""
         self.total_bruto_str  = "0.00"
         self.descuento_str    = "0.00"
+        self.base_str         = "0.00"
+        self.impuesto_str     = "0.00"
         self.total_neto_str   = "0.00"
         self.busqueda_item    = ""
         self.form_error       = ""
