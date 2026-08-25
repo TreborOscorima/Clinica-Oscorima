@@ -162,6 +162,9 @@ async def crear(
         forma_pago = MetodoPago(metodo_str)
     except ValueError:
         forma_pago = MetodoPago.OTRO
+    # Nombre del método configurado elegido en el POS (ej. "Yape"), para la
+    # traza de auditoría; el comprobante sigue guardando el enum como bucket.
+    metodo_nombre = (payload.get("metodo_nombre") or "").strip()
 
     total_bruto = Decimal("0")
     processed: list[dict] = []
@@ -268,7 +271,11 @@ async def crear(
         usuario_id=usuario_id,
         accion="crear", entidad="comprobante", entidad_id=comp.id,
         sede_id=sede_id or None,
-        detalle={"numero": numero, "total": str(total_neto), "forma_pago": forma_pago.value},
+        detalle={
+            "numero": numero, "total": str(total_neto),
+            "forma_pago": forma_pago.value,
+            **({"metodo_nombre": metodo_nombre} if metodo_nombre else {}),
+        },
     )
 
     result = _dump(comp, items_db)

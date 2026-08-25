@@ -15,14 +15,6 @@ _INPUT_CLS = (
     "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
 )
 
-_METODOS_PAGO = [
-    ("efectivo",      "Efectivo"),
-    ("tarjeta",       "Tarjeta"),
-    ("transferencia", "Transfer."),
-    ("otro",          "Otro"),
-]
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  Panel izquierdo: paciente + catálogo
 # ─────────────────────────────────────────────────────────────────────────────
@@ -274,19 +266,19 @@ def _pago_form() -> rx.Component:
         rx.el.div(
             rx.el.label("Método de pago", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block"),
             rx.el.div(
-                *[
-                    rx.el.button(
-                        label,
-                        on_click=CobroState.set_forma_pago(val),
+                rx.foreach(
+                    CobroState.metodos_pago_cat,
+                    lambda m: rx.el.button(
+                        m["nombre"],
+                        on_click=CobroState.elegir_metodo(m["key"], m["tipo"], m["nombre"]),
                         class_name=rx.cond(
-                            CobroState.forma_pago == val,
-                            "flex-1 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg",
-                            "flex-1 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                            CobroState.forma_pago_key == m["key"],
+                            "py-1.5 px-2 text-xs font-semibold text-white bg-sky-600 rounded-lg truncate",
+                            "py-1.5 px-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer truncate",
                         ),
-                    )
-                    for val, label in _METODOS_PAGO
-                ],
-                class_name="flex gap-1.5",
+                    ),
+                ),
+                class_name="grid grid-cols-2 gap-1.5",
             ),
             class_name="mb-4",
         ),

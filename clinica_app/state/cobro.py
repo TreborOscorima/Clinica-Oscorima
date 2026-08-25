@@ -19,6 +19,15 @@ _COMP_VACIO: dict = {
     "total": "0.00", "forma_pago": "", "observacion": "",
 }
 
+# Fallback cuando la clínica no configuró métodos visibles: los cuatro del enum
+# MetodoPago, para que el POS nunca quede sin opciones de cobro.
+_METODOS_DEFAULT: list[dict] = [
+    {"key": "efectivo",      "nombre": "Efectivo",      "tipo": "efectivo"},
+    {"key": "tarjeta",       "nombre": "Tarjeta",       "tipo": "tarjeta"},
+    {"key": "transferencia", "nombre": "Transferencia", "tipo": "transferencia"},
+    {"key": "otro",          "nombre": "Otro",          "tipo": "otro"},
+]
+
 
 class CobroState(BaseState):
 
@@ -56,7 +65,10 @@ class CobroState(BaseState):
     impuesto_str:      str   = "0.00"
 
     # ── Formulario de pago ─────────────────────────────────────────────────────
-    forma_pago:       str  = "efectivo"
+    metodos_pago_cat: list[dict] = []      # métodos configurados visibles (o fallback)
+    forma_pago:       str  = "efectivo"    # enum MetodoPago que persiste el comprobante
+    forma_pago_key:   str  = "efectivo"    # id/clave del método elegido (selección en UI)
+    forma_pago_nombre: str = "Efectivo"    # nombre visible del método (para auditoría)
     es_cuotas:        bool = False
     num_cuotas:       str  = "2"
     cuota_inicial:    str  = ""
@@ -88,6 +100,7 @@ class CobroState(BaseState):
             yield rx.redirect("/")
             return
         await self._cargar_catalogos()
+        await self._cargar_metodos_pago()
         await self._cargar_promociones()
         await self._cargar_impuesto()
         await self._precargar_turno()
@@ -216,6 +229,36 @@ class CobroState(BaseState):
         ]
         self.servicios_filtrados = self.servicios_todos[:40]
         self.productos_filtrados = self.productos_todos[:40]
+
+    async def _cargar_metodos_pago(self):
+        """Carga los métodos de pago que la clínica marcó visibles en venta.
+
+        Si no hay ninguno configurado, cae al set por defecto del enum para que
+        el POS siga operativo. Deja seleccionado el primero.
+        """
+        from clinica_app.services import metodos_pago_config as svc_mp
+        async with get_async_session() as session:
+            configs = await svc_mp.listar_visibles(session, self.clinica_id)
+        if configs:
+            self.metodos_pago_cat = [
+                {"key": str(m["id"]), "nombre": m["nombre"], "tipo": m["tipo"]}
+                for m in configs
+            ]
+        else:
+            self.metodos_pago_cat = list(_METODOS_DEFAULT)
+        self._seleccionar_metodo_inicial()
+
+    def _seleccionar_metodo_inicial(self):
+        if self.metodos_pago_cat:
+            m = self.metodos_pago_cat[0]
+            self.forma_pago_key    = m["key"]
+            self.forma_pago        = m["tipo"]
+            self.forma_pago_nombre = m["nombre"]
+
+    def elegir_metodo(self, key: str, tipo: str, nombre: str):
+        self.forma_pago_key    = key
+        self.forma_pago        = tipo
+        self.forma_pago_nombre = nombre
 
     async def _cargar_promociones(self):
         from clinica_app.models.promocion import Promocion
@@ -385,7 +428,6 @@ class CobroState(BaseState):
 
     # ── Setters formulario ────────────────────────────────────────────────────
 
-    def set_forma_pago(self, v: str):       self.forma_pago = v
     def set_es_cuotas(self, v: bool):       self.es_cuotas = v
     def set_num_cuotas(self, v: str):       self.num_cuotas = v
     def set_cuota_inicial(self, v: float):  self.cuota_inicial = str(v) if v else ""
@@ -460,6 +502,7 @@ class CobroState(BaseState):
             "paciente_id":      int(self.pac_id_sel),
             "items":            items,
             "forma_pago":       self.forma_pago,
+            "metodo_nombre":    self.forma_pago_nombre,
             "descuento_global": self.descuento_global or "0",
             "observacion":      self.observacion.strip() or None,
             "es_cuotas":        self.es_cuotas,
@@ -497,7 +540,7 @@ class CobroState(BaseState):
         self.pac_doc_sel      = ""
         self.pac_busqueda     = ""
         self.pac_resultados   = []
-        self.forma_pago       = "efectivo"
+        self._seleccionar_metodo_inicial()
         self.es_cuotas        = False
         self.num_cuotas       = "2"
         self.cuota_inicial    = ""

@@ -28,6 +28,16 @@ async def listar(session: AsyncSession, clinica_id: int) -> list[dict]:
     return [_dump(m) for m in rows]
 
 
+async def listar_visibles(session: AsyncSession, clinica_id: int) -> list[dict]:
+    """Métodos activos y marcados como visibles en venta, para el selector del POS."""
+    rows = (await session.execute(
+        tenant_select(MetodoPagoConfig, clinica_id)
+        .where(MetodoPagoConfig.visible_en_venta.is_(True))
+        .order_by(MetodoPagoConfig.nombre)
+    )).scalars().all()
+    return [_dump(m) for m in rows]
+
+
 async def crear(session: AsyncSession, clinica_id: int, payload: dict) -> dict:
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
