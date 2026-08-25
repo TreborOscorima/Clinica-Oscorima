@@ -62,6 +62,11 @@ class OdontogramaState(BaseState):
     cara_pincel:   str  = "caries"       # estado con el que se pintan las caras
     is_saving:     bool = False
 
+    # ── Pincel de superficies sobre la grilla 2D (E5) ───────────────────────────
+    # Con el pincel activo, tocar una cara del diente en la grilla la pinta al
+    # instante (sin abrir el modal). Reutiliza `cara_pincel` como estado a aplicar.
+    pincel_activo: bool = False
+
     # ── Versionado (evolución en el tiempo) ─────────────────────────────────────
     versiones:        list[dict] = []
     mostrar_historial: bool = False
@@ -166,6 +171,62 @@ class OdontogramaState(BaseState):
             self.versiones = await svc.listar_versiones(
                 session, self.clinica_id, self.paciente_id, sede_id=self.sede_actual_id
             )
+
+    # ── Pincel de superficies (E5) ───────────────────────────────────────────────
+
+    def toggle_pincel(self):
+        self.pincel_activo = not self.pincel_activo
+
+    def _reemplazar_pieza(self, nueva: dict):
+        """Reemplaza una pieza en las arcadas vivas por su nuevo dump, sin recargar
+        todo (evita el flicker de re-render de la arcada completa al pintar)."""
+        num = nueva["numero"]
+        self.superior = [nueva if p["numero"] == num else p for p in self.superior]
+        self.inferior = [nueva if p["numero"] == num else p for p in self.inferior]
+
+    def _pieza_actual(self, numero: str) -> dict | None:
+        """La pieza tal como está *ahora* en el estado del servidor (no en el
+        payload del cliente). Clave para pintar varias caras seguidas sin carrera:
+        Reflex procesa los eventos en orden, así que cada click ve el resultado del
+        anterior a través de este lookup."""
+        for p in list(self.superior) + list(self.inferior):
+            if p.get("numero") == numero:
+                return p
+        return None
+
+    async def tocar_superficie(self, numero: str, cara: str):
+        """Click en una cara del diente en la grilla 2D. Con el pincel activo, la
+        pinta (toggle) con el estado del pincel y persiste; si no, abre el modal."""
+        pieza = self._pieza_actual(numero)
+        if pieza is None:
+            return
+        if not self.pincel_activo:
+            self.abrir_pieza(dict(pieza))
+            return
+        if not self.tiene_permiso("historia", write=True):
+            yield rx.toast.error("No tenés permiso para editar el odontograma")
+            return
+        caras = {c: e for c, e in dict(pieza.get("caras") or {}).items() if c and e}
+        if caras.get(cara) == self.cara_pincel:
+            caras.pop(cara, None)          # tocar de nuevo con el mismo pincel = quitar
+        else:
+            caras[cara] = self.cara_pincel
+        try:
+            async with get_async_session() as session:
+                nueva = await svc.guardar_pieza(
+                    session, self.clinica_id, self.paciente_id, numero,
+                    estado=pieza.get("estado") or "sano",
+                    caras=caras,
+                    nota=pieza.get("nota") or "",
+                    usuario_id=self.user_id,
+                    sede_id=self.sede_actual_id,
+                )
+        except ServiceError as exc:
+            yield rx.toast.error(str(exc))
+            return
+        self._reemplazar_pieza(nueva)
+        if self.vista_3d:
+            yield rx.call_script(anatomy_setdata_script(self._payload_3d()))
 
     # ── Modal ────────────────────────────────────────────────────────────────────
 

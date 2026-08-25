@@ -69,17 +69,51 @@ def _panel_3d() -> rx.Component:
     )
 
 
-def _diente(p: dict) -> rx.Component:
+def _celda_diente_vacia() -> rx.Component:
+    """Esquina vacía de la cruz del diente (grilla 3×3)."""
+    return rx.el.div(class_name="w-3.5 h-3.5")
+
+
+def _superficie(p: dict, idx: int, cara: str) -> rx.Component:
+    """Una cara del diente en la grilla 2D. Pinta (pincel) o abre el modal."""
+    s = p["superficies"].to(list[dict])[idx]
     return rx.el.button(
-        rx.el.span(p["numero"], class_name="text-xs font-bold leading-none"),
-        rx.cond(
-            p["nota"] != "",
-            rx.el.span(class_name="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-white/80 ring-1 ring-gray-500"),
+        on_click=lambda: OdontogramaState.tocar_superficie(p["numero"], cara),
+        title=s["label"],
+        type="button",
+        style={"backgroundColor": s["color"]},
+        class_name=rx.cond(
+            s["tiene"],
+            "w-3.5 h-3.5 rounded-[3px] border border-gray-400 hover:ring-2 hover:ring-sky-400 cursor-pointer transition",
+            "w-3.5 h-3.5 rounded-[3px] border border-gray-200 bg-white hover:border-sky-400 hover:bg-sky-50 cursor-pointer transition",
         ),
-        on_click=lambda: OdontogramaState.abrir_pieza(p),
-        style={"backgroundColor": p["color"], "color": p["text_color"]},
-        title=p["estado_label"],
-        class_name="relative w-9 h-11 rounded-md border border-gray-300 flex items-center justify-center hover:ring-2 hover:ring-sky-400 cursor-pointer transition shrink-0",
+    )
+
+
+def _diente(p: dict) -> rx.Component:
+    """Pieza en la grilla 2D: número + glifo de 5 caras (V arriba, M·O·D, P abajo).
+    El borde toma el color del estado a nivel diente; cada cara se colorea aparte."""
+    return rx.el.div(
+        # Número (abre siempre el modal de la pieza) + indicador de nota.
+        rx.el.button(
+            p["numero"],
+            rx.cond(
+                p["nota"] != "",
+                rx.el.span(class_name="absolute -top-0.5 -right-1.5 w-1.5 h-1.5 rounded-full bg-sky-500"),
+            ),
+            on_click=lambda: OdontogramaState.abrir_pieza(p),
+            title=p["estado_label"],
+            class_name="relative text-[11px] font-bold text-gray-500 leading-none mb-1 hover:text-sky-600 cursor-pointer",
+        ),
+        # Glifo: cruz 3×3 con las 5 caras. Borde = estado del diente.
+        rx.el.div(
+            _celda_diente_vacia(), _superficie(p, 0, "vestibular"), _celda_diente_vacia(),
+            _superficie(p, 1, "mesial"), _superficie(p, 2, "oclusal"), _superficie(p, 3, "distal"),
+            _celda_diente_vacia(), _superficie(p, 4, "palatina"), _celda_diente_vacia(),
+            style={"borderColor": p["color"]},
+            class_name="grid grid-cols-3 gap-0.5 p-1 rounded-md border-2 bg-white",
+        ),
+        class_name="flex flex-col items-center shrink-0",
     )
 
 
@@ -94,17 +128,40 @@ def _arcada(piezas, etiqueta: str) -> rx.Component:
     )
 
 
-def _diente_ro(p: dict) -> rx.Component:
-    """Diente en modo solo lectura (visor de versión histórica)."""
+def _superficie_ro(p: dict, idx: int) -> rx.Component:
+    """Una cara del diente en modo solo lectura (visor de versión histórica)."""
+    s = p["superficies"].to(list[dict])[idx]
     return rx.el.div(
-        rx.el.span(p["numero"], class_name="text-xs font-bold leading-none"),
-        rx.cond(
-            p["nota"] != "",
-            rx.el.span(class_name="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-white/80 ring-1 ring-gray-500"),
+        style={"backgroundColor": s["color"]},
+        title=s["label"],
+        class_name=rx.cond(
+            s["tiene"],
+            "w-3.5 h-3.5 rounded-[3px] border border-gray-400",
+            "w-3.5 h-3.5 rounded-[3px] border border-gray-200 bg-white",
         ),
-        style={"backgroundColor": p["color"], "color": p["text_color"]},
-        title=p["estado_label"],
-        class_name="relative w-9 h-11 rounded-md border border-gray-300 flex items-center justify-center shrink-0",
+    )
+
+
+def _diente_ro(p: dict) -> rx.Component:
+    """Diente en modo solo lectura (visor de versión histórica), con sus 5 caras."""
+    return rx.el.div(
+        rx.el.span(
+            p["numero"],
+            rx.cond(
+                p["nota"] != "",
+                rx.el.span(class_name="absolute -top-0.5 -right-1.5 w-1.5 h-1.5 rounded-full bg-sky-500"),
+            ),
+            title=p["estado_label"],
+            class_name="relative text-[11px] font-bold text-gray-500 leading-none mb-1",
+        ),
+        rx.el.div(
+            _celda_diente_vacia(), _superficie_ro(p, 0), _celda_diente_vacia(),
+            _superficie_ro(p, 1), _superficie_ro(p, 2), _superficie_ro(p, 3),
+            _celda_diente_vacia(), _superficie_ro(p, 4), _celda_diente_vacia(),
+            style={"borderColor": p["color"]},
+            class_name="grid grid-cols-3 gap-0.5 p-1 rounded-md border-2 bg-white",
+        ),
+        class_name="flex flex-col items-center shrink-0",
     )
 
 
@@ -162,6 +219,51 @@ def _resumen_chip(r: dict) -> rx.Component:
         rx.el.span(r["label"], class_name="text-xs font-medium text-gray-700"),
         rx.el.span(r["count"], class_name="text-xs font-bold text-gray-900 ml-0.5"),
         class_name="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-full",
+    )
+
+
+def _pincel_chip(e: dict) -> rx.Component:
+    """Chip de estado para elegir con qué se pinta (barra de pincel de la grilla)."""
+    return rx.el.button(
+        rx.el.span(style={"backgroundColor": e["color"]}, class_name="w-3 h-3 rounded-sm border border-gray-300 mr-1.5 shrink-0"),
+        e["label"],
+        on_click=lambda: OdontogramaState.set_cara_pincel(e["clave"]),
+        type="button",
+        class_name=rx.cond(
+            OdontogramaState.cara_pincel == e["clave"],
+            "inline-flex items-center px-2 py-1 text-xs font-semibold text-gray-800 rounded-lg ring-2 ring-sky-500 bg-white cursor-pointer",
+            "inline-flex items-center px-2 py-1 text-xs text-gray-600 rounded-lg border border-gray-200 bg-white hover:border-sky-300 cursor-pointer",
+        ),
+    )
+
+
+def _pincel_bar() -> rx.Component:
+    """Barra de pincel de superficies: activa el modo y elige el estado a aplicar."""
+    return rx.el.div(
+        rx.el.button(
+            rx.icon("brush", size=14, class_name="mr-1.5"),
+            "Pincel",
+            on_click=OdontogramaState.toggle_pincel,
+            type="button",
+            class_name=rx.cond(
+                OdontogramaState.pincel_activo,
+                "inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-sky-600 text-white cursor-pointer shrink-0",
+                "inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-600 border border-gray-300 hover:bg-gray-50 cursor-pointer shrink-0",
+            ),
+        ),
+        rx.cond(
+            OdontogramaState.pincel_activo,
+            rx.el.div(
+                rx.el.span("Pintar con:", class_name="text-xs text-gray-500 mr-1 shrink-0"),
+                rx.foreach(OdontogramaState.estados_cat.to(list[dict]), _pincel_chip),
+                class_name="flex items-center gap-1.5 flex-wrap",
+            ),
+            rx.el.span(
+                "Activá el pincel para pintar caras tocándolas directo en la grilla.",
+                class_name="text-xs text-gray-400",
+            ),
+        ),
+        class_name="flex items-center gap-3 flex-wrap mb-3 p-2.5 bg-gray-50 border border-gray-100 rounded-xl",
     )
 
 
@@ -783,6 +885,7 @@ def odontograma_page() -> rx.Component:
                     OdontogramaState.vista_3d,
                     _panel_3d(),
                     rx.el.div(
+                        _pincel_bar(),
                         rx.el.div(
                             rx.el.div(
                                 _arcada(OdontogramaState.superior, "Superior"),
@@ -792,9 +895,16 @@ def odontograma_page() -> rx.Component:
                             ),
                             class_name="overflow-x-auto p-4 bg-white border border-gray-100 rounded-xl shadow-sm",
                         ),
-                        rx.el.p(
-                            "Tocá una pieza para registrar su estado. El punto blanco indica que la pieza tiene una nota.",
-                            class_name="text-xs text-gray-400 mt-3",
+                        rx.cond(
+                            OdontogramaState.pincel_activo,
+                            rx.el.p(
+                                "Modo pincel: tocá una cara para pintarla; tocala de nuevo con el mismo estado para quitarla. El número abre el detalle de la pieza.",
+                                class_name="text-xs text-sky-600 mt-3",
+                            ),
+                            rx.el.p(
+                                "Tocá una cara o el número de la pieza para editar su estado. El punto celeste indica que la pieza tiene una nota.",
+                                class_name="text-xs text-gray-400 mt-3",
+                            ),
                         ),
                     ),
                 ),

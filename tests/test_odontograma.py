@@ -81,6 +81,52 @@ async def test_guardar_pieza_con_caras(session, clinica, paciente, admin_user):
     assert r["caras"] == {"oclusal": "obturado", "mesial": "caries"}
 
 
+async def test_guardar_pieza_revive_tras_resetear(session, clinica, paciente, admin_user):
+    """Regresión: resetear una pieza (soft-delete) y volver a marcarla no debe
+    chocar con el UniqueConstraint (clinica, paciente, numero); la fila muerta se
+    revive en lugar de insertar una nueva."""
+    from clinica_app.models.pieza_dental import PiezaDental
+
+    await svc.guardar_pieza(session, clinica.id, paciente.id, "16", estado="caries", usuario_id=admin_user.id)
+    await svc.resetear_pieza(session, clinica.id, paciente.id, "16", usuario_id=admin_user.id)
+    # Volver a marcarla NO lanza IntegrityError y queda con el nuevo estado.
+    r = await svc.guardar_pieza(session, clinica.id, paciente.id, "16", estado="obturado", usuario_id=admin_user.id)
+    assert r["estado"] == "obturado"
+
+    data = await svc.listar(session, clinica.id, paciente.id)
+    pieza16 = next(p for p in data["superior"] if p["numero"] == "16")
+    assert pieza16["estado"] == "obturado"
+
+    # No quedan filas duplicadas para esa pieza.
+    filas = (await session.execute(
+        select(PiezaDental).where(
+            PiezaDental.paciente_id == paciente.id,
+            PiezaDental.numero == "16",
+        )
+    )).scalars().all()
+    assert len(filas) == 1
+    assert filas[0].is_active is True
+
+
+async def test_listar_incluye_superficies(session, clinica, paciente, admin_user):
+    """Cada pieza trae las 5 superficies ya resueltas (color/estado) para la grilla 2D."""
+    await svc.guardar_pieza(
+        session, clinica.id, paciente.id, "26",
+        estado="obturado",
+        caras={"oclusal": "obturado", "mesial": "caries"},
+        usuario_id=admin_user.id,
+    )
+    data = await svc.listar(session, clinica.id, paciente.id)
+    p26 = next(p for p in data["superior"] if p["numero"] == "26")
+    assert len(p26["superficies"]) == 5
+    by = {s["cara"]: s for s in p26["superficies"]}
+    assert by["oclusal"]["tiene"] is True
+    assert by["oclusal"]["color"] == svc.ESTADOS["obturado"]["color"]
+    assert by["mesial"]["color"] == svc.ESTADOS["caries"]["color"]
+    assert by["vestibular"]["tiene"] is False
+    assert by["vestibular"]["color"] == "#ffffff"
+
+
 async def test_guardar_pieza_estado_invalido(session, clinica, paciente, admin_user):
     with pytest.raises(ValidationError):
         await svc.guardar_pieza(session, clinica.id, paciente.id, "16", estado="marciano", usuario_id=admin_user.id)

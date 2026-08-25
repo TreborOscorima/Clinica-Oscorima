@@ -53,6 +53,38 @@ ESTADOS: dict[str, dict[str, str]] = {
 # Caras de la pieza (para el detalle por superficie)
 CARAS: tuple[str, ...] = ("vestibular", "palatina", "mesial", "distal", "oclusal")
 
+# Disposición de las 5 caras para dibujar el diente como cruz (V arriba, M/O/D en
+# el medio, P abajo). El orden de esta tupla es el que consume `superficies` y el
+# que la grilla 2D espera por índice: 0=V, 1=M, 2=O, 3=D, 4=P.
+_CARA_LAYOUT: tuple[tuple[str, str, str], ...] = (
+    ("vestibular", "V", "Vestibular"),
+    ("mesial",     "M", "Mesial"),
+    ("oclusal",    "O", "Oclusal / Incisal"),
+    ("distal",     "D", "Distal"),
+    ("palatina",   "P", "Palatina / Lingual"),
+)
+
+
+def _superficies(caras: dict[str, str] | None) -> list[dict[str, Any]]:
+    """Las 5 caras en orden de layout, cada una ya resuelta con su color/estado.
+    Cara sin detalle → color blanco y `tiene=False`. Lo dibuja la grilla 2D
+    (una celda por cara) sin necesidad de lookups reactivos en la UI."""
+    caras = caras or {}
+    salida: list[dict[str, Any]] = []
+    for cara, corto, label in _CARA_LAYOUT:
+        est = caras.get(cara, "")
+        info = ESTADOS.get(est) if est else None
+        salida.append({
+            "cara":   cara,
+            "corto":  corto,
+            "label":  label,
+            "estado": est,
+            "color":  info["color"] if info else "#ffffff",
+            "text":   info["text"] if info else "#9ca3af",
+            "tiene":  bool(info),
+        })
+    return salida
+
 
 def estados_catalogo() -> list[dict[str, str]]:
     """Catálogo de estados para la leyenda/selector de la UI."""
@@ -105,10 +137,12 @@ def _serializar_caras(caras: dict[str, str] | None) -> str | None:
 
 def _dump(p: PiezaDental) -> dict[str, Any]:
     info = ESTADOS.get(p.estado or "sano", ESTADOS["sano"])
+    caras = _parse_caras(p.caras)
     return {
         "numero":     p.numero,
         "estado":     p.estado or "sano",
-        "caras":      _parse_caras(p.caras),
+        "caras":      caras,
+        "superficies": _superficies(caras),
         "nota":       p.nota or "",
         "estado_label": info["label"],
         "color":      info["color"],
@@ -121,6 +155,7 @@ def _pieza_default(numero: str) -> dict[str, Any]:
         "numero":       numero,
         "estado":       "sano",
         "caras":        {},
+        "superficies":  _superficies({}),
         "nota":         "",
         "estado_label": ESTADOS["sano"]["label"],
         "color":        ESTADOS["sano"]["color"],
@@ -203,11 +238,15 @@ async def guardar_pieza(
     caras_json = _serializar_caras(caras)
     nota = (nota or "").strip()[:255] or None
 
+    # Buscamos SIN filtrar por is_active: el UniqueConstraint (clinica, paciente,
+    # numero) no distingue soft-delete, así que una pieza reseteada (is_active=0)
+    # sigue ocupando la clave. Si insertáramos una nueva chocaría con esa fila
+    # muerta; en su lugar la revivimos. (Sin esto, resetear una pieza y volver a
+    # marcarla lanzaba IntegrityError 1062.)
     stmt = select(PiezaDental).where(
         PiezaDental.clinica_id == clinica_id,
         PiezaDental.paciente_id == paciente_id,
         PiezaDental.numero == numero,
-        PiezaDental.is_active.is_(True),
     )
     p = (await session.execute(stmt)).scalars().first()
 
@@ -224,6 +263,10 @@ async def guardar_pieza(
         )
         session.add(p)
     else:
+        if not p.is_active:                 # revivir una pieza previamente reseteada
+            p.is_active = True
+            p.deleted_at = None
+            p.sede_id = sede_id or p.sede_id
         p.estado = estado
         p.caras = caras_json
         p.nota = nota
@@ -284,10 +327,12 @@ def _pieza_desde_snapshot(item: dict[str, Any]) -> dict[str, Any]:
         estado = "sano"
     info = ESTADOS[estado]
     caras = item.get("caras")
+    caras = caras if isinstance(caras, dict) else {}
     return {
         "numero":       numero,
         "estado":       estado,
-        "caras":        caras if isinstance(caras, dict) else {},
+        "caras":        caras,
+        "superficies":  _superficies(caras),
         "nota":         item.get("nota") or "",
         "estado_label": info["label"],
         "color":        info["color"],
