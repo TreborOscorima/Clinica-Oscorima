@@ -191,12 +191,27 @@ async def registrar_movimiento_stock(
     motivo: str = "",
     referencia: str = "",
     sede_id: int = 0,
+    lote: str = "",
+    vencimiento: Any = None,
 ) -> dict[str, Any]:
     p = await obtener_producto(session, clinica_id, producto_id, sede_id)
     try:
         mov = _aplicar_movimiento(session, p, tipo, cantidad, motivo=motivo, referencia=referencia)
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+
+    # Lotes (best-effort): en ingreso registra el lote recibido; en egreso
+    # descuenta FEFO. Import local para evitar ciclo inventario <-> lotes.
+    from clinica_app.services import lotes as _lotes
+    if tipo == TipoMov.INGRESO.value and (lote or "").strip():
+        await _lotes.registrar_ingreso(
+            session, clinica_id, producto_id,
+            lote=lote, vencimiento=vencimiento, cantidad=cantidad,
+            costo_unitario=p.precio_costo, sede_id=sede_id,
+        )
+    elif tipo == TipoMov.EGRESO.value:
+        await _lotes.consumir_fefo(session, clinica_id, producto_id, cantidad, sede_id=sede_id)
+
     await session.flush()
     return {
         "producto_id": p.id,

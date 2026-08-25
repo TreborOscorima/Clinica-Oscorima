@@ -331,6 +331,9 @@ async def _descontar_stock(
         motivo="Venta",
         referencia=f"comp:{comprobante_id}",
     ))
+    # FEFO best-effort sobre los lotes del producto (no-op si no tiene lotes).
+    from clinica_app.services import lotes as _lotes
+    await _lotes.consumir_fefo(session, clinica_id, producto_id, cantidad, sede_id=prod.sede_id or 0)
     if nuevo_stock < 0:
         return f"{prod.nombre}: stock negativo ({nuevo_stock})"
     if nuevo_stock == 0:

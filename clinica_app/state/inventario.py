@@ -35,12 +35,22 @@ class InventarioState(BaseState):
     is_saving:         bool = False
 
     # Modal movimiento de stock
-    modal_mov:         bool = False
-    mov_prod_id:       int  = 0
-    mov_prod_nombre:   str  = ""
-    form_mov_tipo:     str  = "ingreso"
-    form_mov_cantidad: str  = ""
-    form_mov_motivo:   str  = ""
+    modal_mov:            bool = False
+    mov_prod_id:          int  = 0
+    mov_prod_nombre:      str  = ""
+    form_mov_tipo:        str  = "ingreso"
+    form_mov_cantidad:    str  = ""
+    form_mov_motivo:      str  = ""
+    form_mov_lote:        str  = ""
+    form_mov_vencimiento: str  = ""
+    lotes_producto:       list[dict] = []
+
+    # Alertas de vencimiento de lotes
+    alertas_vencidos:   list[dict] = []
+    alertas_por_vencer: list[dict] = []
+    total_vencidos:     int        = 0
+    total_por_vencer:   int        = 0
+    ver_vencimientos:   bool       = False
 
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
@@ -77,6 +87,21 @@ class InventarioState(BaseState):
         self.total       = result["total"]
         self.total_pages = result["pages"]
         self.is_loading  = False
+        await self._cargar_alertas()
+
+    async def _cargar_alertas(self):
+        from clinica_app.services import lotes as lotes_svc
+        async with get_async_session() as session:
+            al = await lotes_svc.alertas_vencimiento(
+                session, self.clinica_id, sede_id=self.sede_actual_id, dias=30
+            )
+        self.alertas_vencidos   = al["vencidos"]
+        self.alertas_por_vencer = al["por_vencer"]
+        self.total_vencidos     = al["total_vencidos"]
+        self.total_por_vencer   = al["total_por_vencer"]
+
+    def toggle_vencimientos(self):
+        self.ver_vencimientos = not self.ver_vencimientos
 
     async def set_busqueda(self, v: str):
         self.busqueda = v
@@ -104,6 +129,8 @@ class InventarioState(BaseState):
     def set_form_mov_tipo(self, v: str):      self.form_mov_tipo = v
     def set_form_mov_cantidad(self, v: str):  self.form_mov_cantidad = v
     def set_form_mov_motivo(self, v: str):    self.form_mov_motivo = v
+    def set_form_mov_lote(self, v: str):      self.form_mov_lote = v
+    def set_form_mov_vencimiento(self, v: str): self.form_mov_vencimiento = v
 
     async def toggle_minimo(self):
         self.solo_minimo = not self.solo_minimo
@@ -218,13 +245,21 @@ class InventarioState(BaseState):
 
     # ── Modal movimiento de stock ──────────────────────────────────────────────
 
-    def abrir_mov(self, p: dict):
-        self.mov_prod_id       = p.get("id") or 0
-        self.mov_prod_nombre   = p.get("nombre") or ""
-        self.form_mov_tipo     = "ingreso"
-        self.form_mov_cantidad = ""
-        self.form_mov_motivo   = ""
-        self.modal_mov         = True
+    async def abrir_mov(self, p: dict):
+        self.mov_prod_id          = p.get("id") or 0
+        self.mov_prod_nombre      = p.get("nombre") or ""
+        self.form_mov_tipo        = "ingreso"
+        self.form_mov_cantidad    = ""
+        self.form_mov_motivo      = ""
+        self.form_mov_lote        = ""
+        self.form_mov_vencimiento = ""
+        self.lotes_producto       = []
+        self.modal_mov            = True
+        from clinica_app.services import lotes as lotes_svc
+        async with get_async_session() as session:
+            self.lotes_producto = await lotes_svc.listar_por_producto(
+                session, self.clinica_id, self.mov_prod_id, sede_id=self.sede_actual_id
+            )
 
     def cerrar_mov(self):
         self.modal_mov = False
@@ -246,6 +281,8 @@ class InventarioState(BaseState):
                     self.form_mov_cantidad,
                     motivo=self.form_mov_motivo,
                     sede_id=self.sede_actual_id,
+                    lote=self.form_mov_lote,
+                    vencimiento=self.form_mov_vencimiento,
                 )
             except ServiceError as exc:
                 yield rx.toast.error(str(exc))

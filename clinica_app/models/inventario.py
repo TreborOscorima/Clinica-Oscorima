@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, UniqueConstraint
+from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Integer, Numeric, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -54,6 +54,47 @@ class Producto(SQLModel, table=True):
         if self.stock_actual is None or self.stock_minimo is None:
             return False
         return self.stock_actual < self.stock_minimo
+
+
+class LoteProducto(SQLModel, table=True):
+    """Lote/partida de un producto con vencimiento y saldo propio.
+
+    Habilita el control de vencimientos (crítico para fármacos e insumos
+    estéticos) y el consumo FEFO (first-expired-first-out). El `stock_actual`
+    del Producto sigue siendo la fuente de verdad agregada; los lotes son un
+    desglose por partida que se mantiene best-effort en cada consumo.
+    """
+    __tablename__ = "inv_lotes"
+    __table_args__ = (
+        UniqueConstraint(
+            "clinica_id", "sede_id", "producto_id", "lote",
+            name="uq_inv_lotes_clinica_sede_prod_lote",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
+    producto_id: int = Field(foreign_key="inv_productos.id", nullable=False, index=True)
+    lote: str = Field(max_length=80, nullable=False)
+    vencimiento: date | None = Field(
+        default=None, sa_column=Column(Date, nullable=True, index=True)
+    )
+    cantidad_inicial: Decimal = Field(sa_column=Column(Numeric(12, 3), nullable=False))
+    cantidad_actual: Decimal = Field(sa_column=Column(Numeric(12, 3), nullable=False))
+    costo_unitario: Decimal | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    is_active: bool = Field(default=True, nullable=False, index=True)
+    deleted_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, nullable=True, index=True)
+    )
+    created_at: datetime | None = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime, default=_utcnow, nullable=True, index=True),
+    )
+
+    def soft_delete(self) -> None:
+        self.is_active = False
+        self.deleted_at = _utcnow()
 
 
 class MovimientoStock(SQLModel, table=True):

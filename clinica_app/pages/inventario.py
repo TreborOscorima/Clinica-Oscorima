@@ -72,6 +72,54 @@ def _modal_producto() -> rx.Component:
     )
 
 
+_VENC_CLASSES = {
+    "vencido":    "bg-red-100 text-red-700",
+    "por_vencer": "bg-amber-100 text-amber-700",
+    "ok":         "bg-emerald-50 text-emerald-700",
+    "sin_venc":   "bg-gray-100 text-gray-500",
+}
+
+
+_VENC_BASE = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium "
+
+
+def _venc_badge(l: dict) -> rx.Component:
+    label = rx.match(
+        l["estado"],
+        ("vencido", "Vencido"),
+        ("por_vencer", f"Vence en {l['dias_restantes']} d"),
+        ("sin_venc", "Sin venc."),
+        rx.cond(l["vencimiento"] != "", l["vencimiento"], "—"),
+    )
+    cls = rx.match(
+        l["estado"],
+        ("vencido", _VENC_BASE + _VENC_CLASSES["vencido"]),
+        ("por_vencer", _VENC_BASE + _VENC_CLASSES["por_vencer"]),
+        ("sin_venc", _VENC_BASE + _VENC_CLASSES["sin_venc"]),
+        _VENC_BASE + _VENC_CLASSES["ok"],
+    )
+    return rx.el.span(label, class_name=cls)
+
+
+def _fila_lote(l: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(l["lote"], class_name="text-sm font-medium text-gray-800"),
+            rx.cond(
+                l["vencimiento"] != "",
+                rx.el.span(l["vencimiento"], class_name="text-xs text-gray-400 ml-2"),
+            ),
+            class_name="flex items-baseline min-w-0",
+        ),
+        rx.el.div(
+            _venc_badge(l),
+            rx.el.span(l["cantidad"], class_name="text-sm font-semibold text-gray-700 tabular-nums w-14 text-right"),
+            class_name="flex items-center gap-2 shrink-0",
+        ),
+        class_name="flex items-center justify-between px-2.5 py-1.5 bg-gray-50 rounded-lg",
+    )
+
+
 def _modal_movimiento() -> rx.Component:
     return rx.cond(
         InventarioState.modal_mov,
@@ -97,6 +145,35 @@ def _modal_movimiento() -> rx.Component:
                 rx.el.div(class_name="mb-4"),
                 _campo("Motivo", "text", InventarioState.form_mov_motivo,
                        InventarioState.set_form_mov_motivo, "Opcional..."),
+                # Lote + vencimiento — solo al ingresar stock (fármacos/insumos).
+                rx.cond(
+                    InventarioState.form_mov_tipo == "ingreso",
+                    rx.el.div(
+                        rx.el.div(
+                            _campo("Lote", "text", InventarioState.form_mov_lote,
+                                   InventarioState.set_form_mov_lote, "Ej: L-2026-014"),
+                            _campo("Vencimiento", "date", InventarioState.form_mov_vencimiento,
+                                   InventarioState.set_form_mov_vencimiento),
+                            class_name="grid grid-cols-2 gap-3",
+                        ),
+                        rx.el.p(
+                            "Opcional. Registrá el lote para controlar vencimientos.",
+                            class_name="text-xs text-gray-400 mt-1",
+                        ),
+                        class_name="mt-4",
+                    ),
+                ),
+                # Lotes existentes del producto (con stock).
+                rx.cond(
+                    InventarioState.lotes_producto,
+                    rx.el.div(
+                        rx.el.p("Lotes con stock", class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-5 mb-2"),
+                        rx.el.div(
+                            rx.foreach(InventarioState.lotes_producto.to(list[dict]), _fila_lote),
+                            class_name="flex flex-col gap-1 max-h-40 overflow-y-auto",
+                        ),
+                    ),
+                ),
                 rx.el.div(
                     rx.el.button("Cancelar", on_click=InventarioState.cerrar_mov,
                                  class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"),
@@ -172,6 +249,74 @@ def _fila_producto(p: dict) -> rx.Component:
     )
 
 
+def _fila_alerta(l: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span(l["producto_nombre"], class_name="text-sm font-medium text-gray-800 truncate"),
+            rx.el.span(f"Lote {l['lote']}", class_name="text-xs text-gray-400 ml-2 shrink-0"),
+            class_name="flex items-baseline min-w-0",
+        ),
+        rx.el.div(
+            _venc_badge(l),
+            rx.el.span(f"{l['cantidad']} u.", class_name="text-xs text-gray-500 tabular-nums w-16 text-right"),
+            class_name="flex items-center gap-2 shrink-0",
+        ),
+        class_name="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-gray-100",
+    )
+
+
+def _panel_vencimientos() -> rx.Component:
+    hay = (InventarioState.total_vencidos + InventarioState.total_por_vencer) > 0
+    return rx.cond(
+        hay,
+        rx.el.div(
+            rx.el.div(
+                rx.icon("calendar-clock", size=18, class_name="text-amber-600 shrink-0"),
+                rx.el.p(
+                    rx.cond(
+                        InventarioState.total_vencidos > 0,
+                        rx.el.span(
+                            f"{InventarioState.total_vencidos} vencido(s)",
+                            class_name="font-semibold text-red-700",
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        (InventarioState.total_vencidos > 0) & (InventarioState.total_por_vencer > 0),
+                        rx.el.span(" · ", class_name="text-gray-400"),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        InventarioState.total_por_vencer > 0,
+                        rx.el.span(
+                            f"{InventarioState.total_por_vencer} por vencer (≤30 días)",
+                            class_name="font-semibold text-amber-700",
+                        ),
+                        rx.fragment(),
+                    ),
+                    class_name="text-sm text-gray-700 ml-2",
+                ),
+                rx.el.div(class_name="flex-1"),
+                rx.el.button(
+                    rx.cond(InventarioState.ver_vencimientos, "Ocultar", "Ver lotes"),
+                    on_click=InventarioState.toggle_vencimientos,
+                    class_name="text-xs font-medium text-amber-800 hover:underline cursor-pointer shrink-0",
+                ),
+                class_name="flex items-center",
+            ),
+            rx.cond(
+                InventarioState.ver_vencimientos,
+                rx.el.div(
+                    rx.foreach(InventarioState.alertas_vencidos.to(list[dict]), _fila_alerta),
+                    rx.foreach(InventarioState.alertas_por_vencer.to(list[dict]), _fila_alerta),
+                    class_name="flex flex-col gap-1.5 mt-3",
+                ),
+            ),
+            class_name="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl",
+        ),
+    )
+
+
 def inventario_page() -> rx.Component:
     return shell(
         _modal_producto(),
@@ -205,6 +350,7 @@ def inventario_page() -> rx.Component:
                 class_name="flex items-center gap-3",
             ),
         ),
+        _panel_vencimientos(),
         # Buscador
         rx.el.div(
             rx.el.div(
