@@ -57,6 +57,8 @@ def generar_receta_pdf(
     paciente_nombre: str = "",
     paciente_documento: str = "",
     profesional_nombre: str = "",
+    profesional_matricula: str = "",
+    profesional_especialidad: str = "",
     diagnostico: str = "",
     cuerpo: str = "",
     fecha: str = "",
@@ -125,22 +127,28 @@ def generar_receta_pdf(
         for ln in lineas:
             story.append(Paragraph(ln, body_style))
 
-    # Firma del profesional
+    # Firma del profesional — nombre + matrícula/especialidad si están.
     story.append(Spacer(1, 18 * mm))
-    firma = Table(
-        [
-            ["_______________________________"],
-            [profesional_nombre or "Firma y sello del profesional"],
-        ],
-        colWidths=[90 * mm],
+    cred = " · ".join(
+        p for p in (
+            f"Mat. {profesional_matricula}" if profesional_matricula.strip() else "",
+            profesional_especialidad.strip(),
+        ) if p
     )
+    firma_rows = [
+        ["_______________________________"],
+        [profesional_nombre or "Firma y sello del profesional"],
+    ]
+    if cred:
+        firma_rows.append([cred])
+    firma = Table(firma_rows, colWidths=[90 * mm])
     firma.setStyle(TableStyle([
         ("FONTNAME",  (0, 0), (-1, -1), "Helvetica"),
         ("FONTSIZE",  (0, 0), (0, 0), 10),
-        ("FONTSIZE",  (0, 1), (0, 1), 8),
-        ("TEXTCOLOR", (0, 1), (0, 1), gray),
+        ("FONTSIZE",  (0, 1), (0, -1), 8),
+        ("TEXTCOLOR", (0, 1), (0, -1), gray),
         ("ALIGN",     (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 1), (0, 1), 2),
+        ("TOPPADDING", (0, 1), (0, -1), 2),
     ]))
     story.append(firma)
 

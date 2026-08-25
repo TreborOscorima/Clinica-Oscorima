@@ -323,6 +323,18 @@ def _modal_receta() -> rx.Component:
                     rx.el.span(NotasClinicasState.paciente_nombre, class_name="text-sm text-gray-600"),
                     class_name="flex items-center mb-4 bg-gray-50 px-3 py-2 rounded-lg",
                 ),
+                # Alergias del paciente — visible siempre que existan.
+                rx.cond(
+                    NotasClinicasState.paciente_alergias != "",
+                    rx.el.div(
+                        rx.icon("triangle-alert", size=15, class_name="text-red-600 mr-2 shrink-0 mt-0.5"),
+                        rx.el.div(
+                            rx.el.span("Alergias del paciente: ", class_name="text-sm font-semibold text-red-700"),
+                            rx.el.span(NotasClinicasState.paciente_alergias, class_name="text-sm text-red-700"),
+                        ),
+                        class_name="flex items-start mb-4 bg-red-50 border border-red-200 px-3 py-2 rounded-lg",
+                    ),
+                ),
                 # Tipo
                 rx.el.div(
                     rx.el.label("Tipo de documento", class_name="block text-sm font-medium text-gray-700 mb-1"),
@@ -368,15 +380,25 @@ def _modal_receta() -> rx.Component:
                     ),
                     class_name="mb-4",
                 ),
-                # Profesional (firma)
+                # Profesional (firma) — se elige del catálogo y autocompleta matrícula.
                 rx.el.div(
                     rx.el.label("Profesional (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.el.input(
-                        type="text",
-                        placeholder="Nombre y matrícula del profesional",
-                        default_value=NotasClinicasState.rec_profesional,
-                        on_change=NotasClinicasState.set_rec_profesional,
+                    rx.el.select(
+                        rx.el.option("— Seleccionar profesional —", value=""),
+                        rx.foreach(
+                            NotasClinicasState.profesionales_cat.to(list[dict]),
+                            lambda p: rx.el.option(p["nombre"], value=p["id"]),
+                        ),
+                        value=NotasClinicasState.rec_profesional_id,
+                        on_change=NotasClinicasState.set_rec_profesional_sel,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500",
+                    ),
+                    rx.cond(
+                        NotasClinicasState.rec_prof_credencial != "",
+                        rx.el.p(
+                            NotasClinicasState.rec_prof_credencial,
+                            class_name="text-xs text-gray-500 mt-1",
+                        ),
                     ),
                     class_name="mb-4",
                 ),
@@ -384,6 +406,32 @@ def _modal_receta() -> rx.Component:
                     rx.icon("info", size=12, class_name="inline mr-1 -mt-0.5"),
                     "Se generará un PDF y quedará archivado como adjunto del paciente, listo para imprimir y firmar.",
                     class_name="text-xs text-gray-400 mb-3",
+                ),
+                # Advertencia de cruce receta ↔ alergias.
+                rx.cond(
+                    NotasClinicasState.rec_tiene_conflictos,
+                    rx.el.div(
+                        rx.el.div(
+                            rx.icon("octagon-alert", size=16, class_name="text-red-600 mr-2 shrink-0 mt-0.5"),
+                            rx.el.div(
+                                rx.el.p(
+                                    "Conflicto con alergias del paciente",
+                                    class_name="text-sm font-semibold text-red-800",
+                                ),
+                                rx.el.p(
+                                    rx.el.span("La receta menciona: ", class_name="text-red-700"),
+                                    rx.el.span(NotasClinicasState.rec_conflictos_str, class_name="font-semibold text-red-800"),
+                                    class_name="text-sm mt-0.5",
+                                ),
+                                rx.el.p(
+                                    "Revisá la prescripción. Si aun así corresponde, confirmá abajo.",
+                                    class_name="text-xs text-red-600 mt-1",
+                                ),
+                            ),
+                            class_name="flex items-start",
+                        ),
+                        class_name="mb-3 bg-red-50 border border-red-300 px-3 py-2.5 rounded-lg",
+                    ),
                 ),
                 # Error
                 rx.cond(
@@ -400,7 +448,25 @@ def _modal_receta() -> rx.Component:
                         on_click=NotasClinicasState.cerrar_receta,
                         class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
                     ),
-                    rx.el.button(
+                    # Con conflicto: botón explícito de confirmación (rojo, bajo responsabilidad).
+                    rx.cond(
+                        NotasClinicasState.rec_tiene_conflictos,
+                        rx.el.button(
+                            rx.el.div(
+                                rx.icon("triangle-alert", size=16, class_name="mr-1"),
+                                "Generar igual",
+                                class_name="flex items-center",
+                            ),
+                            on_click=NotasClinicasState.forzar_generar_receta,
+                            disabled=NotasClinicasState.is_generating_rec,
+                            class_name="px-4 py-2 text-sm bg-red-700 text-white rounded-lg hover:bg-red-800 disabled:bg-red-400 cursor-pointer",
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.cond(
+                        NotasClinicasState.rec_tiene_conflictos,
+                        rx.fragment(),
+                        rx.el.button(
                         rx.cond(
                             NotasClinicasState.is_generating_rec,
                             rx.el.div(
@@ -417,6 +483,7 @@ def _modal_receta() -> rx.Component:
                         on_click=NotasClinicasState.generar_receta,
                         disabled=NotasClinicasState.is_generating_rec,
                         class_name="px-4 py-2 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:bg-rose-400 cursor-pointer",
+                        ),
                     ),
                     class_name="flex gap-3 justify-end",
                 ),

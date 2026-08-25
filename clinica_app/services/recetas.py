@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import unicodedata
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,42 @@ def tipos() -> list[dict[str, str]]:
     return [{"clave": k, "label": v} for k, v in _TIPOS.items()]
 
 
+# ── Cruce receta ↔ alergias ─────────────────────────────────────────────────
+
+_SEP_RE = re.compile(r"[,;/·\n\r\.]+|\by\b|\be\b", re.IGNORECASE)
+
+
+def _norm(s: str) -> str:
+    """Minúsculas sin acentos, para comparar términos de forma robusta."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return s.lower()
+
+
+def detectar_conflictos_alergia(cuerpo: str, alergias: str) -> list[str]:
+    """Devuelve los términos de alergia del paciente que aparecen en la receta.
+
+    Coincidencia por substring normalizado (sin acentos, insensible a mayúsculas)
+    de cada término declarado en `alergias` contra el cuerpo de la receta. Es una
+    ayuda de seguridad, no un sustituto del criterio clínico: matchea el texto
+    literal, no clases farmacológicas (p. ej. "AINEs" no matchea "ibuprofeno").
+    """
+    if not (alergias or "").strip() or not (cuerpo or "").strip():
+        return []
+    cuerpo_n = _norm(cuerpo)
+    conflictos: list[str] = []
+    vistos: set[str] = set()
+    for termino in _SEP_RE.split(alergias):
+        t = (termino or "").strip()
+        if len(t) < 3:
+            continue
+        clave = _norm(t)
+        if clave and clave not in vistos and clave in cuerpo_n:
+            vistos.add(clave)
+            conflictos.append(t)
+    return conflictos
+
+
 def _slug(texto: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (texto or "").lower()).strip("-")
     return s[:40] or "receta"
@@ -48,6 +85,8 @@ async def generar(
     cuerpo: str = "",
     diagnostico: str = "",
     profesional_nombre: str = "",
+    profesional_matricula: str = "",
+    profesional_especialidad: str = "",
     usuario_id: int | None = None,
     sede_id: int = 0,
     clinica_nombre: str = "TUWAYKILIFE",
@@ -79,6 +118,8 @@ async def generar(
         paciente_nombre=pac.nombre,
         paciente_documento=pac.documento or "",
         profesional_nombre=profesional_nombre,
+        profesional_matricula=profesional_matricula,
+        profesional_especialidad=profesional_especialidad,
         diagnostico=diagnostico,
         cuerpo=cuerpo,
     )

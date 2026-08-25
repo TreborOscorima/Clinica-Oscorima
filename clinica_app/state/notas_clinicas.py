@@ -71,8 +71,14 @@ class NotasClinicasState(BaseState):
     rec_diagnostico:     str  = ""
     rec_cuerpo:          str  = ""
     rec_profesional:     str  = ""
+    rec_profesional_id:  str  = ""
+    rec_prof_matricula:  str  = ""
+    rec_prof_especialidad: str = ""
     rec_error:           str  = ""
     is_generating_rec:   bool = False
+    # Cruce receta ↔ alergias
+    rec_conflictos:      list[str] = []
+    rec_forzar_alergia:  bool = False
 
     async def on_mount(self):
         self._expirar_si_vencio()
@@ -124,7 +130,12 @@ class NotasClinicasState(BaseState):
                 stmt_profs = stmt_profs.where(Profesional.sede_id == self.sede_actual_id)
             profs = (await session.execute(stmt_profs.limit(100))).scalars().all()
             self.profesionales_cat = [
-                {"id": str(p.id), "nombre": f"{p.nombres} {p.apellidos}"}
+                {
+                    "id":           str(p.id),
+                    "nombre":       f"{p.nombres} {p.apellidos}",
+                    "matricula":    p.matricula or "",
+                    "especialidad": p.especialidad or "",
+                }
                 for p in profs
             ]
 
@@ -279,19 +290,64 @@ class NotasClinicasState(BaseState):
 
     def set_rec_tipo(self, v: str):        self.rec_tipo = v
     def set_rec_diagnostico(self, v: str): self.rec_diagnostico = v
-    def set_rec_cuerpo(self, v: str):      self.rec_cuerpo = v
-    def set_rec_profesional(self, v: str): self.rec_profesional = v
+
+    def set_rec_cuerpo(self, v: str):
+        self.rec_cuerpo = v
+        # Al editar, se re-evalúa el cruce de alergias en el próximo intento.
+        self.rec_conflictos     = []
+        self.rec_forzar_alergia = False
+
+    def set_rec_profesional_sel(self, pid: str):
+        """Elige un profesional del catálogo y autocompleta nombre + matrícula."""
+        self.rec_profesional_id    = pid
+        self.rec_prof_matricula    = ""
+        self.rec_prof_especialidad = ""
+        self.rec_profesional       = ""
+        for p in self.profesionales_cat:
+            if p["id"] == pid:
+                self.rec_profesional       = p["nombre"]
+                self.rec_prof_matricula    = p["matricula"]
+                self.rec_prof_especialidad = p["especialidad"]
+                break
 
     def abrir_receta(self):
-        self.rec_tipo        = "receta"
-        self.rec_diagnostico = ""
-        self.rec_cuerpo      = ""
-        self.rec_profesional = ""
-        self.rec_error       = ""
-        self.modal_rec_abierto = True
+        self.rec_tipo              = "receta"
+        self.rec_diagnostico       = ""
+        self.rec_cuerpo            = ""
+        self.rec_profesional       = ""
+        self.rec_profesional_id    = ""
+        self.rec_prof_matricula    = ""
+        self.rec_prof_especialidad = ""
+        self.rec_error             = ""
+        self.rec_conflictos        = []
+        self.rec_forzar_alergia    = False
+        self.modal_rec_abierto     = True
 
     def cerrar_receta(self):
         self.modal_rec_abierto = False
+
+    @rx.var
+    def rec_prof_credencial(self) -> str:
+        partes: list[str] = []
+        if self.rec_prof_matricula.strip():
+            partes.append(f"Mat. {self.rec_prof_matricula}")
+        if self.rec_prof_especialidad.strip():
+            partes.append(self.rec_prof_especialidad)
+        return " · ".join(partes)
+
+    @rx.var
+    def rec_tiene_conflictos(self) -> bool:
+        return len(self.rec_conflictos) > 0
+
+    @rx.var
+    def rec_conflictos_str(self) -> str:
+        return ", ".join(self.rec_conflictos)
+
+    async def forzar_generar_receta(self):
+        """Confirma la emisión pese al conflicto de alergias detectado."""
+        self.rec_forzar_alergia = True
+        async for s in self.generar_receta():
+            yield s
 
     async def generar_receta(self):
         self.rec_error = ""
@@ -305,6 +361,17 @@ class NotasClinicasState(BaseState):
             self.rec_error = "Escribí el contenido"
             return
 
+        # Cruce receta ↔ alergias: si la receta menciona un alérgeno declarado
+        # y el usuario no confirmó, se frena y se muestra la advertencia.
+        if not self.rec_forzar_alergia:
+            conflictos = rec_svc.detectar_conflictos_alergia(
+                self.rec_cuerpo, self.paciente_alergias
+            )
+            if conflictos:
+                self.rec_conflictos = conflictos
+                return
+        self.rec_conflictos = []
+
         self.is_generating_rec = True
         yield
         try:
@@ -315,6 +382,8 @@ class NotasClinicasState(BaseState):
                     cuerpo=self.rec_cuerpo,
                     diagnostico=self.rec_diagnostico,
                     profesional_nombre=self.rec_profesional,
+                    profesional_matricula=self.rec_prof_matricula,
+                    profesional_especialidad=self.rec_prof_especialidad,
                     usuario_id=self.user_id,
                     sede_id=self.sede_actual_id,
                     clinica_nombre=CLINICA_NOMBRE,
@@ -332,8 +401,9 @@ class NotasClinicasState(BaseState):
             self.is_generating_rec = False
             return
 
-        self.is_generating_rec = False
-        self.modal_rec_abierto = False
+        self.is_generating_rec  = False
+        self.rec_forzar_alergia = False
+        self.modal_rec_abierto  = False
         await self._cargar_adjuntos()
 
     async def prev_page(self):
