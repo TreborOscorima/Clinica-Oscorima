@@ -223,15 +223,25 @@ def _modal_consentimiento() -> rx.Component:
                     ),
                     class_name="mb-4",
                 ),
-                # Profesional (aclaración de la firma)
+                # Profesional (firma) — se elige del catálogo y autocompleta matrícula.
                 rx.el.div(
                     rx.el.label("Profesional (opcional)", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.el.input(
-                        type="text",
-                        placeholder="Nombre y matrícula del profesional",
-                        default_value=NotasClinicasState.cons_profesional,
-                        on_change=NotasClinicasState.set_cons_profesional,
+                    rx.el.select(
+                        rx.el.option("— Seleccionar profesional —", value=""),
+                        rx.foreach(
+                            NotasClinicasState.profesionales_cat.to(list[dict]),
+                            lambda p: rx.el.option(p["nombre"], value=p["id"]),
+                        ),
+                        value=NotasClinicasState.cons_profesional_id,
+                        on_change=NotasClinicasState.set_cons_profesional_sel,
                         class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500",
+                    ),
+                    rx.cond(
+                        NotasClinicasState.cons_prof_credencial != "",
+                        rx.el.p(
+                            NotasClinicasState.cons_prof_credencial,
+                            class_name="text-xs text-gray-500 mt-1",
+                        ),
                     ),
                     class_name="mb-4",
                 ),

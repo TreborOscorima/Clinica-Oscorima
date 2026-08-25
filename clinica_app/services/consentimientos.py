@@ -44,6 +44,8 @@ async def generar(
     tipo: str = "general",
     procedimiento: str = "",
     profesional_nombre: str = "",
+    profesional_matricula: str = "",
+    profesional_especialidad: str = "",
     observaciones: str = "",
     usuario_id: int | None = None,
     sede_id: int = 0,
@@ -77,6 +79,8 @@ async def generar(
         paciente_documento=pac.documento or "",
         procedimiento=procedimiento,
         profesional_nombre=profesional_nombre,
+        profesional_matricula=profesional_matricula,
+        profesional_especialidad=profesional_especialidad,
         observaciones=observaciones,
     )
 

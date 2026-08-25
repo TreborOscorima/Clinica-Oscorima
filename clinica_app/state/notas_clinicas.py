@@ -60,6 +60,9 @@ class NotasClinicasState(BaseState):
     cons_tipo:           str  = "general"
     cons_procedimiento:  str  = ""
     cons_profesional:    str  = ""
+    cons_profesional_id: str  = ""
+    cons_prof_matricula: str  = ""
+    cons_prof_especialidad: str = ""
     cons_observaciones:  str  = ""
     cons_error:          str  = ""
     is_generating_cons:  bool = False
@@ -229,16 +232,40 @@ class NotasClinicasState(BaseState):
 
     def set_cons_tipo(self, v: str):          self.cons_tipo = v
     def set_cons_procedimiento(self, v: str): self.cons_procedimiento = v
-    def set_cons_profesional(self, v: str):   self.cons_profesional = v
     def set_cons_observaciones(self, v: str): self.cons_observaciones = v
 
+    def set_cons_profesional_sel(self, pid: str):
+        """Elige un profesional del catálogo y autocompleta nombre + matrícula."""
+        self.cons_profesional_id    = pid
+        self.cons_prof_matricula    = ""
+        self.cons_prof_especialidad = ""
+        self.cons_profesional       = ""
+        for p in self.profesionales_cat:
+            if p["id"] == pid:
+                self.cons_profesional       = p["nombre"]
+                self.cons_prof_matricula    = p["matricula"]
+                self.cons_prof_especialidad = p["especialidad"]
+                break
+
+    @rx.var
+    def cons_prof_credencial(self) -> str:
+        partes: list[str] = []
+        if self.cons_prof_matricula.strip():
+            partes.append(f"Mat. {self.cons_prof_matricula}")
+        if self.cons_prof_especialidad.strip():
+            partes.append(self.cons_prof_especialidad)
+        return " · ".join(partes)
+
     def abrir_consentimiento(self):
-        self.cons_tipo          = "general"
-        self.cons_procedimiento = ""
-        self.cons_profesional   = ""
-        self.cons_observaciones = ""
-        self.cons_error         = ""
-        self.modal_cons_abierto = True
+        self.cons_tipo              = "general"
+        self.cons_procedimiento     = ""
+        self.cons_profesional       = ""
+        self.cons_profesional_id    = ""
+        self.cons_prof_matricula    = ""
+        self.cons_prof_especialidad = ""
+        self.cons_observaciones     = ""
+        self.cons_error             = ""
+        self.modal_cons_abierto     = True
 
     def cerrar_consentimiento(self):
         self.modal_cons_abierto = False
@@ -264,6 +291,8 @@ class NotasClinicasState(BaseState):
                     tipo=self.cons_tipo,
                     procedimiento=self.cons_procedimiento,
                     profesional_nombre=self.cons_profesional,
+                    profesional_matricula=self.cons_prof_matricula,
+                    profesional_especialidad=self.cons_prof_especialidad,
                     observaciones=self.cons_observaciones,
                     usuario_id=self.user_id,
                     sede_id=self.sede_actual_id,

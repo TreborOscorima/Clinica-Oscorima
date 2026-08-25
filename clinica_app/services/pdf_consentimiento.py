@@ -52,6 +52,8 @@ def generar_consentimiento_pdf(
     paciente_documento: str = "",
     procedimiento: str = "",
     profesional_nombre: str = "",
+    profesional_matricula: str = "",
+    profesional_especialidad: str = "",
     observaciones: str = "",
     fecha: str = "",
 ) -> bytes:
@@ -116,20 +118,26 @@ def generar_consentimiento_pdf(
 
     # Firmas
     story.append(Spacer(1, 16 * mm))
-    firmas = Table(
-        [
-            ["_______________________________", "_______________________________"],
-            ["Firma del paciente", "Firma del profesional"],
-            ["Aclaración y documento", profesional_nombre or "Aclaración y matrícula"],
-        ],
-        colWidths=[80 * mm, 80 * mm],
+    cred = " · ".join(
+        p for p in (
+            f"Mat. {profesional_matricula}" if profesional_matricula.strip() else "",
+            profesional_especialidad.strip(),
+        ) if p
     )
+    firma_rows = [
+        ["_______________________________", "_______________________________"],
+        ["Firma del paciente", "Firma del profesional"],
+        ["Aclaración y documento", profesional_nombre or "Aclaración y matrícula"],
+    ]
+    if cred:
+        firma_rows.append(["", cred])
+    firmas = Table(firma_rows, colWidths=[80 * mm, 80 * mm])
     firmas.setStyle(TableStyle([
         ("FONTNAME",  (0, 0), (-1, -1), "Helvetica"),
         ("FONTSIZE",  (0, 0), (-1, 0), 10),
         ("FONTSIZE",  (0, 1), (-1, -1), 8),
         ("TEXTCOLOR", (0, 1), (-1, 1), dark),
-        ("TEXTCOLOR", (0, 2), (-1, 2), gray),
+        ("TEXTCOLOR", (0, 2), (-1, -1), gray),
         ("ALIGN",     (0, 0), (-1, -1), "CENTER"),
         ("TOPPADDING", (0, 1), (-1, 1), 2),
     ]))
