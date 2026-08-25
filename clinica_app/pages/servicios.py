@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.servicios import ServiciosState
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ def _card(srv: dict) -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=14),
-                    on_click=ServiciosState.eliminar(srv["id"]),
+                    on_click=ServiciosState.confirmar_eliminar(srv),
                     class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer",
                 ),
                 class_name="flex items-center gap-0.5 flex-shrink-0",
@@ -234,6 +234,7 @@ def _card(srv: dict) -> rx.Component:
 def servicios_page() -> rx.Component:
     return shell(
         _modal(),
+        confirm_dialog(ServiciosState),
         page_header(
             "Servicios",
             "Catálogo de servicios médicos y estéticos",

@@ -4,7 +4,7 @@ import reflex as rx
 
 from clinica_app.components.anatomy_viewer import anatomy_viewer
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.odontograma import OdontogramaState
 
 _CAMARAS = [
@@ -532,7 +532,7 @@ def _version_row(v: dict) -> rx.Component:
                 OdontogramaState.puede_versionar,
                 rx.el.button(
                     rx.icon("trash-2", size=14),
-                    on_click=lambda: OdontogramaState.eliminar_version(v["id"]),
+                    on_click=lambda: OdontogramaState.confirmar_eliminar(v),
                     title="Eliminar versión",
                     class_name="inline-flex items-center px-2 py-1 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-red-50 hover:text-red-600 cursor-pointer",
                 ),
@@ -860,6 +860,7 @@ def odontograma_page() -> rx.Component:
         _modal_crear_version(),
         _modal_ver_version(),
         _modal_comparar(),
+        confirm_dialog(OdontogramaState),
         page_header(
             "Odontograma",
             "Estado dental por pieza (numeración FDI)",

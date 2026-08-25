@@ -175,16 +175,30 @@ class ProfesionalesState(BaseState):
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 
-    async def eliminar(self, prof_id: int):
+    def confirmar_eliminar(self, prof: dict):
+        self._pedir_eliminar(
+            kind="profesional",
+            id=prof["id"],
+            titulo="¿Eliminar profesional?",
+            mensaje=f"{prof['nombre_completo']} se dará de baja del equipo.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("profesionales", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para eliminar profesionales")
             return
+        self.del_procesando = True
+        yield
         async with get_async_session() as session:
             try:
-                await svc.eliminar(session, self.clinica_id, prof_id, sede_id=self.sede_actual_id)
+                await svc.eliminar(session, self.clinica_id, self._del_id, sede_id=self.sede_actual_id)
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Profesional eliminado")
         async for s in self.cargar():
             yield s

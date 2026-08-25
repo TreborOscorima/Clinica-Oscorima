@@ -52,7 +52,7 @@ def _tarjeta_mp(m: dict) -> rx.Component:
                            lambda: ConfiguracionState.toggle_visible_metodo(m["id"])),
             rx.el.button(
                 rx.icon("trash-2", size=13),
-                on_click=lambda: ConfiguracionState.eliminar_metodo_pago(m["id"]),
+                on_click=lambda: ConfiguracionState.confirmar_eliminar_metodo_pago(m),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer transition ml-auto",
             ),
             class_name="flex items-center gap-3 mt-3",

@@ -451,19 +451,63 @@ class ConfiguracionState(BaseState):
         self.modal_sede     = False
         await self._cargar_sedes()
 
-    async def eliminar_sede(self, sede_id: int):
+    def confirmar_eliminar_sede(self, s: dict):
+        self._pedir_eliminar(
+            kind="sede",
+            id=s["id"],
+            titulo="¿Eliminar sucursal?",
+            mensaje=f"{s['nombre']} y su configuración se eliminarán.",
+        )
+
+    async def ejecutar_eliminar(self):
+        """Dispatch de todos los borrados de configuración por `_del_kind`."""
         if not self.tiene_permiso("configuracion", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar sucursales")
+            self.del_open = False
+            yield rx.toast.error("No tenés permiso para eliminar")
             return
-        from clinica_app.services import sedes as svc_sedes
-        async with get_async_session() as session:
-            try:
-                await svc_sedes.eliminar(session, self.clinica_id, sede_id)
-            except ServiceError as exc:
-                yield rx.toast.error(str(exc))
-                return
-        yield rx.toast.success("Sucursal eliminada")
-        await self._cargar_sedes()
+        self.del_procesando = True
+        yield
+
+        kind = self._del_kind
+        try:
+            async with get_async_session() as session:
+                if kind == "sede":
+                    from clinica_app.services import sedes as svc_sedes
+                    await svc_sedes.eliminar(session, self.clinica_id, self._del_id)
+                elif kind == "moneda":
+                    from clinica_app.services import monedas as svc_m
+                    await svc_m.eliminar(session, self.clinica_id, self._del_id)
+                elif kind == "unidad":
+                    from clinica_app.services import unidades_medida as svc_u
+                    await svc_u.eliminar(session, self.clinica_id, self._del_id)
+                elif kind == "metodo_pago":
+                    from clinica_app.services import metodos_pago_config as svc_mp
+                    await svc_mp.eliminar(session, self.clinica_id, self._del_id)
+                elif kind == "impuesto":
+                    from clinica_app.services import impuestos as svc_i
+                    await svc_i.eliminar(session, self.clinica_id, self._del_id)
+        except ServiceError as exc:
+            self.del_procesando = False
+            yield rx.toast.error(str(exc))
+            return
+
+        self.del_open       = False
+        self.del_procesando = False
+        if kind == "sede":
+            yield rx.toast.success("Sucursal eliminada")
+            await self._cargar_sedes()
+        elif kind == "moneda":
+            yield rx.toast.success("Moneda eliminada")
+            await self._cargar_monedas()
+        elif kind == "unidad":
+            yield rx.toast.success("Unidad eliminada")
+            await self._cargar_unidades()
+        elif kind == "metodo_pago":
+            yield rx.toast.success("Método de pago eliminado")
+            await self._cargar_metodos_pago()
+        elif kind == "impuesto":
+            yield rx.toast.success("Impuesto eliminado")
+            await self._cargar_impuestos()
 
     # ══════════════════════════════════════════════════════════════════
     # USUARIOS
@@ -607,18 +651,13 @@ class ConfiguracionState(BaseState):
                 return
         await self._cargar_monedas()
 
-    async def eliminar_moneda(self, moneda_id: int):
-        if not self.tiene_permiso("configuracion", write=True):
-            return
-        self.moneda_error = ""
-        from clinica_app.services import monedas as svc_m
-        async with get_async_session() as session:
-            try:
-                await svc_m.eliminar(session, self.clinica_id, moneda_id)
-            except ServiceError as exc:
-                self.moneda_error = str(exc)
-                return
-        await self._cargar_monedas()
+    def confirmar_eliminar_moneda(self, m: dict):
+        self._pedir_eliminar(
+            kind="moneda",
+            id=m["id"],
+            titulo="¿Eliminar moneda?",
+            mensaje=f"{m['nombre']} ({m['codigo']}) se eliminará.",
+        )
 
     # ══════════════════════════════════════════════════════════════════
     # UNIDADES DE MEDIDA
@@ -660,19 +699,13 @@ class ConfiguracionState(BaseState):
                 return
         await self._cargar_unidades()
 
-    async def eliminar_unidad(self, uid: int):
-        if not self.tiene_permiso("configuracion", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar unidades")
-            return
-        from clinica_app.services import unidades_medida as svc_u
-        async with get_async_session() as session:
-            try:
-                await svc_u.eliminar(session, self.clinica_id, uid)
-            except ServiceError as exc:
-                yield rx.toast.error(str(exc))
-                return
-        yield rx.toast.success("Unidad eliminada")
-        await self._cargar_unidades()
+    def confirmar_eliminar_unidad(self, u: dict):
+        self._pedir_eliminar(
+            kind="unidad",
+            id=u["id"],
+            titulo="¿Eliminar unidad?",
+            mensaje=f"La unidad «{u['nombre']}» se eliminará.",
+        )
 
     # ══════════════════════════════════════════════════════════════════
     # MÉTODOS DE PAGO
@@ -729,19 +762,13 @@ class ConfiguracionState(BaseState):
                 return
         await self._cargar_metodos_pago()
 
-    async def eliminar_metodo_pago(self, mid: int):
-        if not self.tiene_permiso("configuracion", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar métodos de pago")
-            return
-        from clinica_app.services import metodos_pago_config as svc_mp
-        async with get_async_session() as session:
-            try:
-                await svc_mp.eliminar(session, self.clinica_id, mid)
-            except ServiceError as exc:
-                yield rx.toast.error(str(exc))
-                return
-        yield rx.toast.success("Método de pago eliminado")
-        await self._cargar_metodos_pago()
+    def confirmar_eliminar_metodo_pago(self, m: dict):
+        self._pedir_eliminar(
+            kind="metodo_pago",
+            id=m["id"],
+            titulo="¿Eliminar método de pago?",
+            mensaje=f"{m['nombre']} se eliminará de los métodos disponibles.",
+        )
 
     # ══════════════════════════════════════════════════════════════════
     # IMPUESTOS
@@ -791,18 +818,13 @@ class ConfiguracionState(BaseState):
         self.modal_impuesto = False
         await self._cargar_impuestos()
 
-    async def eliminar_impuesto(self, tid: int):
-        if not self.tiene_permiso("configuracion", write=True):
-            return
-        self.it_error = ""
-        from clinica_app.services import impuestos as svc_i
-        async with get_async_session() as session:
-            try:
-                await svc_i.eliminar(session, self.clinica_id, tid)
-            except ServiceError as exc:
-                self.it_error = str(exc)
-                return
-        await self._cargar_impuestos()
+    def confirmar_eliminar_impuesto(self, t: dict):
+        self._pedir_eliminar(
+            kind="impuesto",
+            id=t["id"],
+            titulo="¿Eliminar impuesto?",
+            mensaje=f"{t['nombre']} ({t['porcentaje']}%) se eliminará.",
+        )
 
     async def set_default_impuesto(self, tid: int):
         if not self.tiene_permiso("configuracion", write=True):

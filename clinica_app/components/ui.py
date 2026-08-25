@@ -100,6 +100,69 @@ def secondary_btn(
     )
 
 
+def confirm_dialog(State) -> rx.Component:
+    """Modal genérico de confirmación de borrado.
+
+    Lee las vars del mixin de ``BaseState`` (``del_open`` / ``del_titulo`` /
+    ``del_mensaje`` / ``del_confirm_label`` / ``del_procesando``) de la subclase
+    de estado que se le pase, y dispara ``ejecutar_eliminar`` al confirmar.
+
+    Se monta una sola vez por página:  ``confirm_dialog(PacientesState)``.
+    """
+    return rx.cond(
+        State.del_open,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=State.cancelar_eliminar,
+                data_modal_close="1",
+            ),
+            rx.el.div(
+                rx.icon("trash-2", size=36, class_name="text-red-500 mx-auto mb-4"),
+                rx.el.h2(
+                    State.del_titulo,
+                    class_name="text-lg font-semibold text-gray-900 text-center mb-2",
+                ),
+                rx.el.p(
+                    State.del_mensaje,
+                    class_name="text-sm text-gray-600 text-center mb-6",
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cancelar",
+                        on_click=State.cancelar_eliminar,
+                        class_name=(
+                            "px-4 py-2 text-sm font-medium text-gray-700 border "
+                            "border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        ),
+                    ),
+                    rx.el.button(
+                        rx.cond(
+                            State.del_procesando,
+                            rx.el.span(
+                                rx.icon("loader-circle", size=15, class_name="animate-spin mr-1.5"),
+                                "Eliminando…",
+                                class_name="flex items-center",
+                            ),
+                            rx.el.span(State.del_confirm_label),
+                        ),
+                        on_click=State.ejecutar_eliminar,
+                        disabled=State.del_procesando,
+                        data_modal_submit="1",
+                        class_name=(
+                            "px-5 py-2 text-sm font-medium text-white bg-red-600 "
+                            "rounded-lg hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+                        ),
+                    ),
+                    class_name="flex justify-center gap-3",
+                ),
+                class_name="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm z-50 relative",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50 p-4",
+        ),
+    )
+
+
 def table_header(*headers: str) -> rx.Component:
     """Fila de encabezado de tabla con fondo gris sutil."""
     return rx.el.thead(

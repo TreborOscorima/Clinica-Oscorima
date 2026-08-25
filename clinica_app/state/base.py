@@ -121,6 +121,47 @@ class BaseState(rx.State):
         }
         return mapping.get(self.user_role, self.user_role)
 
+    # ── Confirmación de borrado (mixin genérico) ─────────────────────────────
+    # Un solo modal reutilizable por página. Cada subclase abre el modal con
+    # `_pedir_eliminar(...)` desde su handler `confirmar_*` y hace el borrado
+    # real en su override de `ejecutar_eliminar()`, despachando por `_del_kind`.
+    del_open:          bool = False
+    del_titulo:        str  = "¿Eliminar?"
+    del_mensaje:       str  = ""
+    del_confirm_label: str  = "Eliminar"
+    del_procesando:    bool = False
+    # Backend-only (no viajan al cliente): discriminador y target del borrado.
+    _del_kind: str = ""
+    _del_id:   int = 0
+
+    def _pedir_eliminar(
+        self,
+        *,
+        kind: str,
+        id: int,
+        titulo: str,
+        mensaje: str,
+        confirm_label: str = "Eliminar",
+    ) -> None:
+        """Abre el modal de confirmación. Llamar desde un handler `confirmar_*`."""
+        self._del_kind         = kind
+        self._del_id           = int(id)
+        self.del_titulo        = titulo
+        self.del_mensaje       = mensaje
+        self.del_confirm_label = confirm_label
+        self.del_procesando    = False
+        self.del_open          = True
+
+    def cancelar_eliminar(self):
+        self.del_open       = False
+        self.del_procesando = False
+
+    async def ejecutar_eliminar(self):
+        """Override en cada subclase con borrados. Base: cierra sin hacer nada."""
+        self.del_open = False
+        return
+        yield  # pragma: no cover  — fuerza que sea async generator
+
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 

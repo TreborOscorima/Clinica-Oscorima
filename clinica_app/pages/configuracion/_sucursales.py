@@ -99,7 +99,7 @@ def _fila_sede(s: dict) -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=14),
-                    on_click=lambda: ConfiguracionState.eliminar_sede(s["id"]),
+                    on_click=lambda: ConfiguracionState.confirmar_eliminar_sede(s),
                     class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition",
                     title="Eliminar",
                 ),

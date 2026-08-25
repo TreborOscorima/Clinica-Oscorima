@@ -24,7 +24,7 @@ def _tarjeta_unidad(u: dict) -> rx.Component:
                            lambda: ConfiguracionState.toggle_unidad_decimales(u["id"])),
             rx.el.button(
                 rx.icon("trash-2", size=13),
-                on_click=lambda: ConfiguracionState.eliminar_unidad(u["id"]),
+                on_click=lambda: ConfiguracionState.confirmar_eliminar_unidad(u),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer transition ml-auto",
             ),
             class_name="flex items-center gap-2",

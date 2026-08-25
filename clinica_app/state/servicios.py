@@ -174,16 +174,30 @@ class ServiciosState(BaseState):
 
     # ── Eliminar ───────────────────────────────────────────────────────────────
 
-    async def eliminar(self, srv_id: int):
+    def confirmar_eliminar(self, srv: dict):
+        self._pedir_eliminar(
+            kind="servicio",
+            id=srv["id"],
+            titulo="¿Eliminar servicio?",
+            mensaje=f"{srv['nombre']} se eliminará del catálogo.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("servicios", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para eliminar servicios")
             return
+        self.del_procesando = True
+        yield
         async with get_async_session() as session:
             try:
-                await svc.eliminar(session, self.clinica_id, srv_id, sede_id=self.sede_actual_id)
+                await svc.eliminar(session, self.clinica_id, self._del_id, sede_id=self.sede_actual_id)
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Servicio eliminado")
         await self._cargar_cats()
         async for s in self.cargar():

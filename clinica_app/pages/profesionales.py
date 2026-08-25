@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.profesionales import ProfesionalesState
 
 # ── Helpers de campo ──────────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ def _fila(prof: dict) -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=15),
-                    on_click=ProfesionalesState.eliminar(prof["id"]),
+                    on_click=ProfesionalesState.confirmar_eliminar(prof),
                     class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer",
                 ),
                 class_name="flex items-center gap-1",
@@ -392,6 +392,7 @@ def profesionales_page() -> rx.Component:
     return shell(
         _modal(),
         _modal_agenda(),
+        confirm_dialog(ProfesionalesState),
         page_header(
             "Profesionales",
             "Médicos y especialistas de la clínica",

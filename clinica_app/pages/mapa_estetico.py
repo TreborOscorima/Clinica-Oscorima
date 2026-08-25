@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import empty_state, page_header
+from clinica_app.components.ui import confirm_dialog, empty_state, page_header
 from clinica_app.state.mapa_estetico import MapaEsteticoState
 from clinica_app.state.mapa_estetico import _FOTO_UPLOAD_ID
 
@@ -72,7 +72,7 @@ def _punto_row(p) -> rx.Component:
             MapaEsteticoState.puede_editar,
             rx.el.button(
                 rx.icon("x", size=13),
-                on_click=lambda: MapaEsteticoState.eliminar_punto(p["id"]),
+                on_click=lambda: MapaEsteticoState.confirmar_eliminar_punto(p),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer",
             ),
             rx.fragment(),
@@ -100,7 +100,7 @@ def _proc_card(pr) -> rx.Component:
                     ),
                     rx.el.button(
                         rx.icon("trash-2", size=13),
-                        on_click=lambda: MapaEsteticoState.eliminar_proc(pr["id"]),
+                        on_click=lambda: MapaEsteticoState.confirmar_eliminar_proc(pr),
                         class_name="ml-1.5 text-gray-300 hover:text-red-500 cursor-pointer",
                     ),
                     class_name="inline-flex items-center",
@@ -146,7 +146,7 @@ def _eval_row(e) -> rx.Component:
             MapaEsteticoState.puede_editar,
             rx.el.button(
                 rx.icon("x", size=13),
-                on_click=lambda: MapaEsteticoState.eliminar_eval(e["id"]),
+                on_click=lambda: MapaEsteticoState.confirmar_eliminar_eval(e),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer",
             ),
             rx.fragment(),
@@ -168,7 +168,7 @@ def _foto_card(f: dict) -> rx.Component:
             MapaEsteticoState.puede_editar,
             rx.el.button(
                 rx.icon("x", size=13),
-                on_click=lambda: MapaEsteticoState.eliminar_foto(f["id"]),
+                on_click=lambda: MapaEsteticoState.confirmar_eliminar_foto(f),
                 title="Eliminar foto",
                 class_name="absolute top-1.5 right-1.5 p-1 bg-black/50 text-white rounded-full hover:bg-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition",
             ),
@@ -537,6 +537,7 @@ def _header_acciones() -> rx.Component:
 
 def mapa_estetico_page() -> rx.Component:
     return shell(
+        confirm_dialog(MapaEsteticoState),
         rx.el.div(
             page_header(
                 "Mapa estético",

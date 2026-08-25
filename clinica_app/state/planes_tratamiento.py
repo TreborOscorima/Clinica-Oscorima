@@ -245,12 +245,51 @@ class PlanesTratamientoState(BaseState):
                 return
         await self._cargar_planes()
 
-    async def eliminar_plan(self):
-        if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar planes")
-            return
+    def confirmar_eliminar_plan(self):
         if not self.plan_actual_id:
             return
+        self._pedir_eliminar(
+            kind="plan",
+            id=self.plan_actual_id,
+            titulo="¿Eliminar plan de tratamiento?",
+            mensaje="El plan y todos sus tratamientos se eliminarán.",
+        )
+
+    def confirmar_eliminar_item(self, it: dict):
+        self._pedir_eliminar(
+            kind="item",
+            id=it["id"],
+            titulo="¿Eliminar tratamiento?",
+            mensaje=f"«{it['descripcion']}» se quitará del plan.",
+        )
+
+    async def ejecutar_eliminar(self):
+        if not self.tiene_permiso("historia", write=True):
+            self.del_open = False
+            yield rx.toast.error("No tenés permiso para eliminar")
+            return
+        if not self.plan_actual_id:
+            self.del_open = False
+            return
+        self.del_procesando = True
+        yield
+        if self._del_kind == "item":
+            async with get_async_session() as session:
+                try:
+                    await svc.eliminar_item(
+                        session, self.clinica_id, self.plan_actual_id, self._del_id,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
+                except ServiceError as exc:
+                    self.del_procesando = False
+                    yield rx.toast.error(str(exc))
+                    return
+            self.del_open       = False
+            self.del_procesando = False
+            yield rx.toast.success("Tratamiento eliminado")
+            await self._cargar_planes()
+            return
+
         async with get_async_session() as session:
             try:
                 await svc.eliminar_plan(
@@ -258,8 +297,11 @@ class PlanesTratamientoState(BaseState):
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Plan eliminado")
         self.plan_actual_id = 0
         self.fases = []
@@ -338,20 +380,3 @@ class PlanesTratamientoState(BaseState):
                 return
         await self._cargar_planes()
 
-    async def eliminar_item(self, item_id: int):
-        if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar tratamientos")
-            return
-        if not self.plan_actual_id:
-            return
-        async with get_async_session() as session:
-            try:
-                await svc.eliminar_item(
-                    session, self.clinica_id, self.plan_actual_id, item_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
-            except ServiceError as exc:
-                yield rx.toast.error(str(exc))
-                return
-        yield rx.toast.success("Tratamiento eliminado")
-        await self._cargar_planes()

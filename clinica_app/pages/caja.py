@@ -5,7 +5,7 @@ import reflex as rx
 from clinica_app.components.badge import estado_badge
 from clinica_app.components.layout import shell
 from clinica_app.components.stat_card import stat_card
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.caja import CajaState
 
 
@@ -139,7 +139,7 @@ def _fila_mov(m: dict) -> rx.Component:
         rx.el.td(
             rx.el.button(
                 rx.icon("trash-2", size=15),
-                on_click=lambda: CajaState.eliminar_movimiento(m["id"]),
+                on_click=lambda: CajaState.confirmar_eliminar(m),
                 class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
             ),
             class_name="px-4 py-3",
@@ -538,6 +538,7 @@ def caja_page() -> rx.Component:
         _modal_movimiento(),
         _modal_cierre(),
         _modal_anular(),
+        confirm_dialog(CajaState),
         page_header(
             "Caja",
             "Registra ingresos, egresos y cierres del día",

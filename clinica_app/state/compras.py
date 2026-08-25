@@ -554,19 +554,37 @@ class ComprasState(BaseState):
                     self.prov_sel_detalle = p
                     break
 
-    async def prov_eliminar(self, prov_id: int):
+    def confirmar_eliminar(self, p: dict):
+        self._pedir_eliminar(
+            kind="proveedor",
+            id=p["id"],
+            titulo="¿Eliminar proveedor?",
+            mensaje=f"{p['nombre']} se eliminará del listado de proveedores.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("compras", write=True):
+            self.del_open = False
+            yield rx.toast.error("No tenés permiso para eliminar proveedores")
             return
+        self.del_procesando = True
+        yield
+        prov_id = self._del_id
         try:
             async with get_async_session() as session:
                 await svc.eliminar_proveedor(session, self.clinica_id, prov_id)
                 provs = await svc.listar_proveedores(session, self.clinica_id, self.sede_actual_id)
-        except Exception:
+        except ServiceError as exc:
+            self.del_procesando = False
+            yield rx.toast.error(str(exc))
             return
         self.proveedores_cat = provs
         if str(prov_id) == self.form_proveedor_id:
             self.form_proveedor_id = ""
             self.prov_sel_detalle  = _PROV_VACIO
+        self.del_open       = False
+        self.del_procesando = False
+        yield rx.toast.success("Proveedor eliminado")
 
     # ── Atajos de teclado ──────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.configuracion import ConfiguracionState
 
 from ._empresa import _seccion_empresa
@@ -56,6 +56,7 @@ def configuracion_page() -> rx.Component:
         _modal_sede(),
         _modal_impuesto(),
         _modal_permisos_rol(),
+        confirm_dialog(ConfiguracionState),
 
         page_header(
             "Configuración del Sistema",

@@ -256,19 +256,73 @@ class MapaEsteticoState(BaseState):
         await self._cargar_zona()
         await self._cargar_resumen()
 
-    async def eliminar_eval(self, evaluacion_id: int):
+    def confirmar_eliminar_eval(self, e: dict):
+        self._pedir_eliminar(
+            kind="eval", id=e["id"],
+            titulo="¿Eliminar evaluación?",
+            mensaje=f"La evaluación de {e['categoria_label']} se eliminará.",
+        )
+
+    def confirmar_eliminar_proc(self, pr: dict):
+        self._pedir_eliminar(
+            kind="proc", id=pr["id"],
+            titulo="¿Eliminar procedimiento?",
+            mensaje=f"El procedimiento «{pr['tipo_label']}» y sus puntos se eliminarán.",
+        )
+
+    def confirmar_eliminar_punto(self, p: dict):
+        self._pedir_eliminar(
+            kind="punto", id=p["id"],
+            titulo="¿Eliminar punto?",
+            mensaje="El punto de aplicación se eliminará del procedimiento.",
+        )
+
+    def confirmar_eliminar_foto(self, f: dict):
+        self._pedir_eliminar(
+            kind="foto", id=f["id"],
+            titulo="¿Eliminar foto?",
+            mensaje=f"{f['nombre']} se eliminará de forma permanente.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("historia", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para editar el mapa estético")
             return
+        self.del_procesando = True
+        yield
+        kind, target = self._del_kind, self._del_id
+        stored_name = ""
         try:
             async with get_async_session() as session:
-                await svc.eliminar_evaluacion(
-                    session, self.clinica_id, evaluacion_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
+                if kind == "eval":
+                    await svc.eliminar_evaluacion(
+                        session, self.clinica_id, target,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
+                elif kind == "proc":
+                    await svc.eliminar_procedimiento(
+                        session, self.clinica_id, target,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
+                elif kind == "punto":
+                    await svc.eliminar_punto(
+                        session, self.clinica_id, target,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
+                elif kind == "foto":
+                    stored_name = await svc.eliminar_foto_zona(
+                        session, self.clinica_id, target,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
         except ServiceError as exc:
+            self.del_procesando = False
             yield rx.toast.error(str(exc))
             return
+        if kind == "foto" and stored_name:
+            await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
+        self.del_open       = False
+        self.del_procesando = False
         await self._cargar_zona()
         await self._cargar_resumen()
 
@@ -306,22 +360,6 @@ class MapaEsteticoState(BaseState):
             return
         self.is_saving = False
         self.modal_proc = False
-        await self._cargar_zona()
-        await self._cargar_resumen()
-
-    async def eliminar_proc(self, procedimiento_id: int):
-        if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para editar el mapa estético")
-            return
-        try:
-            async with get_async_session() as session:
-                await svc.eliminar_procedimiento(
-                    session, self.clinica_id, procedimiento_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
-        except ServiceError as exc:
-            yield rx.toast.error(str(exc))
-            return
         await self._cargar_zona()
         await self._cargar_resumen()
 
@@ -370,22 +408,6 @@ class MapaEsteticoState(BaseState):
             return
         self.is_saving = False
         self.modal_punto = False
-        await self._cargar_zona()
-        await self._cargar_resumen()
-
-    async def eliminar_punto(self, punto_id: int):
-        if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para editar el mapa estético")
-            return
-        try:
-            async with get_async_session() as session:
-                await svc.eliminar_punto(
-                    session, self.clinica_id, punto_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
-        except ServiceError as exc:
-            yield rx.toast.error(str(exc))
-            return
         await self._cargar_zona()
         await self._cargar_resumen()
 
@@ -439,21 +461,3 @@ class MapaEsteticoState(BaseState):
         await self._cargar_resumen()
         yield rx.clear_selected_files(_FOTO_UPLOAD_ID)
 
-    async def eliminar_foto(self, foto_id: int):
-        if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar fotos")
-            return
-        stored_name = ""
-        try:
-            async with get_async_session() as session:
-                stored_name = await svc.eliminar_foto_zona(
-                    session, self.clinica_id, foto_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
-        except ServiceError as exc:
-            yield rx.toast.error(str(exc))
-            return
-        if stored_name:
-            await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
-        await self._cargar_zona()
-        await self._cargar_resumen()

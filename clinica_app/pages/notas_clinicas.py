@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.notas_clinicas import NotasClinicasState
 
 _TIPOS = ["evolucion", "anamnesis", "diagnostico", "indicacion", "otro"]
@@ -467,7 +467,7 @@ def _fila_adjunto(a: dict) -> rx.Component:
             ),
             rx.el.button(
                 rx.icon("trash-2", size=15),
-                on_click=lambda: NotasClinicasState.eliminar_adjunto(a["id"]),
+                on_click=lambda: NotasClinicasState.confirmar_eliminar_adjunto(a),
                 title="Eliminar",
                 class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
             ),
@@ -616,7 +616,7 @@ def _fila_nota(n: dict) -> rx.Component:
                         ),
                         rx.el.button(
                             rx.icon("trash-2", size=14),
-                            on_click=lambda: NotasClinicasState.eliminar(n["id"]),
+                            on_click=lambda: NotasClinicasState.confirmar_eliminar_nota(n),
                             class_name="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition",
                             title="Eliminar",
                         ),
@@ -650,6 +650,7 @@ def notas_clinicas_page() -> rx.Component:
         _modal_nota(),
         _modal_consentimiento(),
         _modal_receta(),
+        confirm_dialog(NotasClinicasState),
         page_header(
             "Historia Clínica",
             "Evoluciones, diagnósticos e indicaciones por paciente",

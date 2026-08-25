@@ -214,26 +214,6 @@ class NotasClinicasState(BaseState):
         await self._cargar_adjuntos()
         yield rx.clear_selected_files(_ADJ_UPLOAD_ID)
 
-    async def eliminar_adjunto(self, adjunto_id: int):
-        if not self.tiene_permiso("historia", write=True):
-            self.adj_error = "No tenés permiso para eliminar archivos"
-            return
-        self.adj_error = ""
-        stored_name = ""
-        async with get_async_session() as session:
-            try:
-                stored_name = await adj_svc.eliminar(
-                    session, self.clinica_id, adjunto_id,
-                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
-                )
-            except ServiceError as exc:
-                self.adj_error = str(exc)
-                return
-        # El archivo físico se borra fuera de la transacción (idempotente).
-        if stored_name:
-            await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
-        await self._cargar_adjuntos()
-
     # ── Consentimiento informado (A4) ───────────────────────────────────────────
 
     def set_cons_tipo(self, v: str):          self.cons_tipo = v
@@ -436,16 +416,59 @@ class NotasClinicasState(BaseState):
         async for s in self.cargar():
             yield s
 
-    async def eliminar(self, nota_id: int):
+    def confirmar_eliminar_nota(self, n: dict):
+        self._pedir_eliminar(
+            kind="nota",
+            id=n["id"],
+            titulo="¿Eliminar nota?",
+            mensaje=f"La nota «{n['tipo']}» del {n['created_at']} se eliminará.",
+        )
+
+    def confirmar_eliminar_adjunto(self, a: dict):
+        self._pedir_eliminar(
+            kind="adjunto",
+            id=a["id"],
+            titulo="¿Eliminar archivo?",
+            mensaje=f"{a['nombre']} se eliminará de forma permanente.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("historia", write=True):
-            yield rx.toast.error("No tenés permiso para eliminar notas")
+            self.del_open = False
+            yield rx.toast.error("No tenés permiso para eliminar")
             return
+        self.del_procesando = True
+        yield
+        if self._del_kind == "adjunto":
+            stored_name = ""
+            async with get_async_session() as session:
+                try:
+                    stored_name = await adj_svc.eliminar(
+                        session, self.clinica_id, self._del_id,
+                        usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                    )
+                except ServiceError as exc:
+                    self.del_procesando = False
+                    yield rx.toast.error(str(exc))
+                    return
+            # El archivo físico se borra fuera de la transacción (idempotente).
+            if stored_name:
+                await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
+            self.del_open       = False
+            self.del_procesando = False
+            yield rx.toast.success("Archivo eliminado")
+            await self._cargar_adjuntos()
+            return
+
         async with get_async_session() as session:
             try:
-                await svc.eliminar(session, self.clinica_id, nota_id)
+                await svc.eliminar(session, self.clinica_id, self._del_id)
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Nota eliminada")
         async for s in self.cargar():
             yield s

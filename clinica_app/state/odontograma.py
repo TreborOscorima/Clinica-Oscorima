@@ -557,19 +557,33 @@ class OdontogramaState(BaseState):
     def cerrar_version(self):
         self.viendo_version = False
 
-    async def eliminar_version(self, version_id: int):
+    def confirmar_eliminar(self, v: dict):
+        self._pedir_eliminar(
+            kind="version",
+            id=v["id"],
+            titulo="¿Eliminar versión?",
+            mensaje=f"La versión «{v['titulo']}» del odontograma se eliminará.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("historia", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para eliminar versiones")
             return
+        self.del_procesando = True
+        yield
         async with get_async_session() as session:
             try:
                 await svc.eliminar_version(
-                    session, self.clinica_id, self.paciente_id, version_id,
+                    session, self.clinica_id, self.paciente_id, self._del_id,
                     usuario_id=self.user_id, sede_id=self.sede_actual_id,
                 )
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Versión eliminada")
         await self._cargar_versiones()
 

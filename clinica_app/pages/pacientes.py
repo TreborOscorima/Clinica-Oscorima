@@ -4,7 +4,7 @@ import reflex as rx
 
 from clinica_app.components.badge import estado_badge
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.pacientes import PacientesState
 
 
@@ -343,7 +343,7 @@ def _fila_paciente(p: dict) -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=15),
-                    on_click=lambda: PacientesState.eliminar(p["id"]),
+                    on_click=lambda: PacientesState.confirmar_eliminar(p),
                     class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer",
                     title="Eliminar",
                 ),
@@ -359,6 +359,7 @@ def pacientes_page() -> rx.Component:
     return shell(
         _modal_paciente(),
         _panel_detalle(),
+        confirm_dialog(PacientesState),
         page_header(
             "Pacientes",
             "Gestioná la base de datos de pacientes",

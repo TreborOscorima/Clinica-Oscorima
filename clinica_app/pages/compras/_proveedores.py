@@ -49,7 +49,7 @@ def _fila_proveedor(p: dict) -> rx.Component:
             ),
             rx.el.button(
                 rx.icon("trash-2", size=13),
-                on_click=ComprasState.prov_eliminar(p["id"]),
+                on_click=ComprasState.confirmar_eliminar(p),
                 class_name="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded cursor-pointer",
             ),
             class_name="flex gap-0.5 flex-shrink-0",

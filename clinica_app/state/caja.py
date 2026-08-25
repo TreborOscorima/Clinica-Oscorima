@@ -180,19 +180,33 @@ class CajaState(BaseState):
         async for s in self.cargar():
             yield s
 
-    async def eliminar_movimiento(self, mov_id: int):
+    def confirmar_eliminar(self, m: dict):
+        self._pedir_eliminar(
+            kind="movimiento",
+            id=m["id"],
+            titulo="¿Eliminar movimiento?",
+            mensaje=f"El {m['tipo']} por $ {m['monto']} se eliminará de la caja.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("caja", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para eliminar movimientos")
             return
+        self.del_procesando = True
+        yield
         async with get_async_session() as session:
             try:
                 await svc.eliminar_movimiento(
-                    session, self.clinica_id, mov_id,
+                    session, self.clinica_id, self._del_id,
                     sede_id=self.sede_actual_id, usuario_id=self.user_id,
                 )
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Movimiento eliminado")
         await self._cargar_resumen()
         async for s in self.cargar():

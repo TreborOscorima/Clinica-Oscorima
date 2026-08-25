@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.planes_tratamiento import PlanesTratamientoState as S
 
 
@@ -75,7 +75,7 @@ def _item_row(it: dict) -> rx.Component:
         # Eliminar
         rx.el.button(
             rx.icon("trash-2", size=15),
-            on_click=lambda: S.eliminar_item(it["id"]),
+            on_click=lambda: S.confirmar_eliminar_item(it),
             class_name="text-gray-300 hover:text-red-500 ml-2 cursor-pointer shrink-0",
         ),
         class_name="flex items-center py-2 px-3 border-b border-gray-100 last:border-0 hover:bg-gray-50",
@@ -123,7 +123,7 @@ def _panel_plan() -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=16),
-                    on_click=S.eliminar_plan,
+                    on_click=S.confirmar_eliminar_plan,
                     title="Eliminar plan",
                     class_name="p-2 text-gray-400 hover:text-red-500 border border-gray-300 rounded-lg cursor-pointer",
                 ),
@@ -390,6 +390,7 @@ def planes_tratamiento_page() -> rx.Component:
         _modal_plan(),
         _modal_item(),
         _modal_cobro(),
+        confirm_dialog(S),
         page_header(
             "Plan de tratamiento",
             "Tratamientos propuestos por fases, presupuesto y seguimiento",

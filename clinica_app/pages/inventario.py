@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.inventario import InventarioState
 
 
@@ -161,7 +161,7 @@ def _fila_producto(p: dict) -> rx.Component:
                 ),
                 rx.el.button(
                     rx.icon("trash-2", size=15),
-                    on_click=InventarioState.eliminar_producto(p["id"]),
+                    on_click=InventarioState.confirmar_eliminar(p),
                     class_name="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer",
                 ),
                 class_name="flex items-center gap-1",
@@ -176,6 +176,7 @@ def inventario_page() -> rx.Component:
     return shell(
         _modal_producto(),
         _modal_movimiento(),
+        confirm_dialog(InventarioState),
         page_header(
             "Inventario",
             "Controlá stock y movimientos de productos",

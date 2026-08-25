@@ -188,16 +188,30 @@ class InventarioState(BaseState):
         async for s in self.cargar():
             yield s
 
-    async def eliminar_producto(self, prod_id: int):
+    def confirmar_eliminar(self, p: dict):
+        self._pedir_eliminar(
+            kind="producto",
+            id=p["id"],
+            titulo="¿Eliminar producto?",
+            mensaje=f"{p['nombre']} se eliminará del inventario.",
+        )
+
+    async def ejecutar_eliminar(self):
         if not self.tiene_permiso("inventario", write=True):
+            self.del_open = False
             yield rx.toast.error("No tenés permiso para eliminar productos")
             return
+        self.del_procesando = True
+        yield
         async with get_async_session() as session:
             try:
-                await svc.eliminar_producto(session, self.clinica_id, prod_id, self.sede_actual_id)
+                await svc.eliminar_producto(session, self.clinica_id, self._del_id, self.sede_actual_id)
             except ServiceError as exc:
+                self.del_procesando = False
                 yield rx.toast.error(str(exc))
                 return
+        self.del_open       = False
+        self.del_procesando = False
         yield rx.toast.success("Producto eliminado")
         async for s in self.cargar():
             yield s

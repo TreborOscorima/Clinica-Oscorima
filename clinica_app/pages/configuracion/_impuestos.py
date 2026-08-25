@@ -100,7 +100,7 @@ def _fila_impuesto(t: dict) -> rx.Component:
             ),
             rx.el.button(
                 rx.icon("trash-2", size=13),
-                on_click=lambda: ConfiguracionState.eliminar_impuesto(t["id"]),
+                on_click=lambda: ConfiguracionState.confirmar_eliminar_impuesto(t),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer transition",
                 title="Eliminar",
             ),

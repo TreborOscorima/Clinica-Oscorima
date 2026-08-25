@@ -3,7 +3,7 @@ from __future__ import annotations
 import reflex as rx
 
 from clinica_app.components.layout import shell
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.sesiones_esteticas import SesionesEsteticasState as S
 from clinica_app.state.sesiones_esteticas import _FOTO_UPLOAD_ID
 
@@ -57,7 +57,7 @@ def _foto_card(f: dict) -> rx.Component:
         ),
         rx.el.button(
             rx.icon("x", size=14),
-            on_click=lambda: S.eliminar_foto(f["id"]),
+            on_click=lambda: S.confirmar_eliminar_foto(f),
             title="Eliminar foto",
             class_name="absolute top-1.5 right-1.5 p-1 bg-black/50 text-white rounded-full hover:bg-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition",
         ),
@@ -122,7 +122,7 @@ def _insumo_row(i: dict) -> rx.Component:
         ),
         rx.el.button(
             rx.icon("x", size=14),
-            on_click=lambda: S.eliminar_insumo(i["id"]),
+            on_click=lambda: S.confirmar_eliminar_insumo(i),
             title="Quitar insumo",
             class_name="text-gray-300 hover:text-red-500 cursor-pointer shrink-0",
         ),
@@ -223,7 +223,7 @@ def _panel_sesion() -> rx.Component:
             ),
             rx.el.button(
                 rx.icon("trash-2", size=16),
-                on_click=S.eliminar_sesion,
+                on_click=S.confirmar_eliminar_sesion,
                 title="Eliminar sesión",
                 class_name="p-2 text-gray-400 hover:text-red-500 border border-gray-300 rounded-lg cursor-pointer shrink-0",
             ),
@@ -557,6 +557,7 @@ def sesiones_esteticas_page() -> rx.Component:
         _modal_ficha(),
         _modal_insumo(),
         _modal_agendar(),
+        confirm_dialog(S),
         page_header(
             "Galería estética",
             "Fotos antes/después por sesión y evolución del paciente",

@@ -4,7 +4,7 @@ import reflex as rx
 
 from clinica_app.components.layout import shell
 from clinica_app.components.stat_card import stat_card
-from clinica_app.components.ui import page_header
+from clinica_app.components.ui import confirm_dialog, page_header
 from clinica_app.state.compras import ComprasState
 
 from clinica_app.pages.compras._proveedores import _modal_proveedores
@@ -57,6 +57,7 @@ def compras_page() -> rx.Component:
         _modal_anular(),
         _modal_proveedores(),
         _modal_nuevo_producto(),
+        confirm_dialog(ComprasState),
 
         page_header(
             "Compras",

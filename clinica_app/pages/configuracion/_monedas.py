@@ -31,7 +31,7 @@ def _tarjeta_moneda(m: dict) -> rx.Component:
             ),
             rx.el.button(
                 rx.icon("trash-2", size=13),
-                on_click=lambda: ConfiguracionState.eliminar_moneda(m["id"]),
+                on_click=lambda: ConfiguracionState.confirmar_eliminar_moneda(m),
                 class_name="text-gray-300 hover:text-red-500 cursor-pointer transition ml-auto",
             ),
             class_name="flex items-center justify-between mt-3",
