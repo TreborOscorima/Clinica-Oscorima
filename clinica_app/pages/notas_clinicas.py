@@ -734,6 +734,13 @@ def notas_clinicas_page() -> rx.Component:
             action=rx.cond(
                 NotasClinicasState.paciente_id != 0,
                 rx.el.div(
+                    rx.el.a(
+                        rx.icon("history", size=16),
+                        rx.el.span("Línea de tiempo", class_name="ml-1.5"),
+                        href="/linea-tiempo?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
+                        title="Ver toda la historia del paciente en una línea de tiempo",
+                        class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
+                    ),
                     # Módulos dentales (D1): solo si el perfil de la clínica los activa.
                     rx.cond(
                         NotasClinicasState.esp_dental,

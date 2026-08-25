@@ -53,6 +53,7 @@ from clinica_app.pages.planes_tratamiento import planes_tratamiento_page
 from clinica_app.pages.sesiones_esteticas import sesiones_esteticas_page
 from clinica_app.pages.calendario        import calendario_page
 from clinica_app.pages.mapa_estetico     import mapa_estetico_page
+from clinica_app.pages.timeline          import timeline_page
 
 
 # ── API handlers ─────────────────────────────────────────────────────────────
@@ -359,6 +360,7 @@ app.add_page(cuentas_page,        route="/cuentas",         title="TUWAYKILIFE |
 app.add_page(compras_page,        route="/compras",         title="TUWAYKILIFE | Compras")
 app.add_page(promociones_page,    route="/promociones",     title="TUWAYKILIFE | Promociones")
 app.add_page(notas_clinicas_page, route="/historia-clinica", title="TUWAYKILIFE | Historia clínica")
+app.add_page(timeline_page,       route="/linea-tiempo",     title="TUWAYKILIFE | Línea de tiempo")
 app.add_page(odontograma_page,    route="/odontograma",     title="TUWAYKILIFE | Odontograma")
 app.add_page(planes_tratamiento_page, route="/plan-tratamiento", title="TUWAYKILIFE | Plan de tratamiento")
 app.add_page(sesiones_esteticas_page, route="/galeria-estetica", title="TUWAYKILIFE | Galería estética")

@@ -158,6 +158,12 @@ def _panel_detalle() -> rx.Component:
                         href=f"/historia-clinica?paciente_id={PacientesState.paciente_sel['id']}",
                         class_name="flex items-center w-full px-4 py-2.5 bg-sky-50 text-sky-700 text-sm font-medium rounded-lg hover:bg-sky-100 transition cursor-pointer border border-sky-200",
                     ),
+                    rx.el.a(
+                        rx.icon("history", size=15, class_name="mr-2"),
+                        "Ver línea de tiempo",
+                        href=f"/linea-tiempo?paciente_id={PacientesState.paciente_sel['id']}",
+                        class_name="flex items-center w-full px-4 py-2.5 mt-2 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition cursor-pointer border border-gray-200",
+                    ),
                     class_name="mb-6",
                 ),
                 # Deudas activas

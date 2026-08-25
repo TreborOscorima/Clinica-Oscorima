@@ -98,6 +98,7 @@ def _nav_links() -> rx.Component:
         _nav_if("dashboard",     "Panel",            "layout-dashboard",  "/"),
         _nav_if("pacientes",     "Pacientes",        "users",             "/pacientes"),
         _nav_if("historia",      "Historia Clínica", "clipboard-list",    "/historia-clinica"),
+        _nav_if("historia",      "Línea de Tiempo",  "history",           "/linea-tiempo"),
         _nav_if("profesionales", "Profesionales",    "user-check",        "/profesionales"),
         _nav_if("calendario",    "Calendario",       "calendar-days",     "/calendario"),
         _nav_if("turnos",        "Turnos",           "calendar-clock",    "/turnos"),
