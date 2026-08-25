@@ -54,6 +54,14 @@ class CajaState(BaseState):
     comp_filtro_pago:   str        = ""
     comp_is_loading:    bool       = False
 
+    # Anulación de venta
+    modal_anular:       bool = False
+    anular_comp_id:     int  = 0
+    anular_comp_numero: str  = ""
+    anular_motivo:      str  = ""
+    anular_error:       str  = ""
+    is_anulando:        bool = False
+
     # ── Ciclo de vida ──────────────────────────────────────────────────────────
 
     async def on_mount(self):
@@ -267,6 +275,49 @@ class CajaState(BaseState):
     async def set_comp_filtro_pago(self, v: str):
         self.comp_filtro_pago = v
         self.comp_page = 1
+        async for s in self.cargar_comprobantes():
+            yield s
+
+    # ── Anulación de venta ─────────────────────────────────────────────────────
+
+    def abrir_anular(self, comp: dict):
+        self.anular_comp_id     = comp.get("id") or 0
+        self.anular_comp_numero = comp.get("numero") or ""
+        self.anular_motivo      = ""
+        self.anular_error       = ""
+        self.modal_anular       = True
+
+    def cerrar_anular(self):
+        self.modal_anular = False
+
+    def set_anular_motivo(self, v: str):
+        self.anular_motivo = v
+
+    async def confirmar_anular(self):
+        if not self.tiene_permiso("caja", write=True):
+            self.anular_error = "Sin permiso para anular ventas"
+            return
+        if not self.anular_motivo.strip():
+            self.anular_error = "Indicá el motivo de la anulación"
+            return
+        self.is_anulando = True
+        self.anular_error = ""
+        yield
+        async with get_async_session() as session:
+            try:
+                await cobro_svc.anular(
+                    session, self.clinica_id, self.anular_comp_id,
+                    motivo=self.anular_motivo.strip(),
+                    usuario_id=self.user_id, sede_id=self.sede_actual_id,
+                )
+            except ServiceError as exc:
+                self.anular_error = str(exc)
+                self.is_anulando  = False
+                return
+        self.is_anulando  = False
+        self.modal_anular = False
+        yield rx.toast.success(f"Comprobante {self.anular_comp_numero} anulado")
+        await self._cargar_resumen()
         async for s in self.cargar_comprobantes():
             yield s
 

@@ -19,7 +19,7 @@ from clinica_app.models.caja import (
 from clinica_app.models.inventario import MovimientoStock, Producto
 from clinica_app.models.paciente import Paciente
 from clinica_app.services import auditoria
-from clinica_app.services.exceptions import NotFoundError, ServiceError
+from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
 
@@ -104,6 +104,8 @@ def _dump(c: Comprobante, items: list[ComprobanteItem] | None = None) -> dict[st
         "total":            str(c.total or 0),
         "forma_pago":       c.forma_pago.value if c.forma_pago else "efectivo",
         "observacion":      c.observacion or "",
+        "anulado":          bool(c.anulado),
+        "anulado_motivo":   c.anulado_motivo or "",
         "items":            [_dump_item(i) for i in (items or [])],
     }
 
@@ -437,17 +439,118 @@ async def obtener(session: AsyncSession, clinica_id: int, comp_id: int, sede_id:
     return _dump(comp, list(items))
 
 
-async def anular(session: AsyncSession, clinica_id: int, comp_id: int) -> None:
-    comp = (
+async def _reponer_stock(
+    session: AsyncSession,
+    clinica_id: int,
+    producto_id: int,
+    cantidad: Decimal,
+    comprobante_id: int,
+) -> None:
+    """Repone stock al anular una venta (inverso de _descontar_stock)."""
+    prod = (
         await session.execute(
-            select(Comprobante).where(
-                Comprobante.clinica_id == clinica_id,
-                Comprobante.id == comp_id,
-                Comprobante.is_active.is_(True),
+            select(Producto).where(
+                Producto.id == producto_id,
+                Producto.clinica_id == clinica_id,
+                Producto.is_active.is_(True),
             )
         )
     ).scalars().first()
+    if not prod:
+        return
+    nuevo_stock = (prod.stock_actual or Decimal("0")) + cantidad
+    prod.stock_actual = nuevo_stock
+    session.add(MovimientoStock(
+        clinica_id=clinica_id,
+        producto_id=producto_id,
+        tipo="ingreso",
+        cantidad=cantidad,
+        saldo=nuevo_stock,
+        motivo="Anulación de venta",
+        referencia=f"anul:{comprobante_id}",
+    ))
+
+
+async def anular(
+    session: AsyncSession,
+    clinica_id: int,
+    comp_id: int,
+    motivo: str = "",
+    usuario_id: int | None = None,
+    sede_id: int = 0,
+) -> dict[str, Any]:
+    """Anula una venta de forma atómica y auditada, dejando rastro.
+
+    Revierte TODO el efecto del cobro: da de baja los ingresos de caja ligados,
+    repone el stock de los productos vendidos, cancela la deuda (si fue en
+    cuotas) y marca el comprobante como ANULADO (no lo borra). Registra la
+    acción en el audit log.
+    """
+    motivo = (motivo or "").strip()
+    if not motivo:
+        raise ServiceError("Indicá el motivo de la anulación")
+
+    stmt = select(Comprobante).where(
+        Comprobante.clinica_id == clinica_id,
+        Comprobante.id == comp_id,
+        Comprobante.is_active.is_(True),
+    )
+    if sede_id:
+        stmt = stmt.where(Comprobante.sede_id == sede_id)
+    comp = (await session.execute(stmt)).scalars().first()
     if not comp:
         raise NotFoundError("Comprobante no encontrado")
-    comp.soft_delete()
+    if comp.anulado:
+        raise ConflictError("El comprobante ya está anulado")
+
+    # 1. Revertir caja: dar de baja los ingresos ligados a este comprobante.
+    movs = (await session.execute(
+        select(CajaMovimiento).where(
+            CajaMovimiento.clinica_id == clinica_id,
+            CajaMovimiento.comprobante_id == comp_id,
+            CajaMovimiento.tipo == TipoMovimiento.INGRESO,
+            CajaMovimiento.is_active.is_(True),
+        )
+    )).scalars().all()
+    for m in movs:
+        m.soft_delete()
+
+    # 2. Reponer stock de los ítems que eran productos.
+    items = (await session.execute(
+        select(ComprobanteItem).where(ComprobanteItem.comprobante_id == comp_id)
+    )).scalars().all()
+    for it in items:
+        if it.tipo == "producto" and it.ref_id:
+            await _reponer_stock(
+                session, clinica_id, it.ref_id, Decimal(str(it.cantidad or 0)), comp_id
+            )
+
+    # 3. Cancelar la deuda (ventas en cuotas).
+    deudas = (await session.execute(
+        select(DeudaPaciente).where(
+            DeudaPaciente.clinica_id == clinica_id,
+            DeudaPaciente.comprobante_id == comp_id,
+            DeudaPaciente.is_active.is_(True),
+        )
+    )).scalars().all()
+    for d in deudas:
+        d.estado = "anulado"
+        d.saldo = Decimal("0")
+        d.soft_delete()
+
+    # 4. Marcar el comprobante como anulado (sigue visible en las listas).
+    comp.anulado = True
+    comp.anulado_en = datetime.now(timezone.utc)
+    comp.anulado_motivo = motivo
+
     await session.flush()
+
+    await auditoria.registrar(
+        session, clinica_id,
+        usuario_id=usuario_id,
+        accion="anular", entidad="comprobante", entidad_id=comp_id,
+        sede_id=sede_id or None,
+        detalle={"numero": comp.numero, "motivo": motivo, "total": str(comp.total or 0)},
+    )
+
+    return _dump(comp, list(items))

@@ -57,6 +57,11 @@ class Comprobante(SQLModel, table=True):
         sa_column=Column(SAEnum(MetodoPago), default=MetodoPago.EFECTIVO, nullable=True)
     )
     observacion: str | None = Field(default=None, max_length=240, nullable=True)
+    # Anulación de la venta: el comprobante no se borra, queda marcado ANULADO
+    # con fecha y motivo. La reversión (caja/stock/deuda) la hace cobro.anular.
+    anulado: bool = Field(default=False, nullable=False, sa_column_kwargs={"server_default": "0"})
+    anulado_en: datetime | None = Field(default=None, nullable=True)
+    anulado_motivo: str | None = Field(default=None, max_length=240, nullable=True)
     is_active: bool = Field(default=True, nullable=False, index=True)
     deleted_at: datetime | None = Field(default=None, nullable=True, index=True)
     idempotency_key: str | None = Field(

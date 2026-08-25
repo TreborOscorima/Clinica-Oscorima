@@ -241,7 +241,18 @@ def _tab_btn(label: str, tab_value: str, icon_name: str) -> rx.Component:
 def _fila_comp(c: dict) -> rx.Component:
     return rx.el.tr(
         rx.el.td(
-            rx.el.span(c["numero"], class_name="text-sm font-mono text-gray-700"),
+            rx.el.div(
+                rx.el.span(c["numero"], class_name="text-sm font-mono text-gray-700"),
+                rx.cond(
+                    c["anulado"],
+                    rx.el.span(
+                        "ANULADO",
+                        title=c["anulado_motivo"],
+                        class_name="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700",
+                    ),
+                ),
+                class_name="flex items-center gap-2",
+            ),
             class_name="px-4 py-3",
         ),
         rx.el.td(
@@ -253,7 +264,14 @@ def _fila_comp(c: dict) -> rx.Component:
             class_name="px-4 py-3",
         ),
         rx.el.td(
-            rx.el.span("$ ", c["total"], class_name="text-sm font-semibold text-green-700"),
+            rx.el.span(
+                "$ ", c["total"],
+                class_name=rx.cond(
+                    c["anulado"],
+                    "text-sm font-semibold text-gray-400 line-through",
+                    "text-sm font-semibold text-green-700",
+                ),
+            ),
             class_name="px-4 py-3",
         ),
         rx.el.td(
@@ -261,16 +279,98 @@ def _fila_comp(c: dict) -> rx.Component:
             class_name="px-4 py-3",
         ),
         rx.el.td(
-            rx.el.a(
-                rx.icon("file-down", size=15),
-                href=f"/api/recibo/pdf?comp_id={c['id']}&clinica_id={CajaState.clinica_id}&token={CajaState.download_token}",
-                target="_blank",
-                title="Descargar PDF",
-                class_name="inline-flex items-center p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer",
+            rx.el.div(
+                rx.el.a(
+                    rx.icon("file-down", size=15),
+                    href=f"/api/recibo/pdf?comp_id={c['id']}&clinica_id={CajaState.clinica_id}&token={CajaState.download_token}",
+                    target="_blank",
+                    title="Descargar PDF",
+                    class_name="inline-flex items-center p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer",
+                ),
+                rx.cond(
+                    ~c["anulado"],
+                    rx.el.button(
+                        rx.icon("ban", size=15),
+                        on_click=lambda: CajaState.abrir_anular(c),
+                        title="Anular venta",
+                        class_name="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded cursor-pointer",
+                    ),
+                ),
+                class_name="flex items-center gap-1",
             ),
             class_name="px-4 py-3",
         ),
-        class_name="border-t border-gray-100 hover:bg-gray-50",
+        class_name=rx.cond(
+            c["anulado"],
+            "border-t border-gray-100 bg-red-50/30",
+            "border-t border-gray-100 hover:bg-gray-50",
+        ),
+    )
+
+
+def _modal_anular() -> rx.Component:
+    return rx.cond(
+        CajaState.modal_anular,
+        rx.el.div(
+            rx.el.div(
+                class_name="fixed inset-0 bg-black/40 z-40",
+                on_click=CajaState.cerrar_anular,
+            ),
+            rx.el.div(
+                rx.el.div(
+                    rx.icon("triangle-alert", size=18, class_name="text-red-600 mr-2"),
+                    rx.el.h2("Anular venta", class_name="text-lg font-semibold text-gray-900"),
+                    class_name="flex items-center pb-4 mb-4 border-b border-gray-100",
+                ),
+                rx.el.p(
+                    "Se anulará el comprobante ",
+                    rx.el.span(CajaState.anular_comp_numero, class_name="font-mono font-semibold"),
+                    ". Esto revierte el ingreso en caja, repone el stock de los productos "
+                    "y cancela la deuda si fue en cuotas. El comprobante queda marcado como "
+                    "ANULADO (no se borra).",
+                    class_name="text-sm text-gray-600 mb-4",
+                ),
+                rx.el.label("Motivo de la anulación *", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                rx.el.textarea(
+                    placeholder="Ej: cobro duplicado, error de monto, servicio no realizado…",
+                    value=CajaState.anular_motivo,
+                    on_change=CajaState.set_anular_motivo,
+                    rows=3,
+                    class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none",
+                ),
+                rx.cond(
+                    CajaState.anular_error != "",
+                    rx.el.p(
+                        CajaState.anular_error,
+                        class_name="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded",
+                    ),
+                ),
+                rx.el.div(
+                    rx.el.button(
+                        "Cancelar",
+                        on_click=CajaState.cerrar_anular,
+                        class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
+                    ),
+                    rx.el.button(
+                        rx.cond(
+                            CajaState.is_anulando,
+                            rx.el.div(
+                                rx.icon("loader-circle", size=16, class_name="animate-spin mr-1"),
+                                "Anulando…",
+                                class_name="flex items-center",
+                            ),
+                            "Anular venta",
+                        ),
+                        on_click=CajaState.confirmar_anular,
+                        disabled=CajaState.is_anulando,
+                        class_name="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 cursor-pointer",
+                    ),
+                    class_name="flex gap-3 justify-end mt-5",
+                ),
+                class_name="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 z-50",
+            ),
+            class_name="fixed inset-0 flex items-center justify-center z-50",
+        ),
     )
 
 
@@ -437,6 +537,7 @@ def caja_page() -> rx.Component:
     return shell(
         _modal_movimiento(),
         _modal_cierre(),
+        _modal_anular(),
         page_header(
             "Caja",
             "Registra ingresos, egresos y cierres del día",
