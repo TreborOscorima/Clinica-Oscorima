@@ -39,6 +39,8 @@ class TurnosState(BaseState):
     # Modal cambiar estado
     modal_estado:      bool = False
     turno_sel_id:      int  = 0
+    turno_sel_estado:  str  = ""          # estado actual del turno seleccionado
+    estados_opciones:  list[dict] = []    # transiciones válidas desde el estado actual
     form_nuevo_estado: str  = ""
     form_motivo:       str  = ""
 
@@ -265,8 +267,12 @@ class TurnosState(BaseState):
     # ── Modal cambiar estado ───────────────────────────────────────────────────
 
     def abrir_estado(self, turno: dict):
-        self.turno_sel_id      = turno.get("id") or 0
-        self.form_nuevo_estado = turno.get("estado") or ""
+        self.turno_sel_id     = turno.get("id") or 0
+        self.turno_sel_estado = turno.get("estado") or ""
+        opciones = svc.transiciones_validas(self.turno_sel_estado)
+        self.estados_opciones = [{"value": e, "label": e.capitalize()} for e in opciones]
+        # Preseleccionar la primera transición válida (no el estado actual).
+        self.form_nuevo_estado = opciones[0] if opciones else ""
         self.form_motivo       = ""
         self.modal_estado      = True
 

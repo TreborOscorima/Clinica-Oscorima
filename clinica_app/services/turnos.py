@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from clinica_app.config import RECORDATORIOS_TZ
 from clinica_app.models.caja import CajaMovimiento, MetodoPago, TipoMovimiento
+from clinica_app.models.clinica import Clinica
 from clinica_app.models.paciente import Paciente
 from clinica_app.models.servicio import Servicio
 from clinica_app.models.turno import EstadoTurno, Turno
@@ -17,6 +20,54 @@ from clinica_app.models.turno_servicio import TurnoServicio
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 from clinica_app.services import agenda as _agenda
 from clinica_app.services import notificaciones as notif
+
+
+# Transiciones de estado permitidas (máquina de estados del turno). `atendido`
+# es terminal (puede tener cobro asociado); `cancelado` sólo se puede reactivar
+# volviéndolo a `pendiente`.
+_TRANSICIONES: dict[EstadoTurno, set[EstadoTurno]] = {
+    EstadoTurno.PENDIENTE:  {EstadoTurno.CONFIRMADO, EstadoTurno.CANCELADO, EstadoTurno.ATENDIDO},
+    EstadoTurno.CONFIRMADO: {EstadoTurno.PENDIENTE, EstadoTurno.CANCELADO, EstadoTurno.ATENDIDO},
+    EstadoTurno.ATENDIDO:   set(),
+    EstadoTurno.CANCELADO:  {EstadoTurno.PENDIENTE},
+}
+
+
+def transiciones_validas(estado_actual: str) -> list[str]:
+    """Estados a los que se puede pasar desde `estado_actual` (para la UI)."""
+    try:
+        actual = EstadoTurno(estado_actual)
+    except ValueError:
+        return []
+    return [e.value for e in EstadoTurno if e in _TRANSICIONES.get(actual, set())]
+
+
+# Tolerancia para el bloqueo de fecha pasada: el input datetime-local trunca a
+# minuto y puede haber skew de reloj, así que no rechazamos turnos "de este
+# mismo minuto". Sí rechaza cualquier fecha/hora claramente anterior.
+_GRACIA_PASADO = timedelta(minutes=2)
+
+
+def _ahora_local(tz_nombre: str | None = None) -> datetime:
+    """Ahora en la zona horaria de la clínica, naive, para comparar con la
+    fecha/hora (wall-clock local) que el usuario elige en el formulario.
+
+    Si falta la base de datos de zonas horarias (host sin `tzdata`), cae a UTC
+    con la stdlib, que nunca falla."""
+    try:
+        tz: Any = ZoneInfo(tz_nombre or RECORDATORIOS_TZ)
+    except Exception:
+        tz = timezone.utc
+    return datetime.now(tz).replace(tzinfo=None)
+
+
+def _es_pasado(fecha: datetime, tz_nombre: str | None = None) -> bool:
+    return fecha < _ahora_local(tz_nombre) - _GRACIA_PASADO
+
+
+async def _tz_clinica(session: AsyncSession, clinica_id: int) -> str | None:
+    c = await session.get(Clinica, clinica_id)
+    return getattr(c, "zona_horaria", None) if c else None
 
 
 async def _duracion_servicio(session: AsyncSession, clinica_id: int, servicio_id: int | None) -> int:
@@ -209,6 +260,9 @@ async def crear(
     except ValueError as exc:
         raise ServiceError("fecha_hora inválida (ISO 8601)") from exc
 
+    if _es_pasado(fecha_hora, await _tz_clinica(session, clinica_id)):
+        raise ServiceError("No se puede agendar un turno en una fecha/hora pasada")
+
     if validar_agenda:
         await _validar_agenda(
             session, clinica_id,
@@ -270,8 +324,13 @@ async def cambiar_estado(
     except ValueError as exc:
         raise ServiceError("Estado inválido") from exc
 
-    if turno.estado == EstadoTurno.ATENDIDO and nuevo_estado == EstadoTurno.ATENDIDO:
-        raise ConflictError("El turno ya está atendido")
+    actual = turno.estado or EstadoTurno.PENDIENTE
+    if nuevo_estado == actual:
+        raise ConflictError(f"El turno ya está {actual.value}")
+    if nuevo_estado not in _TRANSICIONES.get(actual, set()):
+        raise ConflictError(
+            f"No se puede pasar de «{actual.value}» a «{nuevo_estado.value}»"
+        )
 
     turno.estado = nuevo_estado
     if nuevo_estado == EstadoTurno.CANCELADO and payload.get("motivo_cancelacion"):
@@ -312,6 +371,9 @@ async def reprogramar(
         nueva_dt = datetime.fromisoformat(str(nueva_fecha))
     except ValueError as exc:
         raise ServiceError("fecha_hora inválida") from exc
+
+    if _es_pasado(nueva_dt, await _tz_clinica(session, clinica_id)):
+        raise ServiceError("No se puede reprogramar a una fecha/hora pasada")
 
     if validar_agenda:
         await _validar_agenda(

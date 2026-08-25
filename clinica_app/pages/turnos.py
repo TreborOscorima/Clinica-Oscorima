@@ -159,18 +159,25 @@ def _modal_estado() -> rx.Component:
             rx.el.div(class_name="fixed inset-0 bg-black/40 z-40", on_click=TurnosState.cerrar_estado),
             rx.el.div(
                 rx.el.h2("Cambiar estado", class_name="text-lg font-semibold text-gray-900 mb-4"),
-                rx.el.div(
-                    rx.el.label("Estado", class_name="block text-sm font-medium text-gray-700 mb-1"),
-                    rx.el.select(
-                        rx.el.option("Pendiente", value="pendiente"),
-                        rx.el.option("Confirmado", value="confirmado"),
-                        rx.el.option("Atendido", value="atendido"),
-                        rx.el.option("Cancelado", value="cancelado"),
-                        default_value=TurnosState.form_nuevo_estado,
-                        on_change=TurnosState.set_form_nuevo_estado,
-                        class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                rx.cond(
+                    TurnosState.estados_opciones.length() > 0,
+                    rx.el.div(
+                        rx.el.label("Nuevo estado", class_name="block text-sm font-medium text-gray-700 mb-1"),
+                        rx.el.select(
+                            rx.foreach(
+                                TurnosState.estados_opciones,
+                                lambda o: rx.el.option(o["label"], value=o["value"]),
+                            ),
+                            value=TurnosState.form_nuevo_estado,
+                            on_change=TurnosState.set_form_nuevo_estado,
+                            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+                        ),
+                        class_name="mb-4",
                     ),
-                    class_name="mb-4",
+                    rx.el.p(
+                        "Este turno ya está atendido: es un estado final y no admite más cambios.",
+                        class_name="mb-4 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg",
+                    ),
                 ),
                 rx.cond(
                     TurnosState.form_nuevo_estado == "cancelado",
@@ -189,10 +196,13 @@ def _modal_estado() -> rx.Component:
                 rx.el.div(
                     rx.el.button("Cancelar", on_click=TurnosState.cerrar_estado,
                                  class_name="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"),
-                    rx.el.button("Guardar", on_click=TurnosState.guardar_estado,
-                                 data_modal_submit="1",
-                                 title="Guardar (Ctrl+Enter)",
-                                 class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 cursor-pointer"),
+                    rx.cond(
+                        TurnosState.estados_opciones.length() > 0,
+                        rx.el.button("Guardar", on_click=TurnosState.guardar_estado,
+                                     data_modal_submit="1",
+                                     title="Guardar (Ctrl+Enter)",
+                                     class_name="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 cursor-pointer"),
+                    ),
                     rx.cond(
                         TurnosState.form_nuevo_estado == "atendido",
                         rx.el.button(
