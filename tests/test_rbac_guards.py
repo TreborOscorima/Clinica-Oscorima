@@ -17,6 +17,15 @@ READ_ONLY_PREFIXES = (
     "buscar", "abrir", "ver_", "set_pac_busqueda", "handle_login",
 )
 
+# Excepciones justificadas: handlers que mutan pero NO se gobiernan por un
+# permiso de módulo. La autorización es la identidad de la propia sesión.
+EXCEPCIONES = frozenset({
+    # Autoservicio: el usuario cambia SU propia contraseña (opera solo sobre
+    # self.user_id y verifica la contraseña actual). Debe estar disponible para
+    # cualquier usuario autenticado, sin permiso de configuración.
+    "cuenta.py::CuentaState.cambiar_password",
+})
+
 
 def _handlers_sin_guard() -> list[str]:
     faltantes = []
@@ -28,6 +37,8 @@ def _handlers_sin_guard() -> list[str]:
                 if not isinstance(fn, (ast.AsyncFunctionDef, ast.FunctionDef)):
                     continue
                 if fn.name.startswith(READ_ONLY_PREFIXES):
+                    continue
+                if f"{f.name}::{cls.name}.{fn.name}" in EXCEPCIONES:
                     continue
                 src = ast.get_source_segment(src_full, fn) or ""
                 if "get_async_session" in src and "tiene_permiso" not in src:

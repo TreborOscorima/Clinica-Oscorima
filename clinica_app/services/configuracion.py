@@ -9,6 +9,7 @@ from sqlmodel import select
 from clinica_app.models.clinica import Clinica
 from clinica_app.models.user import RoleEnum, User
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
+from clinica_app.services.password import validar_password
 
 
 # ── Clínica ────────────────────────────────────────────────────────────────────
@@ -223,8 +224,7 @@ async def crear_usuario(session: AsyncSession, clinica_id: int, payload: dict[st
         raise ServiceError("Nombre obligatorio")
     if not email:
         raise ServiceError("Email obligatorio")
-    if len(password) < 6:
-        raise ServiceError("La contraseña debe tener al menos 6 caracteres")
+    validar_password(password)
     try:
         rol = RoleEnum(rol_str)
     except ValueError as exc:
@@ -256,8 +256,7 @@ async def crear_usuario(session: AsyncSession, clinica_id: int, payload: dict[st
 
 
 async def cambiar_password(session: AsyncSession, clinica_id: int, user_id: int, nueva: str) -> None:
-    if len(nueva) < 6:
-        raise ServiceError("La contraseña debe tener al menos 6 caracteres")
+    validar_password(nueva)
     u = (await session.execute(
         select(User).where(User.id == user_id, User.clinica_id == clinica_id)
     )).scalars().first()

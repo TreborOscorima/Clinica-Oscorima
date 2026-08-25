@@ -134,6 +134,36 @@ async def sedes_para_usuario(
     return [s for s in todas if s["id"] in ids]
 
 
+async def cambiar_mi_password(
+    session: AsyncSession, user_id: int, actual: str, nueva: str
+) -> None:
+    """Autoservicio: el propio usuario cambia su contraseña.
+
+    Verifica la contraseña actual antes de aplicar la nueva y valida la política
+    de complejidad. Disponible para cualquier usuario autenticado (no requiere el
+    permiso de configuración, a diferencia del cambio administrativo).
+    """
+    from clinica_app.services.exceptions import NotFoundError, ValidationError
+    from clinica_app.services.password import validar_password
+
+    u: User | None = (await session.execute(
+        select(User).where(User.id == user_id, User.is_active.is_(True))
+    )).scalars().first()
+    if u is None:
+        raise NotFoundError("Usuario no encontrado")
+
+    actual_ok = await asyncio.to_thread(u.check_password, actual)
+    if not actual_ok:
+        raise ValidationError("La contraseña actual no es correcta")
+
+    if await asyncio.to_thread(u.check_password, nueva):
+        raise ValidationError("La nueva contraseña debe ser distinta de la actual")
+
+    validar_password(nueva)
+    u.set_password(nueva)
+    await session.flush()
+
+
 def datos_usuario(user: User) -> dict[str, Any]:
     return {
         "id":             user.id,

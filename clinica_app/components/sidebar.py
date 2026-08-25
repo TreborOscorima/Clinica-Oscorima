@@ -122,14 +122,19 @@ def _nav_links() -> rx.Component:
 def _user_footer() -> rx.Component:
     return rx.el.div(
         rx.el.div(
-            rx.el.div(
-                BaseState.user_nombre[:1].upper(),
-                class_name="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center text-sm font-bold shrink-0",
-            ),
-            rx.el.div(
-                rx.el.p(BaseState.user_nombre, class_name="text-sm font-medium text-gray-900 truncate max-w-[7rem]"),
-                rx.el.p(BaseState.rol_display, class_name="text-xs text-gray-500"),
-                class_name="flex-1 min-w-0",
+            rx.el.a(
+                rx.el.div(
+                    BaseState.user_nombre[:1].upper(),
+                    class_name="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center text-sm font-bold shrink-0",
+                ),
+                rx.el.div(
+                    rx.el.p(BaseState.user_nombre, class_name="text-sm font-medium text-gray-900 truncate max-w-[7rem]"),
+                    rx.el.p(BaseState.rol_display, class_name="text-xs text-gray-500"),
+                    class_name="flex-1 min-w-0",
+                ),
+                href="/mi-cuenta",
+                title="Mi cuenta",
+                class_name="flex items-center gap-2 flex-1 min-w-0 rounded-lg hover:bg-gray-50 -m-1 p-1 cursor-pointer",
             ),
             rx.el.button(
                 rx.icon("log-out", size=16),

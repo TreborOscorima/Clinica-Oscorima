@@ -4,7 +4,34 @@ from __future__ import annotations
 import pytest
 
 from clinica_app.services import auth as svc
-from clinica_app.services.exceptions import ServiceError
+from clinica_app.services.exceptions import ServiceError, ValidationError
+
+
+# ── Autoservicio: cambio de la propia contraseña ─────────────────────────────
+
+async def test_cambiar_mi_password_ok(session, admin_user):
+    await svc.cambiar_mi_password(session, admin_user.id, "secret123", "NuevaClave9")
+    # La vieja ya no vale; la nueva sí.
+    with pytest.raises(ServiceError):
+        await svc.autenticar(session, "admin@test.com", "secret123")
+    user = await svc.autenticar(session, "admin@test.com", "NuevaClave9")
+    assert user.id == admin_user.id
+
+
+async def test_cambiar_mi_password_actual_incorrecta(session, admin_user):
+    with pytest.raises(ValidationError):
+        await svc.cambiar_mi_password(session, admin_user.id, "no-es-la-actual", "NuevaClave9")
+
+
+async def test_cambiar_mi_password_nueva_debil(session, admin_user):
+    # La nueva no cumple la política (sin número).
+    with pytest.raises(ValidationError):
+        await svc.cambiar_mi_password(session, admin_user.id, "secret123", "solotexto")
+
+
+async def test_cambiar_mi_password_igual_a_la_actual(session, admin_user):
+    with pytest.raises(ValidationError):
+        await svc.cambiar_mi_password(session, admin_user.id, "secret123", "secret123")
 
 
 async def test_autenticar_credenciales_correctas(session, admin_user):
