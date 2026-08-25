@@ -8,7 +8,7 @@ from clinica_app.models.turno import Turno, EstadoTurno
 from clinica_app.models.turno_servicio import TurnoServicio
 from clinica_app.models.caja import (
     Comprobante, CajaMovimiento, CierreCaja,
-    ComprobanteItem, DeudaPaciente, TipoMovimiento, MetodoPago,
+    ComprobanteItem, CuotaDeuda, DeudaPaciente, TipoMovimiento, MetodoPago,
 )
 from clinica_app.models.inventario import (
     Producto, MovimientoStock, Proveedor,
@@ -41,7 +41,7 @@ __all__ = [
     "Paciente", "Profesional", "Servicio", "ServicioPrecioHist", "ServicioInsumo",
     "Turno", "EstadoTurno", "TurnoServicio",
     "Comprobante", "CajaMovimiento", "CierreCaja",
-    "ComprobanteItem", "DeudaPaciente", "TipoMovimiento", "MetodoPago",
+    "ComprobanteItem", "CuotaDeuda", "DeudaPaciente", "TipoMovimiento", "MetodoPago",
     "Producto", "MovimientoStock", "Proveedor",
     "Compra", "CompraItem", "ProductoPrecioHist", "TipoMov",
     "Promocion",

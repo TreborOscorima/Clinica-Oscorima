@@ -19,6 +19,7 @@ from clinica_app.models.caja import (
 from clinica_app.models.inventario import MovimientoStock, Producto
 from clinica_app.models.paciente import Paciente
 from clinica_app.services import auditoria
+from clinica_app.services import cuotas as _cuotas
 from clinica_app.services.exceptions import ConflictError, NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
@@ -253,6 +254,7 @@ async def crear(
             estado="pendiente",
         )
         session.add(deuda)
+        await session.flush()
         if anticipo > 0:
             _ingreso(session, clinica_id, anticipo, forma_pago, paciente_id, comp.id,
                      f"Anticipo cuotas {numero}", sede_id=sede_id)
@@ -260,6 +262,13 @@ async def crear(
             deuda.saldo  = max(Decimal("0"), total_neto - anticipo)
             if deuda.saldo == 0:
                 deuda.estado = "cancelado"
+        # Cronograma: financia el saldo (total - anticipo) en num_cuotas cuotas
+        # mensuales; la primera vence el mes que viene.
+        if deuda.saldo > 0:
+            await _cuotas.generar(
+                session, clinica_id=clinica_id, deuda_id=deuda.id,
+                total=deuda.saldo, num_cuotas=num_cuotas,
+            )
     else:
         _ingreso(session, clinica_id, total_neto, forma_pago, paciente_id, comp.id,
                  f"Cobro {numero}", sede_id=sede_id)

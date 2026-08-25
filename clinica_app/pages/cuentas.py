@@ -78,6 +78,19 @@ def _fila_deuda(d: dict) -> rx.Component:
         ),
         rx.el.td(
             estado_badge(d["estado"]),
+            rx.cond(
+                d["prox_vencimiento"] != "",
+                rx.el.p(
+                    rx.icon("calendar-clock", size=11, class_name="inline mr-1 -mt-0.5"),
+                    rx.cond(d["prox_estado"] == "vencida", "Venció ", "Vence "),
+                    d["prox_vencimiento"],
+                    class_name=rx.cond(
+                        d["prox_estado"] == "vencida",
+                        "text-xs text-red-600 font-medium mt-1",
+                        "text-xs text-gray-400 mt-1",
+                    ),
+                ),
+            ),
             class_name="px-4 py-3 whitespace-nowrap",
         ),
         rx.el.td(
@@ -94,6 +107,43 @@ def _fila_deuda(d: dict) -> rx.Component:
             class_name="px-4 py-3 whitespace-nowrap",
         ),
         class_name="border-b border-gray-100 hover:bg-gray-50 transition-colors",
+    )
+
+
+_CUOTA_BADGE_BASE = "px-1.5 py-0.5 rounded text-xs font-medium "
+
+
+def _fila_cuota(c: dict) -> rx.Component:
+    return rx.el.div(
+        rx.el.span(f"Cuota {c['numero']}", class_name="text-xs font-medium text-gray-700 w-16"),
+        rx.el.span(c["vencimiento"], class_name="text-xs text-gray-500 flex-1"),
+        rx.el.span("$", c["monto"], class_name="text-xs text-gray-800 font-medium mr-2"),
+        rx.el.span(
+            c["estado"],
+            class_name=rx.match(
+                c["estado"],
+                ("pagada",  _CUOTA_BADGE_BASE + "bg-green-100 text-green-700"),
+                ("parcial", _CUOTA_BADGE_BASE + "bg-amber-100 text-amber-700"),
+                ("vencida", _CUOTA_BADGE_BASE + "bg-red-100 text-red-700"),
+                _CUOTA_BADGE_BASE + "bg-gray-100 text-gray-600",
+            ),
+        ),
+        class_name="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0",
+    )
+
+
+def _cronograma() -> rx.Component:
+    return rx.cond(
+        CuentasState.cuotas_deuda.length() > 0,
+        rx.el.div(
+            rx.el.p(
+                rx.icon("calendar-days", size=13, class_name="inline mr-1 -mt-0.5"),
+                "Cronograma de cuotas",
+                class_name="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2",
+            ),
+            rx.foreach(CuentasState.cuotas_deuda, _fila_cuota),
+            class_name="border border-gray-200 rounded-lg p-3 mb-5",
+        ),
     )
 
 
@@ -142,6 +192,8 @@ def _modal_pago() -> rx.Component:
                     ),
                     class_name="bg-gray-50 rounded-lg p-3 mb-5 space-y-1.5",
                 ),
+                # Cronograma de cuotas (si la deuda fue financiada)
+                _cronograma(),
                 # Formulario
                 rx.el.div(
                     # Monto

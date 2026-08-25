@@ -4,6 +4,7 @@ import reflex as rx
 
 from clinica_app.database import get_async_session
 from clinica_app.services import cuentas as svc
+from clinica_app.services import cuotas as _cuotas_svc
 from clinica_app.services.exceptions import ServiceError
 from clinica_app.state.base import BaseState
 
@@ -12,6 +13,7 @@ _DEUDA_VACIA: dict = {
     "comprobante_id": 0, "comprobante_numero": "",
     "total": "0.00", "pagado": "0.00", "saldo": "0.00",
     "estado": "pendiente", "creado_en": "", "actualizado_en": "",
+    "prox_vencimiento": "", "prox_estado": "",
 }
 
 
@@ -33,9 +35,10 @@ class CuentasState(BaseState):
     busqueda:      str = ""
 
     # ── Modal pago ─────────────────────────────────────────────────────────────
-    modal_pago:  bool = False
-    deuda_sel:   dict = _DEUDA_VACIA
-    form_monto:  str  = ""
+    modal_pago:   bool = False
+    deuda_sel:    dict = _DEUDA_VACIA
+    cuotas_deuda: list[dict] = []      # cronograma de la deuda seleccionada
+    form_monto:   str  = ""
     form_metodo: str  = "efectivo"
     form_obs:    str  = ""
     form_error:  str  = ""
@@ -106,18 +109,24 @@ class CuentasState(BaseState):
 
     # ── Modal pago ─────────────────────────────────────────────────────────────
 
-    def abrir_pago(self, deuda: dict):
+    async def abrir_pago(self, deuda: dict):
         self.deuda_sel   = deuda
         self.form_monto  = deuda["saldo"]
         self.form_metodo = "efectivo"
         self.form_obs    = ""
         self.form_error  = ""
+        self.cuotas_deuda = []
+        async with get_async_session() as session:
+            self.cuotas_deuda = await _cuotas_svc.listar_por_deuda(
+                session, self.clinica_id, int(deuda["id"]),
+            )
         self.modal_pago  = True
 
     def cerrar_pago(self):
-        self.modal_pago = False
-        self.deuda_sel  = _DEUDA_VACIA
-        self.form_error = ""
+        self.modal_pago   = False
+        self.deuda_sel    = _DEUDA_VACIA
+        self.cuotas_deuda = []
+        self.form_error   = ""
 
     def set_form_monto(self, v: str):  self.form_monto = v
     def set_form_metodo(self, v: str): self.form_metodo = v
@@ -146,9 +155,10 @@ class CuentasState(BaseState):
             self.is_saving  = False
             return
 
-        self.is_saving  = False
-        self.modal_pago = False
-        self.deuda_sel  = _DEUDA_VACIA
+        self.is_saving    = False
+        self.modal_pago   = False
+        self.deuda_sel    = _DEUDA_VACIA
+        self.cuotas_deuda = []
         async for s in self.cargar():
             yield s
 

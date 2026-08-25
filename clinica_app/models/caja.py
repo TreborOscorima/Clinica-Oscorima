@@ -182,3 +182,23 @@ class DeudaPaciente(SQLModel, table=True):
     def soft_delete(self) -> None:
         self.is_active = False
         self.deleted_at = _utcnow()
+
+
+class CuotaDeuda(SQLModel, table=True):
+    """Cuota del cronograma de una deuda financiada.
+
+    El estado de pago (pagada/parcial/pendiente/vencida) NO se persiste: se
+    deriva del `pagado` de la DeudaPaciente en cascada (waterfall) por número
+    de cuota, para no duplicar el ledger de pagos.
+    """
+    __tablename__ = "cuotas_deuda"
+
+    id: int | None = Field(default=None, primary_key=True)
+    clinica_id: int = Field(foreign_key="clinicas.id", nullable=False, index=True)
+    deuda_id: int = Field(foreign_key="deudas_paciente.id", nullable=False, index=True)
+    numero: int = Field(nullable=False)
+    monto: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    vencimiento: date = Field(sa_column=Column(Date, nullable=False))
+    created_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime, default=_utcnow, nullable=True)
+    )

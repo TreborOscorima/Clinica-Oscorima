@@ -15,6 +15,7 @@ from clinica_app.models.caja import (
     TipoMovimiento,
 )
 from clinica_app.models.paciente import Paciente
+from clinica_app.services import cuotas as _cuotas
 from clinica_app.services.exceptions import NotFoundError, ServiceError
 
 D2 = Decimal("0.01")
@@ -26,7 +27,9 @@ def _dec(v) -> Decimal:
     return Decimal(str(v)).quantize(D2, rounding=ROUND_HALF_UP)
 
 
-def _dump(d: DeudaPaciente, pac_nombre: str = "", comp_numero: str = "") -> dict[str, Any]:
+def _dump(d: DeudaPaciente, pac_nombre: str = "", comp_numero: str = "",
+          prox: dict[str, Any] | None = None) -> dict[str, Any]:
+    prox = prox or {}
     return {
         "id":                  d.id or 0,
         "paciente_id":         d.paciente_id,
@@ -39,6 +42,9 @@ def _dump(d: DeudaPaciente, pac_nombre: str = "", comp_numero: str = "") -> dict
         "estado":              d.estado or "pendiente",
         "creado_en":           d.creado_en.strftime("%d/%m/%Y") if d.creado_en else "",
         "actualizado_en":      d.actualizado_en.strftime("%d/%m/%Y") if d.actualizado_en else "",
+        # Próxima cuota no saldada del cronograma (si la deuda tiene cuotas).
+        "prox_vencimiento":    prox.get("vencimiento", ""),
+        "prox_estado":         prox.get("estado", ""),
     }
 
 
@@ -80,7 +86,10 @@ async def listar(
     total = (await session.execute(select(func.count()).select_from(total_sub))).scalar_one()
 
     rows = (await session.execute(base.offset((page - 1) * per_page).limit(per_page))).all()
-    data = [_dump(d, p.nombre, c.numero or "") for d, p, c in rows]
+    prox = await _cuotas.proximos_vencimientos(
+        session, clinica_id, [d.id for d, _p, _c in rows if d.id]
+    )
+    data = [_dump(d, p.nombre, c.numero or "", prox.get(d.id)) for d, p, c in rows]
 
     # KPIs: deudores activos y saldo global pendiente
     kpi_q = (
