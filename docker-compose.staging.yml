@@ -35,9 +35,7 @@ services:
     environment:
       ENV: prod
       PUBLIC_API_URL: "http://localhost:3005"
-      # Mismos modelos 3D que el demo (horneados en la imagen).
-      ANATOMY_FACE_MODEL_URL: "/models/anatomy/rostro.glb"
-      ANATOMY_BODY_MODEL_URL: "/models/anatomy/cuerpo.glb"
+      # Arcadas dentales 3D (horneadas en la imagen) para el odontograma.
       ANATOMY_TEETH_LOWER_URL: "/models/anatomy/arcada_inferior.glb"
       ANATOMY_TEETH_UPPER_URL: "/models/anatomy/arcada_superior.glb"
 

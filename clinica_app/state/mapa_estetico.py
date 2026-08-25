@@ -1,24 +1,17 @@
-"""Estado del mapa estético facial 3D (E6).
+"""Estado del mapa estético por zona (E6, 2D).
 
-Vista alterna sobre el backend E5 (`services/estetica_mapa` + `services/anatomia`):
-el rostro 3D (viewer.js escena "facial") emite el `zona_codigo` clicado + la
-coordenada normalizada del click; Python carga las evaluaciones/procedimientos de
-esa zona y persiste evaluaciones, procedimientos y **puntos de aplicación**
-(producto+lote+cantidad) por los servicios auditados. El renderer nunca toca la
-BD; los listados laterales son la fuente de verdad y el fallback.
+Vista sobre el backend E5 (`services/estetica_mapa` + `services/anatomia`): el
+profesional elige una zona anatómica (facial o corporal) de la lista y Python
+carga/persiste evaluaciones, procedimientos y **puntos de aplicación**
+(producto+lote+cantidad) por los servicios auditados. Los listados laterales son
+la única fuente de verdad; no hay render 3D.
 """
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 
 import reflex as rx
 
-from clinica_app.components.anatomy_viewer import (
-    anatomy_boot_script,
-    anatomy_setdata_script,
-)
 from clinica_app.database import get_async_session
 from clinica_app.services import anatomia
 from clinica_app.services import estetica_mapa as svc
@@ -29,28 +22,16 @@ from clinica_app.state.base import BaseState
 
 _FOTO_UPLOAD_ID = "mapa_estetico_upload"
 
-# URL (servida desde /assets) de un modelo GLB realista del rostro. Vacío =>
-# geometría procedural. Se configura por entorno para poder cambiar el modelo
-# sin tocar código (ANATOMY_FACE_MODEL_URL=/models/anatomy/rostro.glb).
-_FACE_MODEL_URL = os.getenv("ANATOMY_FACE_MODEL_URL", "")
-# Modelo GLB del cuerpo (vista corporal). Vacío => vista corporal deshabilitada.
-_BODY_MODEL_URL = os.getenv("ANATOMY_BODY_MODEL_URL", "")
-
-# Colores del mapa por actividad de la zona.
-_COLOR_PROC = "#0284c7"  # sky-600 — zona con procedimiento
-_COLOR_EVAL = "#a855f7"  # violet-500 — zona sólo evaluada
+# Estado de actividad por zona (para colorear la lista de zonas).
+_EST_PROC = "proc"   # zona con al menos un procedimiento
+_EST_EVAL = "eval"   # zona solo evaluada
+_EST_NONE = ""       # sin actividad
 
 
 class MapaEsteticoState(BaseState):
 
     paciente_id:     int = 0
     paciente_nombre: str = ""
-
-    # Vista activa del visor 3D: "facial" (rostro) | "corporal" (cuerpo).
-    vista: str = "facial"
-
-    # Visor a pantalla completa (llena el viewport).
-    pantalla_completa: bool = False
 
     # Catálogos (código, no BD).
     zonas_cat:       list[dict] = []   # {codigo, label, region, grupo}
@@ -67,11 +48,9 @@ class MapaEsteticoState(BaseState):
     n_fotos:          int = 0
     is_loading:       bool = False
 
-    # Zona seleccionada + coordenada del último click en el rostro.
+    # Zona seleccionada.
     zona_sel:       str = ""
     zona_sel_label: str = ""
-    last_x:         float = 0.5
-    last_y:         float = 0.5
     evaluaciones:   list[dict] = []
     procedimientos: list[dict] = []
 
@@ -111,51 +90,32 @@ class MapaEsteticoState(BaseState):
         return self.tiene_permiso("historia", write=True)
 
     @rx.var
-    def es_corporal(self) -> bool:
-        return self.vista == "corporal"
-
-    @rx.var
-    def tiene_corporal(self) -> bool:
-        """La vista corporal solo se ofrece si hay un modelo GLB configurado."""
-        return bool(_BODY_MODEL_URL)
-
-    @rx.var
-    def titulo_vista(self) -> str:
-        return "Cuerpo 3D" if self.vista == "corporal" else "Rostro 3D"
-
-    @rx.var
-    def camaras_cat(self) -> list[dict]:
-        """Cámaras del visor según la vista (mismas claves que viewer.js)."""
-        if self.vista == "corporal":
-            return [
-                {"clave": "frontal",    "label": "Frontal"},
-                {"clave": "posterior",  "label": "Posterior"},
-                {"clave": "perfil_izq", "label": "Perfil izq."},
-                {"clave": "perfil_der", "label": "Perfil der."},
-            ]
-        return [
-            {"clave": "frontal",    "label": "Frontal"},
-            {"clave": "perfil_izq", "label": "Perfil izq."},
-            {"clave": "perfil_der", "label": "Perfil der."},
-            {"clave": "superior",   "label": "Superior"},
-        ]
-
-    def toggle_pantalla_completa(self):
-        self.pantalla_completa = not self.pantalla_completa
-        # El canvas WebGL no siempre detecta el cambio de tamaño del contenedor
-        # (ResizeObserver no dispara confiable con el toggle de clase) → forzamos
-        # un resize tras aplicar el nuevo layout.
-        yield rx.call_script(
-            "setTimeout(function(){window.dispatchEvent(new Event('resize'));},80);"
-        )
-
-    @rx.var
     def tiene_zona(self) -> bool:
         return self.zona_sel != ""
 
+    def _zonas_view(self, grupo: str) -> list[dict]:
+        """Zonas del grupo con su estado de actividad (para colorear la lista)."""
+        salida: list[dict] = []
+        for z in self.zonas_cat:
+            if z.get("grupo") != grupo:
+                continue
+            cont = self.resumen_zonas.get(z["codigo"], {})
+            if cont.get("procedimientos", 0) > 0:
+                estado = _EST_PROC
+            elif cont.get("evaluaciones", 0) > 0:
+                estado = _EST_EVAL
+            else:
+                estado = _EST_NONE
+            salida.append({"codigo": z["codigo"], "label": z["label"], "estado": estado})
+        return salida
+
     @rx.var
-    def coord_label(self) -> str:
-        return f"x {self.last_x:.2f} · y {self.last_y:.2f}"
+    def zonas_faciales(self) -> list[dict]:
+        return self._zonas_view("facial")
+
+    @rx.var
+    def zonas_corporales(self) -> list[dict]:
+        return self._zonas_view("corporal")
 
     # ── Carga ────────────────────────────────────────────────────────────────────
 
@@ -167,7 +127,8 @@ class MapaEsteticoState(BaseState):
         if not self.tiene_permiso("historia"):
             yield rx.redirect("/")
             return
-        self.zonas_cat = anatomia.zonas_catalogo("facial")
+        # Todas las zonas (rostro + cuerpo): la lista 2D es el único selector.
+        self.zonas_cat = anatomia.zonas_catalogo()
         self.tipos_cat = [{"value": t["clave"], "label": t["label"]} for t in anatomia.tipos_catalogo()]
         self.categorias_cat = [{"value": c["clave"], "label": c["label"]} for c in anatomia.categorias_catalogo()]
         self.severidades_cat = [{"value": str(s["valor"]), "label": f'{s["valor"]} · {s["label"]}'} for s in anatomia.SEVERIDADES]
@@ -182,9 +143,6 @@ class MapaEsteticoState(BaseState):
             await self._cargar_nombre_paciente()
             await self._cargar_productos()
             await self._cargar_resumen()
-        yield rx.call_script(anatomy_boot_script(
-            self._payload_facial(), scene_type="facial", model_url=_FACE_MODEL_URL,
-        ))
 
     async def _cargar_nombre_paciente(self):
         from sqlmodel import select
@@ -248,18 +206,6 @@ class MapaEsteticoState(BaseState):
         self.fotos_durante = [f for f in fotos if f["momento"] == "durante"]
         self.fotos_despues = [f for f in fotos if f["momento"] == "despues"]
 
-    def _payload_facial(self, seleccionado: str = "") -> str:
-        colores: dict[str, str] = {}
-        for codigo, cont in self.resumen_zonas.items():
-            if cont.get("procedimientos", 0) > 0:
-                colores[codigo] = _COLOR_PROC
-            elif cont.get("evaluaciones", 0) > 0:
-                colores[codigo] = _COLOR_EVAL
-        return json.dumps({"colores": colores, "seleccionado": seleccionado or self.zona_sel})
-
-    def _repintar(self):
-        return rx.call_script(anatomy_setdata_script(self._payload_facial()))
-
     # ── Selección de zona ────────────────────────────────────────────────────────
 
     async def seleccionar_zona(self, codigo: str):
@@ -268,52 +214,8 @@ class MapaEsteticoState(BaseState):
             return
         self.zona_sel = codigo
         self.zona_sel_label = anatomia.zona_label(codigo)
-        await self._cargar_zona()
-        yield self._repintar()
-
-    async def on_pick(self, value: str):
-        try:
-            data = json.loads(value or "{}")
-        except (ValueError, TypeError):
-            return
-        codigo = str(data.get("anatomy_id") or "")
-        if not codigo:
-            return
-        try:
-            self.last_x = float(data.get("coord_x", 0.5))
-            self.last_y = float(data.get("coord_y", 0.5))
-        except (ValueError, TypeError):
-            self.last_x, self.last_y = 0.5, 0.5
-        async for ev in self.seleccionar_zona(codigo):
-            yield ev
-
-    def set_camara(self, nombre: str):
-        yield rx.call_script(
-            "window.AnatomyViewer&&window.AnatomyViewer.setCamera('" + nombre + "');"
-        )
-
-    async def cambiar_vista(self, v: str):
-        """Alterna rostro↔cuerpo: recarga el catálogo de zonas del grupo y
-        re-arranca el visor con la escena/modelo correspondiente."""
-        v = v if v in ("facial", "corporal") else "facial"
-        if v == "corporal" and not _BODY_MODEL_URL:
-            return
-        if v == self.vista:
-            return
-        self.vista = v
-        self.zonas_cat = anatomia.zonas_catalogo(v)
-        self.zona_sel = ""
-        self.zona_sel_label = ""
-        self.evaluaciones = []
-        self.procedimientos = []
-        self.fotos_antes = []
-        self.fotos_durante = []
-        self.fotos_despues = []
         self.foto_error = ""
-        model = _BODY_MODEL_URL if v == "corporal" else _FACE_MODEL_URL
-        yield rx.call_script(anatomy_boot_script(
-            self._payload_facial(), scene_type=v, model_url=model,
-        ))
+        await self._cargar_zona()
 
     # ── Evaluación ───────────────────────────────────────────────────────────────
 
@@ -353,7 +255,6 @@ class MapaEsteticoState(BaseState):
         self.modal_eval = False
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     async def eliminar_eval(self, evaluacion_id: int):
         if not self.tiene_permiso("historia", write=True):
@@ -370,7 +271,6 @@ class MapaEsteticoState(BaseState):
             return
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     # ── Procedimiento ────────────────────────────────────────────────────────────
 
@@ -408,7 +308,6 @@ class MapaEsteticoState(BaseState):
         self.modal_proc = False
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     async def eliminar_proc(self, procedimiento_id: int):
         if not self.tiene_permiso("historia", write=True):
@@ -425,7 +324,6 @@ class MapaEsteticoState(BaseState):
             return
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     # ── Punto de aplicación ──────────────────────────────────────────────────────
 
@@ -460,7 +358,7 @@ class MapaEsteticoState(BaseState):
             async with get_async_session() as session:
                 await svc.agregar_punto(
                     session, self.clinica_id, self.pt_proc_id,
-                    coord_x=self.last_x, coord_y=self.last_y,
+                    coord_x=0.5, coord_y=0.5,
                     producto_id=producto_id, lote=self.pt_lote,
                     cantidad=self.pt_cantidad, unidad=self.pt_unidad,
                     observacion=self.pt_obs,
@@ -474,7 +372,6 @@ class MapaEsteticoState(BaseState):
         self.modal_punto = False
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     async def eliminar_punto(self, punto_id: int):
         if not self.tiene_permiso("historia", write=True):
@@ -491,7 +388,6 @@ class MapaEsteticoState(BaseState):
             return
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()
 
     # ── Fotos antes/después por zona (E8) ─────────────────────────────────────────
 
@@ -542,7 +438,6 @@ class MapaEsteticoState(BaseState):
         await self._cargar_zona()
         await self._cargar_resumen()
         yield rx.clear_selected_files(_FOTO_UPLOAD_ID)
-        yield self._repintar()
 
     async def eliminar_foto(self, foto_id: int):
         if not self.tiene_permiso("historia", write=True):
@@ -562,4 +457,3 @@ class MapaEsteticoState(BaseState):
             await asyncio.to_thread(storage.eliminar, self.clinica_id, stored_name)
         await self._cargar_zona()
         await self._cargar_resumen()
-        yield self._repintar()

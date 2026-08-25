@@ -52,7 +52,6 @@ from clinica_app.pages.odontograma        import odontograma_page
 from clinica_app.pages.planes_tratamiento import planes_tratamiento_page
 from clinica_app.pages.sesiones_esteticas import sesiones_esteticas_page
 from clinica_app.pages.calendario        import calendario_page
-from clinica_app.pages.anatomy_lab       import anatomy_lab_page
 from clinica_app.pages.mapa_estetico     import mapa_estetico_page
 
 
@@ -355,7 +354,6 @@ app.add_page(reportes_page,      route="/reportes",      title="TUWAYKILIFE | Re
 app.add_page(configuracion_page, route="/configuracion", title="TUWAYKILIFE | Configuración")
 app.add_page(auditoria_page,     route="/auditoria",     title="TUWAYKILIFE | Auditoría")
 app.add_page(salud_page,         route="/salud",         title="TUWAYKILIFE | Salud del sistema")
-app.add_page(anatomy_lab_page,   route="/anatomy-lab",   title="TUWAYKILIFE | Motor Anatómico (Lab)")
 
 app.add_page(cuentas_page,        route="/cuentas",         title="TUWAYKILIFE | Cuentas corrientes")
 app.add_page(compras_page,        route="/compras",         title="TUWAYKILIFE | Compras")

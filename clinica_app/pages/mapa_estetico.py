@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import reflex as rx
 
-from clinica_app.components.anatomy_viewer import anatomy_viewer
 from clinica_app.components.layout import shell
 from clinica_app.components.ui import empty_state, page_header
 from clinica_app.state.mapa_estetico import MapaEsteticoState
@@ -14,38 +13,6 @@ def _foto_src(f: dict):
         "/api/adjunto?id=" + f["id"].to_string()
         + "&clinica_id=" + MapaEsteticoState.clinica_id.to_string()
         + "&token=" + MapaEsteticoState.download_token
-    )
-
-
-def _cam_btn(par) -> rx.Component:
-    return rx.el.button(
-        par["label"],
-        on_click=lambda: MapaEsteticoState.set_camara(par["clave"]),
-        class_name="inline-flex items-center px-2.5 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
-    )
-
-
-def _vista_toggle() -> rx.Component:
-    """Alterna la vista del visor entre rostro y cuerpo (si hay modelo corporal)."""
-    def btn(v, label, icon):
-        return rx.el.button(
-            rx.icon(icon, size=13, class_name="mr-1"),
-            label,
-            on_click=lambda: MapaEsteticoState.cambiar_vista(v),
-            class_name=rx.cond(
-                MapaEsteticoState.vista == v,
-                "inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded-lg cursor-pointer",
-                "inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer",
-            ),
-        )
-    return rx.el.div(
-        btn("facial", "Rostro", "smile"),
-        rx.cond(
-            MapaEsteticoState.tiene_corporal,
-            btn("corporal", "Cuerpo", "person-standing"),
-            rx.fragment(),
-        ),
-        class_name="inline-flex items-center gap-1.5",
     )
 
 
@@ -75,24 +42,6 @@ def _text_input(label, value, on_change, placeholder="") -> rx.Component:
             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm",
         ),
         class_name="block",
-    )
-
-
-# ── Leyenda del mapa ──────────────────────────────────────────────────────────
-
-def _leyenda() -> rx.Component:
-    def _chip(color, txt):
-        return rx.el.div(
-            rx.el.span(class_name="w-3 h-3 rounded-full inline-block mr-1.5", style={"background_color": color}),
-            rx.el.span(txt, class_name="text-xs text-gray-600"),
-            class_name="inline-flex items-center mr-3",
-        )
-    return rx.el.div(
-        _chip("#64748b", "Sin actividad"),
-        _chip("#a855f7", "Evaluada"),
-        _chip("#0284c7", "Con procedimiento"),
-        _chip("#0284c7", ""),  # placeholder spacing
-        class_name="flex items-center flex-wrap mt-3",
     )
 
 
@@ -331,10 +280,7 @@ def _panel_zona() -> rx.Component:
             rx.el.div(
                 # Cabecera de la zona.
                 rx.el.div(
-                    rx.el.div(
-                        rx.el.h3(MapaEsteticoState.zona_sel_label, class_name="text-lg font-bold text-gray-900"),
-                        rx.el.p(MapaEsteticoState.coord_label, class_name="text-xs text-gray-400"),
-                    ),
+                    rx.el.h3(MapaEsteticoState.zona_sel_label, class_name="text-lg font-bold text-gray-900"),
                     rx.cond(
                         MapaEsteticoState.puede_editar,
                         rx.el.div(
@@ -373,23 +319,79 @@ def _panel_zona() -> rx.Component:
                 # Fotos antes/después de la zona.
                 _fotos_zona(),
             ),
-            empty_state("mouse-pointer-click", "Elegí una zona", "Hacé click en una zona del rostro o en la lista."),
+            empty_state("mouse-pointer-click", "Elegí una zona", "Seleccioná una zona del rostro o del cuerpo en la lista."),
         ),
         class_name="bg-white border border-gray-200 rounded-2xl p-5",
     )
 
 
-# ── Lista de zonas (fallback y navegación) ────────────────────────────────────
+# ── Selector de zonas (rostro + cuerpo) ───────────────────────────────────────
 
 def _zona_btn(z) -> rx.Component:
+    """Botón de zona: punto de color por actividad + resaltado si está seleccionada."""
+    dot = rx.match(
+        z["estado"],
+        ("proc", rx.el.span(class_name="w-2 h-2 rounded-full bg-sky-500 shrink-0")),
+        ("eval", rx.el.span(class_name="w-2 h-2 rounded-full bg-violet-500 shrink-0")),
+        rx.el.span(class_name="w-2 h-2 rounded-full bg-gray-300 shrink-0"),
+    )
     return rx.el.button(
-        z["label"],
+        dot,
+        rx.el.span(z["label"], class_name="truncate"),
         on_click=lambda: MapaEsteticoState.seleccionar_zona(z["codigo"]),
         class_name=rx.cond(
             MapaEsteticoState.zona_sel == z["codigo"],
-            "text-left px-2.5 py-1.5 text-xs rounded-lg bg-sky-600 text-white cursor-pointer",
-            "text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer",
+            "flex items-center gap-2 w-full text-left px-2.5 py-1.5 text-xs rounded-lg bg-sky-600 text-white cursor-pointer",
+            "flex items-center gap-2 w-full text-left px-2.5 py-1.5 text-xs rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer",
         ),
+    )
+
+
+def _grupo_zonas(titulo: str, icono: str, zonas) -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.icon(icono, size=13, class_name="text-gray-400 mr-1.5"),
+            rx.el.span(titulo, class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
+            class_name="flex items-center mb-2",
+        ),
+        rx.el.div(rx.foreach(zonas, _zona_btn), class_name="grid grid-cols-1 sm:grid-cols-2 gap-1"),
+        class_name="mb-4",
+    )
+
+
+def _leyenda() -> rx.Component:
+    def _chip(cls, txt):
+        return rx.el.div(
+            rx.el.span(class_name="w-2.5 h-2.5 rounded-full inline-block mr-1.5 " + cls),
+            rx.el.span(txt, class_name="text-xs text-gray-600"),
+            class_name="inline-flex items-center mr-3",
+        )
+    return rx.el.div(
+        _chip("bg-gray-300", "Sin actividad"),
+        _chip("bg-violet-500", "Evaluada"),
+        _chip("bg-sky-500", "Con procedimiento"),
+        class_name="flex items-center flex-wrap mt-1",
+    )
+
+
+def _selector_zonas() -> rx.Component:
+    return rx.el.div(
+        rx.el.div(
+            rx.el.span("Zonas", class_name="text-sm font-semibold text-gray-700"),
+            _leyenda(),
+            class_name="flex items-center justify-between gap-3 flex-wrap mb-4",
+        ),
+        _grupo_zonas("Rostro", "smile", MapaEsteticoState.zonas_faciales),
+        _grupo_zonas("Cuerpo", "person-standing", MapaEsteticoState.zonas_corporales),
+        # Totales.
+        rx.el.div(
+            rx.el.span("Evaluaciones: " + MapaEsteticoState.n_evaluaciones.to_string(), class_name="text-xs text-gray-500 mr-3"),
+            rx.el.span("Procedimientos: " + MapaEsteticoState.n_procedimientos.to_string(), class_name="text-xs text-gray-500 mr-3"),
+            rx.el.span("Puntos: " + MapaEsteticoState.n_puntos.to_string(), class_name="text-xs text-gray-500 mr-3"),
+            rx.el.span("Fotos: " + MapaEsteticoState.n_fotos.to_string(), class_name="text-xs text-gray-500"),
+            class_name="mt-2 pt-4 border-t border-gray-100 flex flex-wrap",
+        ),
+        class_name="bg-white border border-gray-200 rounded-2xl p-5",
     )
 
 
@@ -420,7 +422,6 @@ def _modal(abierto, titulo, cuerpo, on_cerrar, on_guardar, guardar_label="Guarda
                 class_name="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40",
                 on_click=on_cerrar,
             ),
-            # Evita cierre al click dentro (stop propagation vía capa interna).
         ),
         rx.fragment(),
     )
@@ -484,10 +485,6 @@ def _modal_punto() -> rx.Component:
                 class_name="grid grid-cols-3 gap-2",
             ),
             _text_input("Observación", MapaEsteticoState.pt_obs, MapaEsteticoState.set_pt_obs),
-            rx.el.p(
-                "Coordenada del punto: " + MapaEsteticoState.coord_label,
-                class_name="text-xs text-gray-400",
-            ),
             class_name="space-y-3",
         ),
         MapaEsteticoState.cerrar_punto,
@@ -520,7 +517,7 @@ def mapa_estetico_page() -> rx.Component:
     return shell(
         rx.el.div(
             page_header(
-                "Mapa estético 3D",
+                "Mapa estético",
                 rx.cond(
                     MapaEsteticoState.paciente_nombre != "",
                     "Paciente: " + MapaEsteticoState.paciente_nombre,
@@ -531,46 +528,11 @@ def mapa_estetico_page() -> rx.Component:
             rx.cond(
                 MapaEsteticoState.paciente_id != 0,
                 rx.el.div(
-                    # Columna izquierda: rostro 3D.
-                    rx.el.div(
-                        rx.el.div(
-                            rx.el.div(
-                                rx.el.span(MapaEsteticoState.titulo_vista, class_name="text-xs font-semibold text-gray-500 uppercase tracking-wide"),
-                                _vista_toggle(),
-                                class_name="flex items-center gap-3 flex-wrap",
-                            ),
-                            rx.el.div(rx.foreach(MapaEsteticoState.camaras_cat, _cam_btn), class_name="flex items-center gap-1.5 flex-wrap"),
-                            class_name="flex items-center justify-between gap-3 mb-3 flex-wrap",
-                        ),
-                        anatomy_viewer(
-                            MapaEsteticoState.on_pick,
-                            height="70vh",
-                            fullscreen=MapaEsteticoState.pantalla_completa,
-                            on_toggle_fullscreen=MapaEsteticoState.toggle_pantalla_completa,
-                        ),
-                        rx.el.p(
-                            "Arrastrá para rotar · rueda para zoom · click directo sobre el modelo para seleccionar la zona.",
-                            class_name="text-xs text-gray-400 mt-2",
-                        ),
-                        _leyenda(),
-                        # Totales.
-                        rx.el.div(
-                            rx.el.span("Evaluaciones: " + MapaEsteticoState.n_evaluaciones.to_string(), class_name="text-xs text-gray-500 mr-3"),
-                            rx.el.span("Procedimientos: " + MapaEsteticoState.n_procedimientos.to_string(), class_name="text-xs text-gray-500 mr-3"),
-                            rx.el.span("Puntos: " + MapaEsteticoState.n_puntos.to_string(), class_name="text-xs text-gray-500 mr-3"),
-                            rx.el.span("Fotos: " + MapaEsteticoState.n_fotos.to_string(), class_name="text-xs text-gray-500"),
-                            class_name="mt-3",
-                        ),
-                        # Lista de zonas.
-                        rx.el.div(
-                            rx.foreach(MapaEsteticoState.zonas_cat, _zona_btn),
-                            class_name="flex flex-wrap gap-1 mt-4 pt-4 border-t border-gray-100",
-                        ),
-                        class_name="bg-white border border-gray-200 rounded-2xl p-5 lg:col-span-2",
-                    ),
+                    # Columna izquierda: selector de zonas.
+                    rx.el.div(_selector_zonas(), class_name="lg:col-span-2"),
                     # Columna derecha: panel de la zona.
                     _panel_zona(),
-                    class_name="grid grid-cols-1 lg:grid-cols-3 gap-5",
+                    class_name="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start",
                 ),
                 empty_state("user-round-search", "Sin paciente", "Abrí el mapa desde la Historia Clínica de un paciente."),
             ),

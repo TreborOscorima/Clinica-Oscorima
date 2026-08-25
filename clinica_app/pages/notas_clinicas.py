@@ -691,7 +691,7 @@ def notas_clinicas_page() -> rx.Component:
                                 rx.icon("scan-face", size=16),
                                 rx.el.span("Mapa estético", class_name="ml-1.5"),
                                 href="/mapa-estetico?paciente_id=" + NotasClinicasState.paciente_id.to_string(),
-                                title="Abrir mapa facial 3D del paciente",
+                                title="Abrir mapa estético por zona del paciente",
                                 class_name="inline-flex items-center px-4 py-2 text-sky-700 border border-sky-300 bg-sky-50 text-sm font-medium rounded-lg hover:bg-sky-100 cursor-pointer",
                             ),
                         ),

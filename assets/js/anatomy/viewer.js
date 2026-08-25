@@ -1,21 +1,19 @@
 /**
- * AnatomicalViewer — motor de render 3D genérico para TUWAYKILIFE.
+ * AnatomicalViewer — motor de render 3D dental para TUWAYKILIFE (odontograma).
  *
- * E1: puente JS↔Reflex validado. E2: motor genérico dental (dientes procedurales
- * por tipo, dos arcadas). E3: odontograma 3D sobre datos reales. E6: escena
- * FACIAL — rostro procedural con marcadores de zona clicables para el mapa
- * estético (evaluaciones + puntos de aplicación).
+ * E1: puente JS↔Reflex validado. E2: motor dental (dientes procedurales por tipo,
+ * dos arcadas). E3: odontograma 3D sobre datos reales, con GLB realista de las
+ * arcadas y marcadores FDI clicables sobre la superficie.
  *
  * Sin CDN en runtime: Three.js vive vendorizado en ./vendor/. El renderer NUNCA
  * toca la BD: solo emite `anatomy_id` (+ coordenada de click) por el puente y
  * pinta lo que Python le pasa ya calculado (setData). El 2D / los listados siguen
- * siendo la fuente de verdad y el fallback. Geometría procedural (reconocible);
- * E10 la sustituye por GLB realista SIN tocar la lógica clínica.
+ * siendo la fuente de verdad y el fallback.
  */
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
-// Se importa para validar la cadena del loader (se usará al cargar GLB en E10).
+// Carga los GLB realistas de las arcadas (arcada_superior/arcada_inferior).
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 
 // Numeración FDI (espejo de services/odontograma.ARCADA_*). Orden izq→der en pantalla.
@@ -29,32 +27,13 @@ const COLOR_SELECTED = 0x0284c7; // sky-600 (selección)
 const COLOR_HOVER    = 0x7dd3fc; // sky-300
 const COLOR_ROOT     = 0xe7e2d2; // marfil (raíz)
 const COLOR_GUM      = 0xd08a86; // encía (gingiva)
-const COLOR_ZONA     = 0x64748b; // slate-500 (marcador de zona sin actividad)
-const COLOR_SKIN     = 0xf0cfb8; // piel estilizada (rostro)
-const COLOR_LIP      = 0xc47f7a; // labios
-const COLOR_HAIR     = 0x4a3b32; // cejas / vello
-const COLOR_EYE      = 0xf7f6f3; // esclerótica
-const COLOR_IRIS     = 0x5b4636; // iris
+const COLOR_ZONA     = 0x64748b; // slate-500 (marcador dental sin actividad)
 
 const CAMERAS_DENTAL = {
   frontal:  { pos: [0, 0.2, 9],   target: [0, 0, 0] },
   superior: { pos: [0, 8.5, 0.01], target: [0, 0.6, 0] },  // oclusal maxilar
   inferior: { pos: [0, -8.5, 0.01], target: [0, -0.6, 0] }, // oclusal mandíbula
   lateral:  { pos: [8.5, 0.5, 3.5], target: [0, 0, 0] },
-};
-
-const CAMERAS_FACIAL = {
-  frontal:   { pos: [0, 0.2, 7.6],  target: [0, 0.05, 0] },
-  perfil_izq:{ pos: [-6.8, 0.3, 3], target: [0, 0.05, 0] },
-  perfil_der:{ pos: [6.8, 0.3, 3],  target: [0, 0.05, 0] },
-  superior:  { pos: [0, 6.5, 4.5],  target: [0, 0.1, 0] },
-};
-
-const CAMERAS_CORPORAL = {
-  frontal:    { pos: [0, 0.3, 10.5],  target: [0, 0, 0] },
-  posterior:  { pos: [0, 0.3, -10.5], target: [0, 0, 0] },
-  perfil_izq: { pos: [-10.5, 0.3, 0], target: [0, 0, 0] },
-  perfil_der: { pos: [10.5, 0.3, 0],  target: [0, 0, 0] },
 };
 
 // Tipo de pieza a partir del último dígito FDI (1,2 incisivo · 3 canino · 4,5 premolar · 6-8 molar)
@@ -73,42 +52,6 @@ const _DIM = {
   premolar: [0.55, 0.80, 0.52],
   molar:    [0.76, 0.78, 0.72],
 };
-
-// ── Zonas faciales (espejo de services/anatomia._FACIAL). ─────────────────────
-// u: -1..1 (izq→der en pantalla), v: -1..1 (mentón→frente). Bilaterales = 2 pts.
-const FACE_ZONES = [
-  { id: "frente",            pts: [[0, 0.86]] },
-  { id: "entrecejo",         pts: [[0, 0.52]] },
-  { id: "cola_ceja",         pts: [[-0.6, 0.56], [0.6, 0.56]] },
-  { id: "patas_gallo",       pts: [[-0.86, 0.42], [0.86, 0.42]] },
-  { id: "surco_lagrimal",    pts: [[-0.38, 0.28], [0.38, 0.28]] },
-  { id: "dorso_nasal",       pts: [[0, 0.16]] },
-  { id: "pomulo",            pts: [[-0.66, 0.02], [0.66, 0.02]] },
-  { id: "surco_nasogeniano", pts: [[-0.4, -0.24], [0.4, -0.24]] },
-  { id: "codigo_barras",     pts: [[0, -0.34]] },
-  { id: "labios",            pts: [[0, -0.5]] },
-  { id: "comisuras",         pts: [[-0.32, -0.5], [0.32, -0.5]] },
-  { id: "menton",            pts: [[0, -0.86]] },
-  { id: "linea_mandibular",  pts: [[-0.74, -0.62], [0.74, -0.62]] },
-  { id: "cuello",            pts: [[0, -1.4]] },  // manual: sobre el cuello
-];
-
-// ── Zonas corporales (espejo de services/anatomia._CORPORAL). ─────────────────
-// u: -1..1 (izq→der en pantalla), v: 0..1 (pies→cabeza como fracción de altura).
-// side: "front" (raycast desde +Z) | "back" (raycast desde -Z). Bilaterales = 2 pts.
-// arm:true → el ancho de referencia es la silueta externa (brazo), no el torso.
-const BODY_ZONES = [
-  // Frente
-  { id: "brazos",      side: "front", arm: true, pts: [[-0.9, 0.66], [0.9, 0.66]] },
-  { id: "abdomen",     side: "front", pts: [[0, 0.58]] },
-  { id: "flancos",     side: "front", pts: [[-0.70, 0.58], [0.70, 0.58]] },
-  { id: "muslos",      side: "front", pts: [[-0.55, 0.35], [0.55, 0.35]] },
-  { id: "rodillas",    side: "front", pts: [[-0.60, 0.25], [0.60, 0.25]] },
-  // Espalda
-  { id: "espalda_alta",side: "back",  pts: [[0, 0.74]] },
-  { id: "espalda_baja",side: "back",  pts: [[0, 0.58]] },
-  { id: "gluteos",     side: "back",  pts: [[-0.34, 0.49], [0.34, 0.49]] },
-];
 
 const AnatomyViewer = (() => {
   let renderer, scene, camera, controls, raycaster, pointer;
@@ -346,138 +289,7 @@ const AnatomyViewer = (() => {
     loadOne(spec.superior, "superior");
   }
 
-  // ── Construcción facial ─────────────────────────────────────────────────────
-  // Semiejes del elipsoide del rostro (mesh escalado), centro en cy.
-  const _FA = 1.35, _FB = 1.7, _FC = 1.4, _FCY = 0.2;
-
-  function _facePos(u, v) {
-    const x = u * _FA * 0.72;
-    const y = _FCY + v * _FB * 0.72;
-    const rad = 1 - (x / _FA) ** 2 - ((y - _FCY) / _FB) ** 2;
-    let z;
-    if (rad > 0.05) z = _FC * Math.sqrt(rad) * 1.02 + 0.05;
-    else z = 0.62;  // fuera del rostro (cuello) → frente del cilindro
-    return [x, y, z];
-  }
-
-  function _add(mesh) { scene.add(mesh); decor.push(mesh); }
-
-  function _faceDecor() {
-    const skin = new THREE.MeshStandardMaterial({ color: COLOR_SKIN, roughness: 0.85, metalness: 0.0 });
-    const hairMat = new THREE.MeshStandardMaterial({ color: COLOR_HAIR, roughness: 0.8 });
-
-    // Cabeza: elipsoide con mentón afinado (escala en Y de los vértices bajos).
-    const headGeo = new THREE.SphereGeometry(1, 64, 64);
-    const pos = headGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const vy = pos.getY(i);
-      if (vy < 0) {                       // afina la mandíbula hacia el mentón
-        const k = 1 + vy * 0.28;
-        pos.setX(i, pos.getX(i) * k);
-        pos.setZ(i, pos.getZ(i) * (1 + vy * 0.12));
-      }
-    }
-    headGeo.computeVertexNormals();
-    const head = new THREE.Mesh(headGeo, skin);
-    head.scale.set(_FA, _FB, _FC);
-    head.position.y = _FCY;
-    _add(head);
-
-    // Nariz (pirámide: base = aletas, ápice hacia abajo).
-    const [nx, ny, nz] = _facePos(0, 0.04);
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.62, 4), skin);
-    nose.rotation.x = Math.PI;
-    nose.rotation.y = Math.PI / 4;
-    nose.scale.set(1, 1, 0.82);
-    nose.position.set(0, ny - 0.02, nz + 0.14);
-    _add(nose);
-
-    // Ojos (esclerótica + iris) y cejas, bilaterales.
-    const scleraMat = new THREE.MeshStandardMaterial({ color: COLOR_EYE, roughness: 0.35 });
-    const irisMat = new THREE.MeshStandardMaterial({ color: COLOR_IRIS, roughness: 0.3 });
-    for (const sx of [-1, 1]) {
-      const [ex, ey, ez] = _facePos(sx * 0.34, 0.3);
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), scleraMat);
-      eye.scale.set(1.35, 0.6, 0.55);
-      eye.position.set(ex, ey, ez - 0.03);
-      _add(eye);
-      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 12), irisMat);
-      iris.position.set(ex, ey, ez + 0.04);
-      _add(iris);
-      const [bx, by, bz] = _facePos(sx * 0.34, 0.44);
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.07, 0.14), hairMat);
-      brow.position.set(bx, by, bz);
-      brow.rotation.z = -sx * 0.12;
-      _add(brow);
-    }
-
-    // Labios (elipsoide aplanado).
-    const [mx, my, mz] = _facePos(0, -0.44);
-    const lips = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 12),
-      new THREE.MeshStandardMaterial({ color: COLOR_LIP, roughness: 0.55 }));
-    lips.scale.set(1.35, 0.42, 0.5);
-    lips.position.set(mx, my, mz - 0.02);
-    _add(lips);
-
-    // Orejas.
-    for (const sx of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 16), skin);
-      ear.scale.set(0.32, 0.72, 0.6);
-      ear.position.set(sx * _FA * 0.99, _FCY + 0.05, -0.05);
-      _add(ear);
-    }
-
-    // Cuello y hombros.
-    const neck = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.58, 0.72, 1.2, 24),
-      new THREE.MeshStandardMaterial({ color: 0xe4bda6, roughness: 0.9 }),
-    );
-    neck.position.set(0, _FCY - _FB * 0.86, 0.06);
-    _add(neck);
-    const shoulders = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.9, 2.2, 0.7, 28),
-      new THREE.MeshStandardMaterial({ color: 0xdfe3ea, roughness: 0.95 }),
-    );
-    shoulders.position.set(0, _FCY - _FB * 1.5, 0.0);
-    _add(shoulders);
-  }
-
-  function _zoneMarker(id, u, v) {
-    const [x, y, z] = _facePos(u, v);
-    const mat = new THREE.MeshStandardMaterial({
-      color: defaultColor, roughness: 0.35, metalness: 0.15,
-      emissive: 0x111111,
-    });
-    // Disco aplanado que se apoya sobre la piel (lee como punto, no como bola).
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 14), mat);
-    m.scale.set(1, 1, 0.55);
-    m.position.set(x, y, z + 0.03);
-    const g = new THREE.Group();
-    g.add(m);
-    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m, isMarker: true };
-    return g;
-  }
-
-  function _buildFacialProcedural() {
-    _faceDecor();
-    for (const z of FACE_ZONES) {
-      for (const [u, v] of z.pts) {
-        const g = _zoneMarker(z.id, u, v);
-        nodes.push(g);
-        scene.add(g);
-      }
-    }
-    _repaint();
-  }
-
-  function _buildFacial() {
-    if (modelUrl) _loadFacialModel();   // GLB realista (E10) con marcadores sobre la superficie
-    else _buildFacialProcedural();      // fallback procedural
-  }
-
-  // ── Pipeline GLB (modelo realista + marcadores clicables sobre su superficie) ─
-  // El modelo es DECOR (no interactivo). Los marcadores de zona se colocan sobre
-  // la piel real por raycast, así se alinean a CUALQUIER modelo sin recompilar.
+  // Escala un GLB a la altura objetivo y lo centra (usado por el ensamblado dental).
   function _fitModel(obj, targetHeight, centerY) {
     let box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3());
@@ -487,77 +299,6 @@ const AnatomyViewer = (() => {
     obj.position.sub(c);
     obj.position.y += centerY;
     return new THREE.Box3().setFromObject(obj);
-  }
-
-  function _zoneMarkerAt(id, pos, radius) {
-    const mat = new THREE.MeshStandardMaterial({
-      color: defaultColor, roughness: 0.3, metalness: 0.15, emissive: 0x151515,
-    });
-    const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 14), mat);
-    m.scale.set(1, 1, 0.6);
-    m.position.copy(pos);
-    const g = new THREE.Group();
-    g.add(m);
-    g.userData = { anatomy_type: "zone", anatomy_id: id, paint: m, isMarker: true };
-    return g;
-  }
-
-  // Detecta la banda de la CARA por landmarks (independiente de la proporción del
-  // busto): perfil de ancho X por altura → el cuello es el mínimo del 60% inferior;
-  // de ahí se derivan frente (30% bajo la coronilla) y mentón (10% sobre el cuello).
-  // Así las zonas caen sobre los rasgos aunque el modelo traiga coronilla y hombros.
-  function _faceBand(root) {
-    root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root);
-    const y0 = box.min.y, y1 = box.max.y, H = (y1 - y0) || 1, NB = 32;
-    const xmn = new Array(NB).fill(1e9), xmx = new Array(NB).fill(-1e9);
-    const v = new THREE.Vector3();
-    root.traverse((o) => {
-      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
-      const p = o.geometry.attributes.position;
-      for (let i = 0; i < p.count; i++) {
-        v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrixWorld);
-        let b = Math.floor((v.y - y0) / H * NB); if (b < 0) b = 0; if (b >= NB) b = NB - 1;
-        if (v.x < xmn[b]) xmn[b] = v.x; if (v.x > xmx[b]) xmx[b] = v.x;
-      }
-    });
-    const w = xmn.map((m, i) => (xmx[i] > m ? xmx[i] - m : 0));
-    let neckB = 0, neckW = 1e9; const lim = Math.floor(NB * 0.6);
-    for (let b = 0; b < lim; b++) { if (w[b] > 0 && w[b] < neckW) { neckW = w[b]; neckB = b; } }
-    const neckY = y0 + (neckB + 0.5) / NB * H, range = y1 - neckY;
-    const yForehead = y1 - 0.30 * range, yChin = neckY + 0.10 * range;
-    let fw = 0;
-    for (let b = 0; b < NB; b++) {
-      const by = y0 + (b + 0.5) / NB * H;
-      if (by >= yChin && by <= yForehead && w[b] > fw) fw = w[b];
-    }
-    return { box, yForehead, yChin, faceHalfW: (fw / 2) || box.getSize(new THREE.Vector3()).x / 2 };
-  }
-
-  function _placeFaceMarkersOnModel() {
-    const { box, yForehead, yChin, faceHalfW } = _faceBand(modelRoot);
-    const cx = (box.min.x + box.max.x) / 2;
-    const faceCenter = (yForehead + yChin) / 2, faceHalf = (yForehead - yChin) / 2;
-    const frontZ = box.max.z + Math.max(box.getSize(new THREE.Vector3()).z, 1) * 1.5;
-    const radius = faceHalfW * 0.13;
-    const rc = new THREE.Raycaster();
-    const dir = new THREE.Vector3(0, 0, -1);
-    // u∈[-1,1] izq→der (0.86 = extremo), v∈[-1,1] mentón→frente (±0.86 = borde de cara).
-    for (const z of FACE_ZONES) {
-      for (const [u, v] of z.pts) {
-        const ox = cx + (u / 0.86) * faceHalfW * 0.85;
-        const oy = faceCenter + (v / 0.86) * faceHalf;
-        rc.set(new THREE.Vector3(ox, oy, frontZ), dir);
-        const hit = rc.intersectObject(modelRoot, true)[0];
-        const pos = hit
-          ? hit.point.clone().add(new THREE.Vector3(0, 0, radius * 0.9))
-          : new THREE.Vector3(ox, oy, box.max.z);
-        const g = _zoneMarkerAt(z.id, pos, radius);
-        nodes.push(g);
-        scene.add(g);
-      }
-    }
-    _repaint();
   }
 
   // Marcador dental clicable (esfera pequeña que se apoya sobre la corona).
@@ -649,119 +390,6 @@ const AnatomyViewer = (() => {
     _repaint();
   }
 
-  function _loadFacialModel() {
-    if (!gltfLoader) gltfLoader = new GLTFLoader();
-    gltfLoader.load(
-      modelUrl,
-      (gltf) => {
-        if (sceneType !== "facial" || !scene) return;   // escena cambió mientras cargaba
-        modelRoot = gltf.scene;
-        scene.add(modelRoot);
-        _fitModel(modelRoot, 3.4, 0.15);
-        _placeFaceMarkersOnModel();
-      },
-      undefined,
-      () => { _buildFacialProcedural(); },   // fallback si el GLB no carga
-    );
-  }
-
-  // ── Pipeline GLB corporal (cuerpo realista + marcadores frente/espalda) ───────
-  // Perfil de ancho por altura vía percentiles de |x−cx|: p62 = borde del torso
-  // (excluye manos/brazos en A-pose, que en cadera/muslo inflarían la silueta);
-  // p95 = extremo (brazos). Así u∈[-1,1] mapea al ancho real sin depender de la
-  // proporción del modelo ni de que los brazos estén pegados o separados.
-  function _pct(sorted, p) {
-    if (!sorted.length) return 0;
-    return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(p * (sorted.length - 1))))];
-  }
-
-  function _bodyProfile(root) {
-    root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root);
-    const y0 = box.min.y, y1 = box.max.y, H = (y1 - y0) || 1, NB = 48;
-    const cx = (box.min.x + box.max.x) / 2;
-    const bins = Array.from({ length: NB }, () => []);
-    const v = new THREE.Vector3();
-    root.traverse((o) => {
-      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
-      const p = o.geometry.attributes.position;
-      for (let i = 0; i < p.count; i++) {
-        v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrixWorld);
-        let b = Math.floor((v.y - y0) / H * NB); if (b < 0) b = 0; if (b >= NB) b = NB - 1;
-        bins[b].push(Math.abs(v.x - cx));
-      }
-    });
-    const core = new Array(NB), arm = new Array(NB);
-    for (let b = 0; b < NB; b++) {
-      const s = bins[b].sort((a, c) => a - c);
-      core[b] = _pct(s, 0.62); arm[b] = _pct(s, 0.95);
-    }
-    return { box, y0, H, NB, cx, core, arm };
-  }
-
-  // Coloca los marcadores corporales por raycast sobre la piel: front → rayo desde
-  // +Z hacia -Z; back → rayo desde -Z hacia +Z. X = cx + u·(ancho de referencia);
-  // Y = fracción v; Z exacto lo da el hit. Si el rayo falla (p.ej. u cae en el
-  // hueco brazo-torso) reintenta acercándose al eje hasta apoyar sobre la piel.
-  function _placeBodyMarkersOnModel() {
-    const { box, y0, H, NB, cx, core, arm } = _bodyProfile(modelRoot);
-    const size = box.getSize(new THREE.Vector3());
-    const radius = size.y * 0.016;
-    const zFront = box.max.z + Math.max(size.z, 1) * 2.0;
-    const zBack = box.min.z - Math.max(size.z, 1) * 2.0;
-    const rc = new THREE.Raycaster();
-    for (const z of BODY_ZONES) {
-      const back = z.side === "back";
-      const dir = new THREE.Vector3(0, 0, back ? 1 : -1);
-      for (const [u, v] of z.pts) {
-        const oy = y0 + v * H;
-        let b = Math.floor((oy - y0) / H * NB); if (b < 0) b = 0; if (b >= NB) b = NB - 1;
-        const half = (z.arm ? arm[b] : core[b]) || size.x / 2;
-        const oz = back ? zBack : zFront;
-        let hit = null;
-        for (const k of [1, 0.7, 0.45, 0.22, 0]) {
-          rc.set(new THREE.Vector3(cx + u * half * k, oy, oz), dir);
-          const h = rc.intersectObject(modelRoot, true)[0];
-          if (h) { hit = h; break; }
-        }
-        const off = radius * 0.9 * (back ? -1 : 1);
-        const pos = hit
-          ? hit.point.clone().add(new THREE.Vector3(0, 0, off))
-          : new THREE.Vector3(cx + u * half, oy, back ? box.min.z : box.max.z);
-        const g = _zoneMarkerAt(z.id, pos, radius);
-        if (back) g.children[0].scale.set(1, 1, 0.6);   // aplana hacia -Z
-        nodes.push(g);
-        scene.add(g);
-      }
-    }
-    _repaint();
-  }
-
-  function _loadBodyModel() {
-    if (!gltfLoader) gltfLoader = new GLTFLoader();
-    gltfLoader.load(
-      modelUrl,
-      (gltf) => {
-        if (sceneType !== "corporal" || !scene) return;   // escena cambió mientras cargaba
-        modelRoot = gltf.scene;
-        // Piel neutra de estudio (clay) uniforme, como los modelos de anatomía.
-        const clay = new THREE.MeshStandardMaterial({
-          color: 0xd8dbe0, roughness: 0.72, metalness: 0.0, envMapIntensity: 0.6,
-        });
-        modelRoot.traverse((o) => { if (o.isMesh) o.material = clay; });
-        scene.add(modelRoot);
-        _fitModel(modelRoot, 5.6, 0);
-        _placeBodyMarkersOnModel();
-      },
-      undefined,
-      () => { /* sin modelo: cuerpo no disponible, el 2D es el fallback */ },
-    );
-  }
-
-  function _buildCorporal() {
-    if (modelUrl) _loadBodyModel();
-  }
-
   // ── Pintado / selección (común) ─────────────────────────────────────────────
   function _nodeBaseHex(g) {
     const id = g.userData.anatomy_id;
@@ -798,9 +426,9 @@ const AnatomyViewer = (() => {
     return o;
   }
 
-  // Objetos "superficie" contra los que se hace click: el modelo GLB real
-  // (rostro/cuerpo/dientes) y los nodos que SON superficie (dientes
-  // procedurales). Los marcadores (isMarker) no se clickean directo: son anclas.
+  // Objetos "superficie" contra los que se hace click: el modelo GLB real (las
+  // arcadas) y los nodos que SON superficie (dientes procedurales). Los
+  // marcadores (isMarker) no se clickean directo: son anclas.
   function _surfaceTargets() {
     const t = [];
     if (modelRoot) t.push(modelRoot);
@@ -813,9 +441,8 @@ const AnatomyViewer = (() => {
   function _anchorWorld(g) { return g.userData.paint.getWorldPosition(_wp); }
 
   // Click sobre la SUPERFICIE (no sobre bolitas): raycast al modelo y se resuelve
-  // a la zona/diente cuyo ancla queda más cerca del punto tocado. Así el modelo
-  // se ve limpio (sin marcadores flotantes) y al tocar una parte se selecciona su
-  // zona igual que antes.
+  // a la pieza cuyo ancla queda más cerca del punto tocado. Así el modelo se ve
+  // limpio (sin marcadores flotantes) y al tocar un diente se selecciona su pieza.
   function _pick(ev) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
@@ -915,10 +542,8 @@ const AnatomyViewer = (() => {
     dispose();
     sceneType = nextType;
     modelUrl = nextModel;
-    cameras = sceneType === "facial" ? CAMERAS_FACIAL
-            : sceneType === "corporal" ? CAMERAS_CORPORAL : CAMERAS_DENTAL;
-    defaultColor = (sceneType === "facial" || sceneType === "corporal")
-            ? COLOR_ZONA : COLOR_DEFAULT;
+    cameras = CAMERAS_DENTAL;
+    defaultColor = COLOR_DEFAULT;
 
     if (!_webglOK()) {
       container.innerHTML =
@@ -960,9 +585,7 @@ const AnatomyViewer = (() => {
     fill.position.set(-4, -3, 4); scene.add(fill);
 
     nodes = []; decor = []; needsRender = true;
-    if (sceneType === "facial") _buildFacial();
-    else if (sceneType === "corporal") _buildCorporal();
-    else _buildDental();
+    _buildDental();
 
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
