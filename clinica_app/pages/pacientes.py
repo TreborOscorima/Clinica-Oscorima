@@ -27,9 +27,32 @@ def _panel_detalle() -> rx.Component:
                             PacientesState.paciente_sel["nombre"],
                             class_name="text-lg font-semibold text-gray-900",
                         ),
-                        rx.el.p(
-                            PacientesState.paciente_sel["documento"],
-                            class_name="text-sm text-gray-500",
+                        rx.el.div(
+                            rx.el.p(
+                                rx.cond(
+                                    PacientesState.paciente_sel["tipo_documento"] != "",
+                                    rx.el.span(
+                                        _tipo_doc_label(PacientesState.paciente_sel["tipo_documento"]),
+                                        class_name="font-medium text-gray-600 mr-1",
+                                    ),
+                                    rx.fragment(),
+                                ),
+                                rx.cond(
+                                    PacientesState.paciente_sel["documento"] != "",
+                                    PacientesState.paciente_sel["documento"],
+                                    "—",
+                                ),
+                                class_name="text-sm text-gray-500",
+                            ),
+                            rx.cond(
+                                PacientesState.paciente_sel["sexo"] != "",
+                                rx.el.span(
+                                    _sexo_label(PacientesState.paciente_sel["sexo"]),
+                                    class_name="inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium bg-gray-100 text-gray-600 capitalize",
+                                ),
+                                rx.fragment(),
+                            ),
+                            class_name="flex flex-col gap-0.5",
                         ),
                     ),
                     rx.el.button(
@@ -222,7 +245,20 @@ def _modal_paciente() -> rx.Component:
                 # Campos del formulario
                 rx.el.div(
                     _campo("Nombre *",          "text",  PacientesState.form_nombre,    PacientesState.set_form_nombre),
-                    _campo("Documento / DNI",   "text",  PacientesState.form_documento, PacientesState.set_form_documento),
+                    rx.el.div(
+                        _campo_select(
+                            "Tipo doc.", PacientesState.form_tipo_documento, PacientesState.set_form_tipo_documento,
+                            [("dni", "DNI"), ("ce", "Carné ext."), ("pasaporte", "Pasaporte"),
+                             ("ruc", "RUC"), ("otro", "Otro")],
+                        ),
+                        _campo("Documento",     "text",  PacientesState.form_documento, PacientesState.set_form_documento),
+                        class_name="grid grid-cols-[7rem_1fr] gap-3",
+                    ),
+                    _campo_select(
+                        "Sexo", PacientesState.form_sexo, PacientesState.set_form_sexo,
+                        [("", "Sin especificar"), ("femenino", "Femenino"),
+                         ("masculino", "Masculino"), ("otro", "Otro")],
+                    ),
                     _campo("Email",             "email", PacientesState.form_email,     PacientesState.set_form_email),
                     _campo("Teléfono",          "text",  PacientesState.form_telefono,  PacientesState.set_form_telefono),
                     _campo("Dirección",         "text",  PacientesState.form_direccion, PacientesState.set_form_direccion),
@@ -291,6 +327,40 @@ def _campo(label: str, tipo: str, value, on_change) -> rx.Component:
             default_value=value,
             on_change=on_change,
             class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500",
+        ),
+    )
+
+
+def _tipo_doc_label(value) -> rx.Component:
+    return rx.match(
+        value,
+        ("dni", "DNI"),
+        ("ce", "Carné ext."),
+        ("pasaporte", "Pasaporte"),
+        ("ruc", "RUC"),
+        ("otro", "Doc."),
+        "Doc.",
+    )
+
+
+def _sexo_label(value) -> rx.Component:
+    return rx.match(
+        value,
+        ("femenino", "Femenino"),
+        ("masculino", "Masculino"),
+        ("otro", "Otro"),
+        "",
+    )
+
+
+def _campo_select(label: str, value, on_change, opciones: list) -> rx.Component:
+    return rx.el.div(
+        rx.el.label(label, class_name="block text-sm font-medium text-gray-700 mb-1"),
+        rx.el.select(
+            *[rx.el.option(lbl, value=val) for val, lbl in opciones],
+            default_value=value,
+            on_change=on_change,
+            class_name="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500",
         ),
     )
 

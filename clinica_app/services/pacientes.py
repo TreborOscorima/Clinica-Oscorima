@@ -15,23 +15,35 @@ from clinica_app.services.exceptions import (
     ValidationError,
 )
 
-# Paridad con el CHECK constraint de BD `chk_documento_digits` (^[0-9]+$).
-_DOCUMENTO_RE = re.compile(r"^[0-9]+$")
+# Tipos de documento numéricos en el contexto peruano: DNI, carné de extranjería
+# y RUC son todos dígitos; pasaporte y "otro" pueden llevar letras. El default
+# (tipo vacío) se trata como numérico por compatibilidad con los datos previos.
+_TIPOS_NUMERICOS = frozenset({"", "dni", "ce", "ruc"})
+_DOCUMENTO_RE = re.compile(r"^[0-9]+$")          # tipos numéricos
+_DOCUMENTO_ALNUM_RE = re.compile(r"^[A-Za-z0-9]+$")  # pasaporte / otro
 
 
-def _validar_documento(documento: Any) -> None:
-    """El documento, si viene, debe contener solo dígitos (igual que el constraint)."""
+def _validar_documento(documento: Any, tipo: Any = None) -> None:
+    """Valida el documento según el tipo: dígitos para DNI/CE/RUC, alfanumérico
+    para pasaporte/otro. La BD acepta alfanumérico (CHECK `chk_documento_alnum`);
+    la regla fina por tipo vive acá."""
     if documento in (None, ""):
         return
-    if not _DOCUMENTO_RE.match(str(documento)):
-        raise ValidationError("El documento debe contener solo números")
+    doc = str(documento)
+    if (tipo or "").lower() in _TIPOS_NUMERICOS:
+        if not _DOCUMENTO_RE.match(doc):
+            raise ValidationError("El documento debe contener solo números")
+    elif not _DOCUMENTO_ALNUM_RE.match(doc):
+        raise ValidationError("El documento debe ser alfanumérico, sin espacios ni símbolos")
 
 
 def _dump(p: Paciente) -> dict[str, Any]:
     return {
         "id":                  p.id,
         "nombre":              p.nombre,
+        "tipo_documento":      p.tipo_documento or "",
         "documento":           p.documento,
+        "sexo":                p.sexo or "",
         "email":               p.email,
         "telefono":            p.telefono,
         "direccion":           p.direccion,
@@ -118,7 +130,7 @@ async def crear(session: AsyncSession, clinica_id: int, sede_id: int = 0, payloa
         payload["sede_id"] = sede_id
     _parse_fecha(payload)
 
-    _validar_documento(payload.get("documento"))
+    _validar_documento(payload.get("documento"), payload.get("tipo_documento"))
     if payload.get("documento"):
         await _assert_documento_libre(session, clinica_id, payload["documento"])
     if payload.get("email"):
@@ -150,7 +162,7 @@ async def actualizar(
 
     nuevo_doc = payload.get("documento")
     if nuevo_doc and nuevo_doc != p.documento:
-        _validar_documento(nuevo_doc)
+        _validar_documento(nuevo_doc, payload.get("tipo_documento", p.tipo_documento))
         await _assert_documento_libre(session, clinica_id, nuevo_doc, exclude_id=p.id)
 
     nuevo_mail = payload.get("email")

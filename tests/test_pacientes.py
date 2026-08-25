@@ -100,6 +100,58 @@ async def test_actualizar_ficha_medica(session, clinica):
     assert actualizado["grupo_sanguineo"] == "A-"
 
 
+async def test_crear_con_sexo_y_tipo_documento(session, clinica):
+    # Los nuevos campos demográficos viajan de vuelta en el dump.
+    p = await svc.crear(session, clinica.id, payload={
+        "nombre": "Demo Sexo", "documento": "88000001",
+        "tipo_documento": "dni", "sexo": "femenino",
+    })
+    assert p["tipo_documento"] == "dni"
+    assert p["sexo"] == "femenino"
+
+
+async def test_dump_campos_demograficos_por_defecto_vacios(session, clinica):
+    p = await svc.crear(session, clinica.id, payload={"nombre": "Sin Demo"})
+    assert p["tipo_documento"] == ""
+    assert p["sexo"] == ""
+
+
+async def test_pasaporte_admite_letras(session, clinica):
+    # Pasaporte es alfanumérico: se acepta un documento con letras.
+    p = await svc.crear(session, clinica.id, payload={
+        "nombre": "Extranjero", "documento": "AB1234567", "tipo_documento": "pasaporte",
+    })
+    assert p["documento"] == "AB1234567"
+
+
+async def test_dni_rechaza_letras(session, clinica):
+    # DNI es numérico: un documento con letras debe fallar la validación.
+    with pytest.raises(ValidationError):
+        await svc.crear(session, clinica.id, payload={
+            "nombre": "DNI Malo", "documento": "AB12", "tipo_documento": "dni",
+        })
+
+
+async def test_pasaporte_rechaza_simbolos(session, clinica):
+    # Aun alfanumérico, no se admiten espacios ni símbolos.
+    with pytest.raises(ValidationError):
+        await svc.crear(session, clinica.id, payload={
+            "nombre": "Pasaporte Malo", "documento": "AB-12/34", "tipo_documento": "pasaporte",
+        })
+
+
+async def test_cambiar_a_pasaporte_permite_documento_alfanumerico(session, clinica):
+    # Un paciente con DNI numérico puede pasar a pasaporte alfanumérico en la edición.
+    p = await svc.crear(session, clinica.id, payload={
+        "nombre": "Muta Doc", "documento": "88000002", "tipo_documento": "dni",
+    })
+    upd = await svc.actualizar(session, clinica.id, p["id"], {
+        "documento": "XY9988", "tipo_documento": "pasaporte",
+    })
+    assert upd["documento"] == "XY9988"
+    assert upd["tipo_documento"] == "pasaporte"
+
+
 async def test_eliminar_paciente(session, clinica):
     p = await svc.crear(session, clinica.id, payload={"nombre": "A borrar", "documento": "44000001"})
     await svc.eliminar(session, clinica.id, p["id"])

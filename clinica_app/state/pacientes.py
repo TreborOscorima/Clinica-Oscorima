@@ -29,7 +29,9 @@ class PacientesState(BaseState):
     modal_abierto:   bool = False
     editando_id:     int  = 0
     form_nombre:     str  = ""
+    form_tipo_documento: str = "dni"
     form_documento:  str  = ""
+    form_sexo:       str  = ""
     form_email:      str  = ""
     form_telefono:   str  = ""
     form_direccion:  str  = ""
@@ -47,8 +49,8 @@ class PacientesState(BaseState):
     # ── Panel de detalle ───────────────────────────────────────────────────────
     panel_detalle: bool = False
     paciente_sel: dict = {
-        "id": 0, "nombre": "", "documento": "", "email": "",
-        "telefono": "", "direccion": "", "contacto_emergencia": "", "edad": 0,
+        "id": 0, "nombre": "", "tipo_documento": "", "documento": "", "sexo": "",
+        "email": "", "telefono": "", "direccion": "", "contacto_emergencia": "", "edad": 0,
         "grupo_sanguineo": "", "alergias": "", "antecedentes": "",
         "medicacion": "", "habitos": "",
     }
@@ -99,7 +101,9 @@ class PacientesState(BaseState):
     # ── Setters de formulario ──────────────────────────────────────────────────
 
     def set_form_nombre(self, v: str):     self.form_nombre = v
+    def set_form_tipo_documento(self, v: str): self.form_tipo_documento = v
     def set_form_documento(self, v: str):  self.form_documento = v
+    def set_form_sexo(self, v: str):       self.form_sexo = v
     def set_form_email(self, v: str):      self.form_email = v
     def set_form_telefono(self, v: str):   self.form_telefono = v
     def set_form_direccion(self, v: str):  self.form_direccion = v
@@ -136,7 +140,9 @@ class PacientesState(BaseState):
         self._limpiar_form()
         self.editando_id     = paciente.get("id") or 0
         self.form_nombre     = paciente.get("nombre") or ""
+        self.form_tipo_documento = paciente.get("tipo_documento") or "dni"
         self.form_documento  = paciente.get("documento") or ""
+        self.form_sexo       = paciente.get("sexo") or ""
         self.form_email      = paciente.get("email") or ""
         self.form_telefono   = paciente.get("telefono") or ""
         self.form_direccion  = paciente.get("direccion") or ""
@@ -154,7 +160,9 @@ class PacientesState(BaseState):
 
     def _limpiar_form(self):
         self.form_nombre     = ""
+        self.form_tipo_documento = "dni"
         self.form_documento  = ""
+        self.form_sexo       = ""
         self.form_email      = ""
         self.form_telefono   = ""
         self.form_direccion  = ""
@@ -179,7 +187,9 @@ class PacientesState(BaseState):
 
         payload: dict[str, Any] = {
             "nombre":              self.form_nombre.strip(),
+            "tipo_documento":      self.form_tipo_documento.strip() or None,
             "documento":           self.form_documento.strip() or None,
+            "sexo":                self.form_sexo.strip() or None,
             "email":               self.form_email.strip() or None,
             "telefono":            self.form_telefono.strip() or None,
             "direccion":           self.form_direccion.strip() or None,

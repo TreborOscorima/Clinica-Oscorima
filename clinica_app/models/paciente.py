@@ -17,7 +17,13 @@ class Paciente(TenantSQLModel, table=True):
 
     sede_id: int | None = Field(default=None, foreign_key="sedes.id", nullable=True, index=True)
     nombre: str = Field(max_length=180, nullable=False, index=True)
+    # Tipo de documento: dni | ce (carné de extranjería) | pasaporte | ruc | otro.
+    # Los tres primeros del contexto peruano son numéricos; pasaporte/otro pueden
+    # ser alfanuméricos (ver services/pacientes._validar_documento).
+    tipo_documento: str | None = Field(default=None, max_length=16, nullable=True)
     documento: str | None = Field(default=None, max_length=40, nullable=True, index=True)
+    # Sexo: femenino | masculino | otro | "" (no especifica). Opcional.
+    sexo: str | None = Field(default=None, max_length=16, nullable=True)
     direccion: str | None = Field(default=None, max_length=200, nullable=True)
     email: str | None = Field(default=None, max_length=120, nullable=True, index=True)
     telefono: str | None = Field(default=None, max_length=60, nullable=True)
